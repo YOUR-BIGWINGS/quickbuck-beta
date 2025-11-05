@@ -9,10 +9,12 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "~/components/ui/sidebar";
+import { Badge } from "~/components/ui/badge";
 
 export const NavMain = memo(
   ({
     groups,
+    unreadCount,
   }: {
     groups: {
       title: string;
@@ -22,6 +24,7 @@ export const NavMain = memo(
         icon?: React.ElementType;
       }[];
     }[];
+    unreadCount?: number;
   }) => {
     const location = useLocation();
 
@@ -54,6 +57,11 @@ export const NavMain = memo(
                       <Link to={item.url} prefetch="intent">
                         {item.icon && <item.icon />}
                         <span>{item.title}</span>
+                        {item.url === "/messages" && unreadCount && unreadCount > 0 && (
+                          <Badge variant="default" className="ml-auto">
+                            {unreadCount}
+                          </Badge>
+                        )}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

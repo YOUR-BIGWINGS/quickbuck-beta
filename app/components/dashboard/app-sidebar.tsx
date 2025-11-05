@@ -14,6 +14,7 @@ import {
   Dice5,
   Bolt,
   Shield,
+  MessageSquare,
 } from "lucide-react";
 import { Link } from "react-router";
 import { NavMain } from "./nav-main";
@@ -48,6 +49,11 @@ const sidebarGroups = [
         title: "Leaderboard",
         url: "/leaderboard",
         icon: Trophy,
+      },
+      {
+        title: "Messages",
+        url: "/messages",
+        icon: MessageSquare,
       },
     ],
   },
@@ -142,6 +148,8 @@ export function AppSidebar({
 }) {
   // @ts-ignore - moderation API will be available after Convex regenerates types
   const moderationAccess = useQuery(api.moderation?.checkModerationAccess);
+  // @ts-ignore - messages API will be available after Convex regenerates types
+  const unreadCount = useQuery(api.messages?.getUnreadCount);
 
   // Add moderation panel link if user is mod or admin
   const groups = moderationAccess?.hasAccess
@@ -194,7 +202,7 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain groups={groups} />
+        <NavMain groups={groups} unreadCount={unreadCount} />
       </SidebarContent>
       <SidebarFooter>
         <div className="flex items-center justify-between gap-2 px-2">

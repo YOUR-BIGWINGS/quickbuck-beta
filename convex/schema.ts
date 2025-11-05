@@ -545,8 +545,25 @@ export default defineSchema({
     message: v.string(),
     isRead: v.boolean(),
     sentAt: v.number(),
+    isMod: v.optional(v.boolean()), // True when sent from mod panel, false for regular messages
   })
     .index("by_recipientPlayerId", ["recipientPlayerId"])
     .index("by_senderPlayerId", ["senderPlayerId"])
     .index("by_recipient_read", ["recipientPlayerId", "isRead"]),
+
+  // Player-to-player messages (separate from moderator messages)
+  messages: defineTable({
+    senderId: v.id("players"),
+    recipientId: v.id("players"),
+    senderName: v.string(),
+    subject: v.optional(v.string()),
+    content: v.string(),
+    isRead: v.boolean(),
+    sentAt: v.number(),
+    isMod: v.boolean(), // True when sent from mod panel
+  })
+    .index("by_recipientId", ["recipientId"])
+    .index("by_senderId", ["senderId"])
+    .index("by_recipient_read", ["recipientId", "isRead"])
+    .index("by_sentAt", ["sentAt"]),
 });

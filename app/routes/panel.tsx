@@ -58,9 +58,9 @@ export default function Panel() {
     api.moderation?.permanentlyDeleteBannedPlayer
   );
 
-  // Mod messaging
+  // Mod messaging - now uses messages API with isMod flag
   // @ts-ignore
-  const sendModeratorMessage = useMutation(api.moderation?.sendModeratorMessage);
+  const sendMessage = useMutation(api.messages?.sendMessage);
 
   // Alert mutations and queries
   // @ts-ignore
@@ -125,8 +125,8 @@ export default function Panel() {
   // Search for users query (after state declaration)
   // @ts-ignore
   const searchResults = useQuery(
-    api.moderation?.searchPlayersByName,
-    messageSearchQuery.length > 0 ? { searchQuery: messageSearchQuery } : "skip"
+    api.messages?.searchPlayers,
+    messageSearchQuery.length > 1 ? { searchQuery: messageSearchQuery } : "skip"
   );
 
   const showMessage = (message: string) => {
@@ -539,7 +539,7 @@ export default function Panel() {
     }
   };
 
-  // Message handler
+  // Message handler - sends to inbox with mod tag
   const handleSendMessage = async () => {
     if (!selectedRecipient) {
       showMessage("✗ Please select a user");
@@ -552,9 +552,10 @@ export default function Panel() {
 
     setIsSendingMessage(true);
     try {
-      await sendModeratorMessage({
-        recipientPlayerId: selectedRecipient.id,
-        message: messageText,
+      await sendMessage({
+        recipientId: selectedRecipient.id,
+        content: messageText,
+        isMod: true, // Mark as sent from mod panel
       });
       showMessage(`✓ Message sent to ${selectedRecipient.name}`);
       setMessageText("");
@@ -1244,21 +1245,21 @@ export default function Panel() {
                     <div className="user-results-list">
                       {searchResults.map((player: any) => (
                         <div
-                          key={player._id}
+                          key={player.playerId}
                           className={`user-result-item ${
-                            selectedRecipient?.id === player._id
+                            selectedRecipient?.id === player.playerId
                               ? "selected"
                               : ""
                           }`}
                           onClick={() =>
                             setSelectedRecipient({
-                              id: player._id,
-                              name: player.userName || "Unknown",
+                              id: player.playerId,
+                              name: player.playerName || "Unknown",
                             })
                           }
                         >
                           <span className="user-name">
-                            {player.userName || "Unknown"}
+                            {player.playerName || "Unknown"}
                           </span>
                           <span className="user-role">
                             {player.role}
