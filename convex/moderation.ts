@@ -2083,10 +2083,11 @@ export const getMyModeratorMessages = query({
 
     if (!player) return [];
 
+    // Only return unread messages
     const messages = await ctx.db
       .query("moderatorMessages")
-      .withIndex("by_recipientPlayerId", (q) =>
-        q.eq("recipientPlayerId", player._id)
+      .withIndex("by_recipient_read", (q) =>
+        q.eq("recipientPlayerId", player._id).eq("isRead", false)
       )
       .order("desc")
       .collect();

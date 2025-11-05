@@ -13,9 +13,12 @@ import {
   BannedAccountScreen,
   LimitedAccountAlert,
   WarningModal,
+  ModeratorMessageModal,
 } from "~/components/account-status";
 import { MaintenanceCheck } from "~/components/maintenance-check";
 import { useState } from "react";
+import { useMutation } from "convex/react";
+import type { Id } from "convex/_generated/dataModel";
 
 export async function loader(args: Route.LoaderArgs) {
   const { userId } = await getAuth(args);
@@ -39,6 +42,13 @@ export default function DashboardLayout() {
   const currentPlayer = useQuery(api.moderation?.getCurrentPlayer);
   const [dismissedWarnings, setDismissedWarnings] = useState(false);
 
+  // Query for unread moderator messages
+  // @ts-ignore
+  const unreadMessages = useQuery(api.moderation?.getMyModeratorMessages);
+  // @ts-ignore
+  const markMessageAsRead = useMutation(api.moderation?.markMessageAsRead);
+  const [dismissedMessages, setDismissedMessages] = useState(false);
+
   // Show banned screen if player is banned
   if (currentPlayer?.role === "banned") {
     return (
@@ -52,6 +62,18 @@ export default function DashboardLayout() {
   const hasWarnings =
     currentPlayer?.warnings && currentPlayer.warnings.length > 0;
 
+  // Show moderator messages modal if player has unread messages
+  const hasUnreadMessages =
+    unreadMessages && unreadMessages.length > 0 && !dismissedMessages;
+
+  const handleMarkMessageAsRead = async (messageId: Id<"moderatorMessages">) => {
+    try {
+      await markMessageAsRead({ messageId });
+    } catch (error) {
+      console.error("Error marking message as read:", error);
+    }
+  };
+
   return (
     <SidebarProvider
       style={
@@ -63,6 +85,15 @@ export default function DashboardLayout() {
     >
       {/* Check if maintenance mode is enabled and redirect if necessary */}
       <MaintenanceCheck />
+
+      {/* Show moderator messages modal if player has unread messages */}
+      {hasUnreadMessages && (
+        <ModeratorMessageModal
+          messages={unreadMessages}
+          onDismiss={() => setDismissedMessages(true)}
+          onMarkAsRead={handleMarkMessageAsRead}
+        />
+      )}
 
       {/* Show warning modal if player has warnings */}
       {hasWarnings && !dismissedWarnings && currentPlayer.warnings && (

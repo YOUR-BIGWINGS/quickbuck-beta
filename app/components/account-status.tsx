@@ -322,6 +322,213 @@ export function WarningModal({ warnings, onDismiss }: WarningModalProps) {
   );
 }
 
+import type { Id } from "convex/_generated/dataModel";
+
+interface ModeratorMessageModalProps {
+  messages: Array<{
+    _id: Id<"moderatorMessages">;
+    message: string;
+    sentAt: number;
+    senderName: string;
+  }>;
+  onDismiss: () => void;
+  onMarkAsRead: (messageId: Id<"moderatorMessages">) => void;
+}
+
+export function ModeratorMessageModal({
+  messages,
+  onDismiss,
+  onMarkAsRead,
+}: ModeratorMessageModalProps) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const currentMessage = messages[currentIndex];
+
+  const handleNext = () => {
+    if (currentMessage) {
+      onMarkAsRead(currentMessage._id);
+    }
+
+    if (currentIndex < messages.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+    } else {
+      onDismiss();
+    }
+  };
+
+  if (!currentMessage) return null;
+
+  return (
+    <>
+      <div className="mod-message-modal-overlay">
+        <div className="mod-message-modal">
+          <div className="modal-header">
+            <AlertCircle className="modal-icon message-icon" size={32} />
+            <h2>✉️ Message from Moderator</h2>
+          </div>
+          <div className="modal-body">
+            <p className="message-from">
+              From: <strong>{currentMessage.senderName}</strong>
+            </p>
+            <p className="message-date">
+              {new Date(currentMessage.sentAt).toLocaleString()}
+            </p>
+            <div className="message-content">
+              <p>{currentMessage.message}</p>
+            </div>
+            {messages.length > 1 && (
+              <p className="message-counter">
+                Message {currentIndex + 1} of {messages.length}
+              </p>
+            )}
+          </div>
+          <div className="modal-footer">
+            <button className="modal-button" onClick={handleNext}>
+              {currentIndex < messages.length - 1 ? "Next Message" : "Dismiss"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+        .mod-message-modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.75);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 99999;
+          animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+
+        @keyframes slideUp {
+          from {
+            transform: translateY(30px);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+
+        .mod-message-modal {
+          max-width: 600px;
+          width: 90%;
+          background: #ffffff;
+          border: 3px solid #3b82f6;
+          border-radius: 12px;
+          overflow: hidden;
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+          animation: slideUp 0.3s ease-out;
+        }
+
+        .mod-message-modal .modal-header {
+          display: flex;
+          align-items: center;
+          gap: 15px;
+          padding: 20px;
+          border-bottom: 2px solid #3b82f6;
+        }
+
+        .mod-message-modal .modal-icon {
+          color: #3b82f6;
+          flex-shrink: 0;
+        }
+
+        .mod-message-modal .modal-header h2 {
+          margin: 0;
+          font-size: 20px;
+          font-weight: bold;
+          color: #1e40af;
+        }
+
+        .mod-message-modal .modal-body {
+          padding: 20px;
+        }
+
+        .mod-message-modal .message-from {
+          margin: 0 0 5px 0;
+          font-weight: 600;
+          color: #1e40af;
+          font-size: 14px;
+        }
+
+        .mod-message-modal .message-date {
+          margin: 0 0 15px 0;
+          font-size: 12px;
+          color: #6b7280;
+        }
+
+        .mod-message-modal .message-content {
+          background: rgba(59, 130, 246, 0.1);
+          border-left: 4px solid #3b82f6;
+          border-radius: 4px;
+          padding: 15px;
+          margin: 15px 0;
+          max-height: 300px;
+          overflow-y: auto;
+        }
+
+        .mod-message-modal .message-content p {
+          margin: 0;
+          font-size: 14px;
+          color: #1f2937;
+          line-height: 1.6;
+          white-space: pre-wrap;
+          word-wrap: break-word;
+        }
+
+        .mod-message-modal .message-counter {
+          margin: 15px 0 0 0;
+          font-size: 12px;
+          color: #6b7280;
+          text-align: center;
+          font-weight: 600;
+        }
+
+        .mod-message-modal .modal-footer {
+          padding: 20px;
+          border-top: 2px solid #3b82f6;
+          display: flex;
+          justify-content: flex-end;
+        }
+
+        .mod-message-modal .modal-button {
+          padding: 10px 20px;
+          background: #3b82f6;
+          color: #ffffff;
+          border: 2px solid #2563eb;
+          border-radius: 4px;
+          font-weight: bold;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+
+        .mod-message-modal .modal-button:hover {
+          background: #2563eb;
+        }
+      `,
+        }}
+      />
+    </>
+  );
+}
+
 interface BannedAccountScreenProps {
   reason: string;
 }
