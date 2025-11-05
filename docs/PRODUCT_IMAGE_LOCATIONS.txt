@@ -1,0 +1,159 @@
+================================================================================
+PRODUCT IMAGE DISPLAY LOCATIONS - QUICK REFERENCE
+================================================================================
+
+1. MARKETPLACE PAGE (/app/routes/marketplace.tsx)
+   ├─ Product Grid Display
+   │  ├─ Image Size: 200px height (full width)
+   │  ├─ Position: Top of product card
+   │  ├─ Fallback: Muted background color
+   │  └─ Count: Multiple products in grid
+   │
+   └─ Shopping Cart Modal
+      ├─ Image Size: 80x80px thumbnails
+      ├─ Position: Left side of cart item
+      ├─ Fallback: Package icon (lucide-react)
+      └─ Count: One per cart item
+
+2. PORTFOLIO PAGE (/app/routes/portfolio.tsx)
+   └─ Collections/Inventory Section
+      ├─ Image Size: 64x64px
+      ├─ Position: Left side of inventory card
+      ├─ Fallback: Shopping bag icon (lucide-react)
+      └─ Count: One per owned product
+
+3. COMPANY DASHBOARD (/app/routes/dashboard/company.$companyId.tsx)
+   ├─ Products Inventory Table
+   │  ├─ Image Size: 48x48px
+   │  ├─ Position: Left side of product row
+   │  ├─ Fallback: Package icon (lucide-react)
+   │  └─ Count: One per product
+   │
+   └─ Batch Order History
+      ├─ Image Size: 32x32px
+      ├─ Position: Left side of order row
+      ├─ Fallback: Package icon (lucide-react)
+      └─ Count: One per order
+
+================================================================================
+IMAGE DATA SOURCES
+================================================================================
+
+Backend Query: getPlayerInventory() → convex/products.ts
+  Returns: product.image (URL string)
+  Used by: Portfolio page
+
+Backend Query: getProductBatchOrders() → convex/products.ts
+  Returns: productImage (URL string)
+  Used by: Company dashboard batch orders
+
+Backend Query: getAllProducts() → convex/products.ts
+  Returns: product.image (URL string)
+  Used by: Marketplace page
+
+================================================================================
+IMAGE SPECIFICATIONS
+================================================================================
+
+Format:          <img src={imageUrl} alt={productName} />
+Storage:         URL stored in product database
+Type:            String URL
+Required:        No (optional field with fallback)
+Fallback Icons:
+  - Marketplace Cart: Package icon
+  - Portfolio: Shopping bag icon  
+  - Dashboard Products: Package icon
+  - Dashboard Orders: Package icon
+
+CSS Styling:
+  - border-radius: 0.5rem (rounded corners)
+  - object-fit: cover (maintains aspect ratio)
+  - object-position: center (centers image)
+
+================================================================================
+USER EXPERIENCE FLOW
+================================================================================
+
+CUSTOMER JOURNEY:
+  1. Browse Marketplace → See product images in grid
+  2. Click product → See large product image
+  3. Add to cart → See image in cart
+  4. Checkout → Confirm purchase with images
+  5. View portfolio → See collection with images
+
+SELLER JOURNEY:
+  1. Open company dashboard
+  2. See product inventory with images
+  3. View batch order history with product images
+  4. Manage products visually
+
+================================================================================
+RESPONSIVE DESIGN
+================================================================================
+
+Desktop (1024px+):
+  - Marketplace: 3-column grid with full images
+  - Portfolio: Card layout with medium images
+  - Dashboard: Full table with visible images
+
+Tablet (768px-1023px):
+  - Marketplace: 2-column grid
+  - Portfolio: Card layout maintained
+  - Dashboard: Table with medium images
+
+Mobile (< 768px):
+  - Marketplace: 1-column grid, full width
+  - Portfolio: Card layout, scrollable
+  - Dashboard: Horizontal scroll or cards
+
+================================================================================
+PERFORMANCE METRICS
+================================================================================
+
+Image Sizes:
+  - Marketplace (200px): ~100-300KB per image
+  - Cart (80x80px): ~10-30KB per image
+  - Portfolio (64x64px): ~8-20KB per image
+  - Dashboard (48x48px): ~5-15KB per image
+
+Total Page Impact:
+  - Marketplace: +300-1000KB (5-10 products × images)
+  - Portfolio: +80-200KB (10 products × images)
+  - Dashboard: +50-150KB (10 products × images)
+
+Load Strategy:
+  - Images loaded on-demand (not preloaded)
+  - No lazy loading (small thumbnails)
+  - Browser native image caching
+
+================================================================================
+ACCESSIBILITY
+================================================================================
+
+✓ All images have alt text (product name)
+✓ Fallback icons for missing images
+✓ High contrast with backgrounds
+✓ Touch-friendly sizes on mobile
+✓ Semantic HTML structure
+✓ Works with screen readers
+
+================================================================================
+ERROR HANDLING
+================================================================================
+
+No Image URL:
+  → Display fallback icon
+  → Don't break layout
+  → Show muted background
+
+Invalid URL:
+  → Browser handles gracefully
+  → Shows alt text
+  → Fallback icon visible
+
+Network Error:
+  → Browser retry mechanism
+  → Page remains functional
+  → No UI disruption
+
+================================================================================
