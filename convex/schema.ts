@@ -537,4 +537,16 @@ export default defineSchema({
     bannedAt: v.number(),
     originalPlayerName: v.optional(v.string()), // Store for reference
   }).index("by_email", ["email"]),
+
+  moderatorMessages: defineTable({
+    recipientPlayerId: v.id("players"),
+    senderPlayerId: v.id("players"),
+    senderName: v.string(),
+    message: v.string(),
+    isRead: v.boolean(),
+    sentAt: v.number(),
+  })
+    .index("by_recipientPlayerId", ["recipientPlayerId"])
+    .index("by_senderPlayerId", ["senderPlayerId"])
+    .index("by_recipient_read", ["recipientPlayerId", "isRead"]),
 });

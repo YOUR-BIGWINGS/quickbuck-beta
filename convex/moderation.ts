@@ -1996,3 +1996,247 @@ export const auditPlayerBalance = query({
     return await auditPlayerBalanceInternal(ctx, args.playerId);
   },
 });
+
+// ============================================
+// MODERATOR MESSAGING SYSTEM
+// ============================================
+
+// Mutation: Send message to user (mod only)
+export const sendModeratorMessage = mutation({
+  args: {
+    recipientPlayerId: v.id("players"),
+    message: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) throw new Error("User not found");
+
+    const currentPlayer = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!currentPlayer) throw new Error("Player not found");
+
+    // Check if user is mod or admin
+    const hasAccess = await hasPermission(ctx, currentPlayer._id, "mod");
+    if (!hasAccess) {
+      throw new Error("Only moderators and admins can send messages");
+    }
+
+    // Validate message
+    if (!args.message.trim()) {
+      throw new Error("Message cannot be empty");
+    }
+
+    if (args.message.length > 1000) {
+      throw new Error("Message is too long (max 1000 characters)");
+    }
+
+    // Check if recipient exists
+    const recipient = await ctx.db.get(args.recipientPlayerId);
+    if (!recipient) {
+      throw new Error("Recipient not found");
+    }
+
+    // Create message
+    await ctx.db.insert("moderatorMessages", {
+      recipientPlayerId: args.recipientPlayerId,
+      senderPlayerId: currentPlayer._id,
+      senderName: user.name || "Moderator",
+      message: args.message,
+      isRead: false,
+      sentAt: Date.now(),
+    });
+
+    return {
+      success: true,
+      message: "Message sent successfully",
+    };
+  },
+});
+
+// Query: Get messages for current user
+export const getMyModeratorMessages = query({
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) return [];
+
+    const player = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!player) return [];
+
+    const messages = await ctx.db
+      .query("moderatorMessages")
+      .withIndex("by_recipientPlayerId", (q) =>
+        q.eq("recipientPlayerId", player._id)
+      )
+      .order("desc")
+      .collect();
+
+    return messages;
+  },
+});
+
+// Query: Get unread message count for current user
+export const getUnreadMessageCount = query({
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return 0;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) return 0;
+
+    const player = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!player) return 0;
+
+    const unreadMessages = await ctx.db
+      .query("moderatorMessages")
+      .withIndex("by_recipient_read", (q) =>
+        q.eq("recipientPlayerId", player._id).eq("isRead", false)
+      )
+      .collect();
+
+    return unreadMessages.length;
+  },
+});
+
+// Mutation: Mark message as read
+export const markMessageAsRead = mutation({
+  args: {
+    messageId: v.id("moderatorMessages"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const message = await ctx.db.get(args.messageId);
+    if (!message) throw new Error("Message not found");
+
+    await ctx.db.patch(args.messageId, {
+      isRead: true,
+    });
+
+    return { success: true };
+  },
+});
+
+// Mutation: Mark all messages as read for current user
+export const markAllMessagesAsRead = mutation({
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) throw new Error("User not found");
+
+    const player = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!player) throw new Error("Player not found");
+
+    const unreadMessages = await ctx.db
+      .query("moderatorMessages")
+      .withIndex("by_recipient_read", (q) =>
+        q.eq("recipientPlayerId", player._id).eq("isRead", false)
+      )
+      .collect();
+
+    for (const message of unreadMessages) {
+      await ctx.db.patch(message._id, {
+        isRead: true,
+      });
+    }
+
+    return {
+      success: true,
+      markedCount: unreadMessages.length,
+    };
+  },
+});
+
+// Query: Search players by name (for mod panel)
+export const searchPlayersByName = query({
+  args: {
+    searchQuery: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) throw new Error("User not found");
+
+    const currentPlayer = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!currentPlayer) throw new Error("Player not found");
+
+    const hasAccess = await hasPermission(ctx, currentPlayer._id, "mod");
+    if (!hasAccess) {
+      throw new Error("Insufficient permissions");
+    }
+
+    if (!args.searchQuery.trim()) {
+      return [];
+    }
+
+    // Get all players and filter by name
+    const allPlayers = await ctx.db.query("players").collect();
+    const enrichedPlayers = await Promise.all(
+      allPlayers.map(async (player) => {
+        const userData = await ctx.db.get(player.userId);
+        return {
+          _id: player._id,
+          userName: userData?.name || "Unknown",
+          userEmail: userData?.email || "N/A",
+          role: player.role || "normal",
+        };
+      })
+    );
+
+    const searchLower = args.searchQuery.toLowerCase();
+    const filtered = enrichedPlayers.filter((p) =>
+      p.userName.toLowerCase().includes(searchLower)
+    );
+
+    return filtered.slice(0, 20); // Return max 20 results
+  },
+});

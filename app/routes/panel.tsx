@@ -58,6 +58,10 @@ export default function Panel() {
     api.moderation?.permanentlyDeleteBannedPlayer
   );
 
+  // Mod messaging
+  // @ts-ignore
+  const sendModeratorMessage = useMutation(api.moderation?.sendModeratorMessage);
+
   // Alert mutations and queries
   // @ts-ignore
   const sendGlobalAlert = useMutation(api.alerts?.sendGlobalAlert);
@@ -71,7 +75,7 @@ export default function Panel() {
   const updateCryptoParams = useMutation(api.crypto.updateCryptoParameters);
 
   const [activeTab, setActiveTab] = useState<
-    "players" | "companies" | "products" | "crypto" | "alerts"
+    "players" | "companies" | "products" | "crypto" | "alerts" | "messages"
   >("players");
   const [actionMessage, setActionMessage] = useState<string>("");
   const [showAlertModal, setShowAlertModal] = useState(false);
@@ -108,6 +112,22 @@ export default function Panel() {
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [bulkDeleteReason, setBulkDeleteReason] = useState("");
   const [productSearchQuery, setProductSearchQuery] = useState("");
+
+  // Message user state
+  const [messageSearchQuery, setMessageSearchQuery] = useState("");
+  const [selectedRecipient, setSelectedRecipient] = useState<{
+    id: Id<"players">;
+    name: string;
+  } | null>(null);
+  const [messageText, setMessageText] = useState("");
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+
+  // Search for users query (after state declaration)
+  // @ts-ignore
+  const searchResults = useQuery(
+    api.moderation?.searchPlayersByName,
+    messageSearchQuery.length > 0 ? { searchQuery: messageSearchQuery } : "skip"
+  );
 
   const showMessage = (message: string) => {
     setActionMessage(message);
@@ -519,6 +539,34 @@ export default function Panel() {
     }
   };
 
+  // Message handler
+  const handleSendMessage = async () => {
+    if (!selectedRecipient) {
+      showMessage("✗ Please select a user");
+      return;
+    }
+    if (!messageText.trim()) {
+      showMessage("✗ Please enter a message");
+      return;
+    }
+
+    setIsSendingMessage(true);
+    try {
+      await sendModeratorMessage({
+        recipientPlayerId: selectedRecipient.id,
+        message: messageText,
+      });
+      showMessage(`✓ Message sent to ${selectedRecipient.name}`);
+      setMessageText("");
+      setSelectedRecipient(null);
+      setMessageSearchQuery("");
+    } catch (e: any) {
+      showMessage("✗ Error: " + e.message);
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
+
   // Alert handler
   const handleSendAlert = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -603,6 +651,12 @@ export default function Panel() {
           onClick={() => setActiveTab("crypto")}
         >
           Cryptocurrencies
+        </button>
+        <button
+          className={`retro-tab ${activeTab === "messages" ? "active" : ""}`}
+          onClick={() => setActiveTab("messages")}
+        >
+          Message User
         </button>
         {isAdmin && (
           <button
@@ -1162,6 +1216,93 @@ export default function Panel() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === "messages" && (
+          <div className="messages-section">
+            <h2>Message User</h2>
+            <p>Search for a user by name and send them a message</p>
+
+            <div className="message-form">
+              <label htmlFor="user-search">Search User:</label>
+              <input
+                id="user-search"
+                type="text"
+                value={messageSearchQuery}
+                onChange={(e) => setMessageSearchQuery(e.target.value)}
+                placeholder="Enter player name..."
+              />
+
+              {messageSearchQuery.length > 0 && (
+                <div className="search-results">
+                  {searchResults === undefined ? (
+                    <div className="loading">Searching...</div>
+                  ) : searchResults.length === 0 ? (
+                    <div className="no-data">No users found</div>
+                  ) : (
+                    <div className="user-results-list">
+                      {searchResults.map((player: any) => (
+                        <div
+                          key={player._id}
+                          className={`user-result-item ${
+                            selectedRecipient?.id === player._id
+                              ? "selected"
+                              : ""
+                          }`}
+                          onClick={() =>
+                            setSelectedRecipient({
+                              id: player._id,
+                              name: player.userName || "Unknown",
+                            })
+                          }
+                        >
+                          <span className="user-name">
+                            {player.userName || "Unknown"}
+                          </span>
+                          <span className="user-role">
+                            {player.role}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {selectedRecipient && (
+                <div className="selected-recipient">
+                  <strong>Sending to:</strong> {selectedRecipient.name}
+                  <button
+                    type="button"
+                    className="btn-small btn-cancel"
+                    onClick={() => setSelectedRecipient(null)}
+                    style={{ marginLeft: "10px" }}
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+
+              <label htmlFor="message-text">Message (max 1000 chars):</label>
+              <textarea
+                id="message-text"
+                value={messageText}
+                onChange={(e) => setMessageText(e.target.value)}
+                placeholder="Enter your message..."
+                maxLength={1000}
+                rows={6}
+              />
+              <div className="char-count">{messageText.length} / 1000</div>
+
+              <button
+                className="retro-button btn-primary"
+                onClick={handleSendMessage}
+                disabled={isSendingMessage || !selectedRecipient || !messageText.trim()}
+              >
+                {isSendingMessage ? "Sending..." : "Send Message"}
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -2255,6 +2396,100 @@ export default function Panel() {
         .dark .btn-info {
           background: #00cccc;
           color: #000000;
+        }
+
+        /* Messages Section Styles */
+        .messages-section h2 {
+          color: var(--header-bg);
+          border-bottom: 2px solid var(--header-bg);
+          padding-bottom: 5px;
+          margin-bottom: 15px;
+        }
+
+        .message-form {
+          display: flex;
+          flex-direction: column;
+          gap: 15px;
+          max-width: 600px;
+        }
+
+        .message-form label {
+          font-weight: bold;
+          color: var(--content-text);
+        }
+
+        .message-form input,
+        .message-form textarea {
+          padding: 8px;
+          border: 2px solid var(--table-border);
+          background: var(--content-bg);
+          color: var(--content-text);
+          font-family: "Courier New", monospace;
+        }
+
+        .search-results {
+          margin-top: 10px;
+          border: 2px solid var(--table-border);
+          background: var(--content-bg);
+          max-height: 200px;
+          overflow-y: auto;
+        }
+
+        .user-results-list {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .user-result-item {
+          padding: 10px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          cursor: pointer;
+          border-bottom: 1px solid var(--table-border);
+        }
+
+        .user-result-item:hover {
+          background: var(--row-hover);
+        }
+
+        .user-result-item.selected {
+          background: #0080ff;
+          color: #ffffff;
+        }
+
+        .user-result-item .user-name {
+          font-weight: bold;
+        }
+
+        .user-result-item .user-role {
+          color: var(--text-secondary);
+          font-size: 11px;
+          text-transform: uppercase;
+          padding: 2px 6px;
+          background: var(--table-border);
+          border-radius: 2px;
+        }
+
+        .user-result-item.selected .user-role {
+          color: #ffffff;
+          background: rgba(255, 255, 255, 0.2);
+        }
+
+        .selected-recipient {
+          padding: 10px;
+          background: var(--alert-success-bg);
+          border: 2px solid #008000;
+          color: var(--content-text);
+          display: flex;
+          align-items: center;
+        }
+
+        .char-count {
+          text-align: right;
+          font-size: 11px;
+          color: var(--text-secondary);
+          margin-top: -10px;
         }
       `}</style>
     </div>
