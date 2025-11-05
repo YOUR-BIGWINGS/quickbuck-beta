@@ -498,6 +498,230 @@ export const unbanPlayer = mutation({
   },
 });
 
+// Mutation: Permanently delete banned player and blacklist email (admin only)
+export const permanentlyDeleteBannedPlayer = mutation({
+  args: {
+    targetPlayerId: v.id("players"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) throw new Error("User not found");
+
+    const currentPlayer = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!currentPlayer) throw new Error("Player not found");
+
+    // Only admins can permanently delete
+    const isAdmin = await hasPermission(ctx, currentPlayer._id, "admin");
+    if (!isAdmin) {
+      throw new Error("Only admins can permanently delete accounts");
+    }
+
+    const targetPlayer = await ctx.db.get(args.targetPlayerId);
+    if (!targetPlayer) throw new Error("Target player not found");
+
+    // Verify player is banned
+    if (targetPlayer.role !== "banned") {
+      throw new Error("Can only permanently delete banned accounts");
+    }
+
+    // Get target user info
+    const targetUser = await ctx.db.get(targetPlayer.userId);
+    if (!targetUser) throw new Error("Target user not found");
+
+    // Blacklist the email if it exists
+    if (targetUser.email) {
+      const existingBlacklist = await ctx.db
+        .query("emailBlacklist")
+        .withIndex("by_email", (q) => q.eq("email", targetUser.email!))
+        .unique();
+
+      if (!existingBlacklist) {
+        await ctx.db.insert("emailBlacklist", {
+          email: targetUser.email,
+          reason: targetPlayer.banReason || "Permanently banned",
+          bannedByAdminId: currentPlayer._id,
+          bannedAt: Date.now(),
+          originalPlayerName: targetUser.name || "Unknown",
+        });
+      }
+    }
+
+    // Delete all player's companies and their products
+    const companies = await ctx.db
+      .query("companies")
+      .withIndex("by_ownerId", (q) => q.eq("ownerId", args.targetPlayerId))
+      .collect();
+
+    for (const company of companies) {
+      // Delete all products for this company
+      const products = await ctx.db
+        .query("products")
+        .withIndex("by_companyId", (q) => q.eq("companyId", company._id))
+        .collect();
+
+      for (const product of products) {
+        await ctx.db.delete(product._id);
+      }
+
+      // Delete marketplace listings
+      const listings = await ctx.db
+        .query("marketplaceListings")
+        .withIndex("by_sellerCompanyId", (q) =>
+          q.eq("sellerCompanyId", company._id)
+        )
+        .collect();
+
+      for (const listing of listings) {
+        await ctx.db.delete(listing._id);
+      }
+
+      // Delete company sales
+      const companySales = await ctx.db
+        .query("companySales")
+        .withIndex("by_companyId", (q) => q.eq("companyId", company._id))
+        .collect();
+
+      for (const sale of companySales) {
+        await ctx.db.delete(sale._id);
+      }
+
+      // Delete the company
+      await ctx.db.delete(company._id);
+    }
+
+    // Delete cart and cart items
+    const cart = await ctx.db
+      .query("carts")
+      .withIndex("by_userId", (q) => q.eq("userId", args.targetPlayerId))
+      .unique();
+
+    if (cart) {
+      const cartItems = await ctx.db
+        .query("cartItems")
+        .withIndex("by_cartId", (q) => q.eq("cartId", cart._id))
+        .collect();
+
+      for (const item of cartItems) {
+        await ctx.db.delete(item._id);
+      }
+
+      await ctx.db.delete(cart._id);
+    }
+
+    // Delete stock portfolios and transactions
+    const portfolios = await ctx.db
+      .query("playerStockPortfolios")
+      .withIndex("by_playerId", (q) => q.eq("playerId", args.targetPlayerId))
+      .collect();
+
+    for (const portfolio of portfolios) {
+      await ctx.db.delete(portfolio._id);
+    }
+
+    const stockTransactions = await ctx.db
+      .query("stockTransactions")
+      .withIndex("by_playerId", (q) => q.eq("playerId", args.targetPlayerId))
+      .collect();
+
+    for (const transaction of stockTransactions) {
+      await ctx.db.delete(transaction._id);
+    }
+
+    // Delete crypto wallets and transactions
+    const cryptoWallets = await ctx.db
+      .query("playerCryptoWallets")
+      .withIndex("by_player_crypto")
+      .collect();
+    
+    for (const wallet of cryptoWallets) {
+      if (wallet.playerId === args.targetPlayerId) {
+        await ctx.db.delete(wallet._id);
+      }
+    }
+
+    const cryptoTransactions = await ctx.db
+      .query("cryptoTransactions")
+      .withIndex("by_playerId", (q) => q.eq("playerId", args.targetPlayerId))
+      .collect();
+
+    for (const transaction of cryptoTransactions) {
+      await ctx.db.delete(transaction._id);
+    }
+
+    // Delete loans
+    const loans = await ctx.db
+      .query("loans")
+      .withIndex("by_playerId", (q) => q.eq("playerId", args.targetPlayerId))
+      .collect();
+
+    for (const loan of loans) {
+      await ctx.db.delete(loan._id);
+    }
+
+    // Delete upgrades
+    const upgrades = await ctx.db
+      .query("upgrades")
+      .withIndex("by_playerId", (q) => q.eq("playerId", args.targetPlayerId))
+      .collect();
+
+    for (const upgrade of upgrades) {
+      await ctx.db.delete(upgrade._id);
+    }
+
+    // Delete gambling history
+    const gamblingHistory = await ctx.db
+      .query("gamblingHistory")
+      .withIndex("by_playerId", (q) => q.eq("playerId", args.targetPlayerId))
+      .collect();
+
+    for (const record of gamblingHistory) {
+      await ctx.db.delete(record._id);
+    }
+
+    // Delete blackjack games
+    const blackjackGames = await ctx.db
+      .query("blackjackGames")
+      .withIndex("by_playerId", (q) => q.eq("playerId", args.targetPlayerId))
+      .collect();
+
+    for (const game of blackjackGames) {
+      await ctx.db.delete(game._id);
+    }
+
+    // Delete subscriptions (by userId not playerId)
+    const subscriptions = await ctx.db
+      .query("subscriptions")
+      .filter((q) => q.eq(q.field("userId"), targetUser._id))
+      .collect();
+
+    for (const subscription of subscriptions) {
+      await ctx.db.delete(subscription._id);
+    }
+
+    // Delete the player
+    await ctx.db.delete(args.targetPlayerId);
+
+    // Delete the user
+    await ctx.db.delete(targetPlayer.userId);
+
+    return {
+      success: true,
+      message: `Player permanently deleted and email ${targetUser.email || "N/A"} blacklisted`,
+    };
+  },
+});
+
 // Mutation: Warn player
 export const warnPlayer = mutation({
   args: {

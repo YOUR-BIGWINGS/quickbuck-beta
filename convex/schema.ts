@@ -529,4 +529,12 @@ export default defineSchema({
     lastUpdatedAt: v.number(),
     createdAt: v.number(),
   }).index("by_createdAt", ["createdAt"]),
+
+  emailBlacklist: defineTable({
+    email: v.string(),
+    reason: v.string(), // Reason for blacklisting
+    bannedByAdminId: v.id("players"),
+    bannedAt: v.number(),
+    originalPlayerName: v.optional(v.string()), // Store for reference
+  }).index("by_email", ["email"]),
 });

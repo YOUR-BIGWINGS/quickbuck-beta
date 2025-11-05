@@ -4,7 +4,7 @@ import { internalMutation } from "./_generated/server";
 export const cleanupInactiveItems = internalMutation({
   handler: async (ctx) => {
     const now = Date.now();
-    const INACTIVE_THRESHOLD = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
+    const INACTIVE_THRESHOLD = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
 
     let deletedCount = {
       products: 0,
@@ -51,14 +51,13 @@ export const cleanupInactiveItems = internalMutation({
       }
     }
 
-    // 3. Delete stale cryptocurrencies (no activity for > 90 days)
+    // 3. Delete stale cryptocurrencies (no activity for > 12 hours)
     // Note: Crypto doesn't have isActive field, so we check for old/unused ones
     const allCryptos = await ctx.db.query("cryptocurrencies").collect();
-    const CRYPTO_STALE_THRESHOLD = 90 * 24 * 60 * 60 * 1000; // 90 days
     
     for (const crypto of allCryptos) {
       const staleDuration = now - crypto.lastUpdated;
-      if (staleDuration > CRYPTO_STALE_THRESHOLD) {
+      if (staleDuration > INACTIVE_THRESHOLD) {
         // Only delete if no one has any balance in it
         const holders = await ctx.db
           .query("playerCryptoWallets")

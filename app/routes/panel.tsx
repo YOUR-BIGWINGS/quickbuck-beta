@@ -53,6 +53,10 @@ export default function Panel() {
   const setPlayerBalance = useMutation(api.moderation?.setPlayerBalance);
   // @ts-ignore
   const setCompanyBalance = useMutation(api.moderation?.setCompanyBalance);
+  // @ts-ignore
+  const permanentlyDeleteBannedPlayer = useMutation(
+    api.moderation?.permanentlyDeleteBannedPlayer
+  );
 
   // Alert mutations and queries
   // @ts-ignore
@@ -260,6 +264,10 @@ export default function Panel() {
   }
 
   const isAdmin = moderationAccess.role === "admin";
+  
+  // Debug: Log admin status
+  console.log("Moderation Access:", moderationAccess);
+  console.log("Is Admin:", isAdmin);
 
   const handleLimitPlayer = async (playerId: Id<"players">) => {
     const reason = prompt("Enter reason for limiting this account:");
@@ -319,6 +327,23 @@ export default function Panel() {
     try {
       await unbanPlayer({ targetPlayerId: playerId });
       showMessage("✓ Player unbanned");
+    } catch (e: any) {
+      showMessage("✗ Error: " + e.message);
+    }
+  };
+
+  const handlePermanentDelete = async (playerId: Id<"players">) => {
+    if (
+      !confirm(
+        "⚠️ PERMANENT DELETE ⚠️\n\nThis will:\n• Delete ALL player data\n• Blacklist their email forever\n• Cannot be undone\n\nAre you absolutely sure?"
+      )
+    )
+      return;
+    try {
+      const result = await permanentlyDeleteBannedPlayer({
+        targetPlayerId: playerId,
+      });
+      showMessage("✓ " + result.message);
     } catch (e: any) {
       showMessage("✗ Error: " + e.message);
     }
@@ -762,15 +787,37 @@ export default function Panel() {
                               >
                                 Unban
                               </button>
-                              {isAdmin && (
-                                <button
-                                  onClick={() =>
-                                    handleSetPlayerBalance(player._id)
-                                  }
-                                  className="btn-small btn-info"
-                                >
-                                  Set $
-                                </button>
+                              {isAdmin ? (
+                                <>
+                                  <button
+                                    onClick={() =>
+                                      handleSetPlayerBalance(player._id)
+                                    }
+                                    className="btn-small btn-info"
+                                  >
+                                    Set $
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      handlePermanentDelete(player._id)
+                                    }
+                                    className="btn-small btn-danger"
+                                    style={{
+                                      backgroundColor: "#8b0000",
+                                      fontWeight: "bold",
+                                      color: "white",
+                                      border: "2px solid #ff0000",
+                                      padding: "4px 8px",
+                                    }}
+                                    title="Permanently delete and blacklist email"
+                                  >
+                                    🗑️ PERMANENT DELETE
+                                  </button>
+                                </>
+                              ) : (
+                                <span style={{ color: "#666", fontSize: "10px" }}>
+                                  (Admin only)
+                                </span>
                               )}
                             </>
                           )}

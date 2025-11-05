@@ -11,6 +11,7 @@
 import type * as admin from "../admin.js";
 import type * as alerts from "../alerts.js";
 import type * as cart from "../cart.js";
+import type * as cleanup from "../cleanup.js";
 import type * as companies from "../companies.js";
 import type * as companySales from "../companySales.js";
 import type * as contentFilter from "../contentFilter.js";
@@ -53,6 +54,7 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   alerts: typeof alerts;
   cart: typeof cart;
+  cleanup: typeof cleanup;
   companies: typeof companies;
   companySales: typeof companySales;
   contentFilter: typeof contentFilter;

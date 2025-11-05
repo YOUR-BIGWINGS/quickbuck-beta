@@ -79,6 +79,20 @@ export const upsertUser = mutation({
       return await ctx.db.get(existingUser._id);
     }
 
+    // Check if email is blacklisted
+    if (identity.email) {
+      const blacklisted = await ctx.db
+        .query("emailBlacklist")
+        .withIndex("by_email", (q) => q.eq("email", identity.email!))
+        .unique();
+
+      if (blacklisted) {
+        throw new Error(
+          "This email has been permanently banned from Quickbuck. If you believe this is an error, please contact support."
+        );
+      }
+    }
+
     // DUPLICATE EMAIL FIX: Check if email already exists before creating new user
     if (identity.email) {
       const existingEmailUser = await ctx.db
