@@ -18,6 +18,7 @@ export default [
   layout("routes/dashboard/layout.tsx", [
     route("dashboard", "routes/dashboard/index.tsx"),
     route("leaderboard", "routes/leaderboard.tsx"),
+    route("messages", "routes/messages.tsx"),
     route("marketplace", "routes/marketplace.tsx"),
     route("crypto", "routes/crypto.tsx"),
     route("crypto/:symbol", "routes/crypto.$symbol.tsx"),
