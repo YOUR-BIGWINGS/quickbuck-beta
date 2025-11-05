@@ -1,6 +1,4 @@
-"use client";
-
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "convex/_generated/api";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -10,21 +8,6 @@ import { Textarea } from "~/components/ui/textarea";
 import { Badge } from "~/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Skeleton } from "~/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "~/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "~/components/ui/dialog";
 import {
   Inbox,
   Send,
@@ -38,8 +21,9 @@ import {
 import type { Id } from "convex/_generated/dataModel";
 import { getAuth } from "@clerk/react-router/ssr.server";
 import { redirect } from "react-router";
+import type { Route } from "./+types/messages";
 
-export async function loader(args: any) {
+export async function loader(args: Route.LoaderArgs) {
   const { userId } = await getAuth(args);
   if (!userId) {
     return redirect("/sign-in");
