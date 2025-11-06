@@ -106,17 +106,21 @@ export const getInbox = query({
       .order("desc")
       .collect();
 
-    // Enrich messages with sender player tags
+    // Enrich messages with sender player badges
     const enrichedMessages = await Promise.all(
       messages.map(async (message) => {
-        const senderTag = await ctx.db
-          .query("playerTags")
+        const senderBadges = await ctx.db
+          .query("playerBadges")
           .withIndex("by_playerId", (q) => q.eq("playerId", message.senderId))
-          .unique();
+          .collect();
+
+        const badges = await Promise.all(
+          senderBadges.map(async (pb) => await ctx.db.get(pb.badgeId))
+        );
 
         return {
           ...message,
-          senderTag: senderTag || null,
+          senderBadges: badges.filter((b) => b !== null),
         };
       })
     );
@@ -154,21 +158,25 @@ export const getSentMessages = query({
       .order("desc")
       .collect();
 
-    // Enrich messages with recipient info and tags
+    // Enrich messages with recipient info and badges
     const enrichedMessages = await Promise.all(
       messages.map(async (message) => {
         const recipient = await ctx.db.get(message.recipientId);
         const recipientUser = recipient ? await ctx.db.get(recipient.userId) : null;
         
-        const recipientTag = await ctx.db
-          .query("playerTags")
+        const recipientBadges = await ctx.db
+          .query("playerBadges")
           .withIndex("by_playerId", (q) => q.eq("playerId", message.recipientId))
-          .unique();
+          .collect();
+
+        const badges = await Promise.all(
+          recipientBadges.map(async (pb) => await ctx.db.get(pb.badgeId))
+        );
 
         return {
           ...message,
           recipientName: recipientUser?.name || "Unknown",
-          recipientTag: recipientTag || null,
+          recipientBadges: badges.filter((b) => b !== null),
         };
       })
     );
@@ -328,17 +336,21 @@ export const searchPlayers = query({
         // Don't show banned players
         if (player.role === "banned") return null;
 
-        // Get player tag
-        const playerTag = await ctx.db
-          .query("playerTags")
+        // Get player badges
+        const playerBadgeRecords = await ctx.db
+          .query("playerBadges")
           .withIndex("by_playerId", (q) => q.eq("playerId", player._id))
-          .unique();
+          .collect();
+
+        const playerBadges = await Promise.all(
+          playerBadgeRecords.map(async (pb) => await ctx.db.get(pb.badgeId))
+        );
 
         return {
           playerId: player._id,
           playerName: user.name || "Anonymous",
           role: player.role,
-          playerTag: playerTag || null,
+          playerBadges: playerBadges.filter((b) => b !== null),
         };
       })
     );

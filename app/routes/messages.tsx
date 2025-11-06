@@ -417,31 +417,11 @@ export default function MessagesPage() {
                                       >
                                         <div className="flex items-center justify-between">
                                           <div className="flex items-center gap-2">
-                                            {player.playerTag ? (
-                                              <span className="inline-flex items-center gap-2">
-                                                <span
-                                                  style={{
-                                                    color: player.playerTag.usernameColor || "inherit",
-                                                  }}
-                                                  className="text-sm font-medium"
-                                                >
-                                                  {player.playerName}
-                                                </span>
-                                                <span
-                                                  style={{
-                                                    color: player.playerTag.tagColor,
-                                                    borderColor: player.playerTag.tagColor,
-                                                  }}
-                                                  className="px-2 py-0.5 rounded border text-xs font-medium"
-                                                >
-                                                  {player.playerTag.tagText}
-                                                </span>
-                                              </span>
-                                            ) : (
-                                              <span className="text-sm">
-                                                {player.playerName}
-                                              </span>
-                                            )}
+                                            <PlayerNameWithTag
+                                              playerId={player.playerId}
+                                              playerName={player.playerName}
+                                              className="text-sm"
+                                            />
                                           </div>
                                           <Badge
                                             variant="outline"
