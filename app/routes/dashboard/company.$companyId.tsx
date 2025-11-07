@@ -45,21 +45,15 @@ import {
 } from "lucide-react";
 import type { Id } from "convex/_generated/dataModel";
 import { cn } from "~/lib/utils";
+import { usePlayerData } from "~/hooks/use-player-data";
 
 export default function CompanyDashboardPage() {
   const { companyId } = useParams();
   const navigate = useNavigate();
   const { userId: clerkUserId } = useAuth();
 
-  // Get user and player
-  const user = useQuery(
-    api.users.findUserByToken,
-    clerkUserId ? { tokenIdentifier: clerkUserId } : "skip"
-  );
-  const player = useQuery(
-    api.players.getPlayerByUserId,
-    user ? { userId: user._id as Id<"users"> } : "skip"
-  );
+  // Use the usePlayerData hook which handles automatic player creation
+  const { player } = usePlayerData(clerkUserId || null);
 
   // Get company data
   const company = useQuery(

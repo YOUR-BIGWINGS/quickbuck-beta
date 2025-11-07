@@ -18,21 +18,15 @@ import {
 import { Skeleton } from "~/components/ui/skeleton";
 import { formatCurrency } from "~/lib/game-utils";
 import { useAuth } from "@clerk/react-router";
+import { usePlayerData } from "~/hooks/use-player-data";
 import { DollarSign, TrendingDown, AlertTriangle, History } from "lucide-react";
 import type { Id } from "convex/_generated/dataModel";
 
 export default function LoansPage() {
   const { userId: clerkUserId } = useAuth();
 
-  // Get user and player
-  const user = useQuery(
-    api.users.findUserByToken,
-    clerkUserId ? { tokenIdentifier: clerkUserId } : "skip"
-  );
-  const player = useQuery(
-    api.players.getPlayerByUserId,
-    user ? { userId: user._id as Id<"users"> } : "skip"
-  );
+  // Use the usePlayerData hook which handles automatic player creation
+  const { player } = usePlayerData(clerkUserId || null);
 
   // Get player's loans
   const allLoans = useQuery(

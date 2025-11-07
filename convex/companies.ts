@@ -358,21 +358,62 @@ export const deleteCompany = mutation({
       });
     }
 
-    // Archive all products
+    // CASCADE DELETE: Delete all company-related records
+    
+    // 1. Delete all products for this company
     const products = await ctx.db
       .query("products")
       .withIndex("by_companyId", (q) => q.eq("companyId", args.companyId))
       .collect();
     
     for (const product of products) {
-      await ctx.db.patch(product._id, {
-        isActive: false,
-        isArchived: true,
-        updatedAt: Date.now(),
-      });
+      // Delete cart items that reference this product
+      const cartItems = await ctx.db
+        .query("cartItems")
+        .withIndex("by_productId", (q) => q.eq("productId", product._id))
+        .collect();
+      
+      for (const cartItem of cartItems) {
+        await ctx.db.delete(cartItem._id);
+      }
+      
+      // Delete the product
+      await ctx.db.delete(product._id);
     }
 
-    // Actually delete the company
+    // 2. Delete marketplace listings for this company
+    const listings = await ctx.db
+      .query("marketplaceListings")
+      .withIndex("by_sellerCompanyId", (q) => q.eq("sellerCompanyId", args.companyId))
+      .collect();
+
+    for (const listing of listings) {
+      await ctx.db.delete(listing._id);
+    }
+
+    // 3. Delete company sales offers
+    const companySales = await ctx.db
+      .query("companySales")
+      .withIndex("by_companyId", (q) => q.eq("companyId", args.companyId))
+      .collect();
+
+    for (const sale of companySales) {
+      await ctx.db.delete(sale._id);
+    }
+
+    // 4. Delete company shares
+    const companyShares = await ctx.db
+      .query("companyShares")
+      .withIndex("by_companyId", (q) => q.eq("companyId", args.companyId))
+      .collect();
+
+    for (const share of companyShares) {
+      await ctx.db.delete(share._id);
+    }
+
+    // Note: We keep marketplaceSales and transactions for historical records
+
+    // Finally, delete the company
     await ctx.db.delete(args.companyId);
 
     return {

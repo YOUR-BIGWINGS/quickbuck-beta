@@ -36,6 +36,7 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { formatCurrency } from "~/lib/game-utils";
 import { useAuth } from "@clerk/react-router";
 import { useNavigate } from "react-router";
+import { usePlayerData } from "~/hooks/use-player-data";
 import {
   Building2,
   Plus,
@@ -51,15 +52,8 @@ export default function ManageCompaniesPage() {
   const { userId: clerkUserId } = useAuth();
   const navigate = useNavigate();
 
-  // Get user and player
-  const user = useQuery(
-    api.users.findUserByToken,
-    clerkUserId ? { tokenIdentifier: clerkUserId } : "skip"
-  );
-  const player = useQuery(
-    api.players.getPlayerByUserId,
-    user ? { userId: user._id as Id<"users"> } : "skip"
-  );
+  // Use the usePlayerData hook which handles automatic player creation
+  const { player } = usePlayerData(clerkUserId || null);
 
   // Get player's companies
   const companies = useQuery(

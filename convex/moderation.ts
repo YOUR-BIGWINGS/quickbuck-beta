@@ -309,10 +309,20 @@ export const banPlayer = mutation({
         .collect();
 
       for (const product of products) {
+        // Delete cart items from ANY user's cart that reference this product
+        const cartItems = await ctx.db
+          .query("cartItems")
+          .withIndex("by_productId", (q) => q.eq("productId", product._id))
+          .collect();
+
+        for (const cartItem of cartItems) {
+          await ctx.db.delete(cartItem._id);
+        }
+
         await ctx.db.delete(product._id);
       }
 
-      // Marketplace listings
+      // Delete marketplace listings
       const listings = await ctx.db
         .query("marketplaceListings")
         .withIndex("by_sellerCompanyId", (q) =>
@@ -332,6 +342,16 @@ export const banPlayer = mutation({
 
       for (const sale of companySales) {
         await ctx.db.delete(sale._id);
+      }
+
+      // Delete company shares for THIS company (owned by anyone)
+      const sharesOfThisCompany = await ctx.db
+        .query("companyShares")
+        .withIndex("by_companyId", (q) => q.eq("companyId", company._id))
+        .collect();
+
+      for (const share of sharesOfThisCompany) {
+        await ctx.db.delete(share._id);
       }
 
       // Delete the company
@@ -571,6 +591,16 @@ export const permanentlyDeleteBannedPlayer = mutation({
         .collect();
 
       for (const product of products) {
+        // Delete cart items from ANY user's cart that reference this product
+        const cartItems = await ctx.db
+          .query("cartItems")
+          .withIndex("by_productId", (q) => q.eq("productId", product._id))
+          .collect();
+
+        for (const cartItem of cartItems) {
+          await ctx.db.delete(cartItem._id);
+        }
+
         await ctx.db.delete(product._id);
       }
 
@@ -594,6 +624,16 @@ export const permanentlyDeleteBannedPlayer = mutation({
 
       for (const sale of companySales) {
         await ctx.db.delete(sale._id);
+      }
+
+      // Delete company shares for THIS company (owned by anyone)
+      const sharesOfThisCompany = await ctx.db
+        .query("companyShares")
+        .withIndex("by_companyId", (q) => q.eq("companyId", company._id))
+        .collect();
+
+      for (const share of sharesOfThisCompany) {
+        await ctx.db.delete(share._id);
       }
 
       // Delete the company
