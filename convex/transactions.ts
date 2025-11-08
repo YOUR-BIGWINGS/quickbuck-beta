@@ -120,6 +120,44 @@ export const transferCash = mutation({
     description: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // Require authentication
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("You must be logged in to transfer money");
+    }
+
+    // Get user and verify they exist
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Get player and verify they exist
+    const currentPlayer = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+    if (!currentPlayer) {
+      throw new Error("Player not found");
+    }
+
+    // Verify sender account ownership
+    if (args.fromAccountType === "player") {
+      const playerId = args.fromAccountId as Id<"players">;
+      if (playerId !== currentPlayer._id) {
+        throw new Error("You can only transfer from your own accounts");
+      }
+    } else {
+      const companyId = args.fromAccountId as Id<"companies">;
+      const company = await ctx.db.get(companyId);
+      if (!company || company.ownerId !== currentPlayer._id) {
+        throw new Error("You can only transfer from companies you own");
+      }
+    }
+
     if (args.amount <= 0) {
       throw new Error("Amount must be positive");
     }

@@ -150,6 +150,35 @@ export const makeCompanyPublic = mutation({
     sector: v.string(), // User-chosen sector
   },
   handler: async (ctx, args) => {
+    // Require authentication
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("You must be logged in to make a company public");
+    }
+
+    // Get user and verify they exist
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Get player and verify they exist
+    const currentPlayer = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+    if (!currentPlayer) {
+      throw new Error("Player not found");
+    }
+
+    // Verify the player making the request matches the ownerId parameter
+    if (currentPlayer._id !== args.ownerId) {
+      throw new Error("You can only make your own companies public");
+    }
+
     const company = await ctx.db.get(args.companyId);
     if (!company) {
       throw new Error("Company not found");
