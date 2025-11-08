@@ -4,41 +4,51 @@ import { motion } from "motion/react";
 import { useEffect, useState, useRef } from "react";
 import React from "react";
 import { Users, TrendingUp, Building2, Coins } from "lucide-react";
-
-const stats = [
-  {
-    label: "Active Players",
-    value: 1247,
-    icon: Users,
-    suffix: "+",
-  },
-  {
-    label: "Daily Trades",
-    value: 15680,
-    icon: TrendingUp,
-    suffix: "+",
-  },
-  {
-    label: "Companies Listed",
-    value: 342,
-    icon: Building2,
-    suffix: "",
-  },
-  {
-    label: "Market Cap",
-    value: 45.8,
-    icon: Coins,
-    prefix: "$",
-    suffix: "M",
-  },
-];
+import { useQuery } from "convex/react";
+import { api } from "convex/_generated/api";
 
 export const StatsSection = () => {
   const [mounted, setMounted] = useState(false);
+  
+  // Fetch real-time game stats
+  const gameStats = useQuery(api.gameStats.getGameStats);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Convert market cap from cents to millions
+  const marketCapInMillions = gameStats?.totalMarketCap 
+    ? (gameStats.totalMarketCap / 100 / 1_000_000).toFixed(1) 
+    : 0;
+
+  const stats = [
+    {
+      label: "Active Players",
+      value: gameStats?.activePlayers ?? 0,
+      icon: Users,
+      suffix: "+",
+    },
+    {
+      label: "Total Trades",
+      value: gameStats?.totalTrades ?? 0,
+      icon: TrendingUp,
+      suffix: "+",
+    },
+    {
+      label: "Companies Listed",
+      value: gameStats?.totalCompanies ?? 0,
+      icon: Building2,
+      suffix: "",
+    },
+    {
+      label: "Market Cap",
+      value: parseFloat(marketCapInMillions as string),
+      icon: Coins,
+      prefix: "$",
+      suffix: "M",
+    },
+  ];
 
   return (
     <section className="py-16 md:py-24 border-y bg-muted/30">
@@ -73,12 +83,20 @@ export const StatsSection = () => {
   );
 };
 
+interface StatItem {
+  label: string;
+  value: number;
+  icon: any;
+  suffix?: string;
+  prefix?: string;
+}
+
 const StatCard = ({
   stat,
   index,
   mounted,
 }: {
-  stat: (typeof stats)[0];
+  stat: StatItem;
   index: number;
   mounted: boolean;
 }) => {

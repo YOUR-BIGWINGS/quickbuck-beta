@@ -16,6 +16,7 @@ import {
   Shield,
   MessageSquare,
   Tags,
+  Home,
 } from "lucide-react";
 import { Link } from "react-router";
 import { NavMain } from "./nav-main";
@@ -215,6 +216,25 @@ export function AppSidebar({
         <div className="flex items-center justify-between gap-2 px-2">
           <div className="flex items-center gap-1">
             <ThemeToggle />
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    asChild
+                    className="h-9 w-9"
+                  >
+                    <Link to="/">
+                      <Home className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Home</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             {isAdmin && (
               <TooltipProvider>
                 <Tooltip>
