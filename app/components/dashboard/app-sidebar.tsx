@@ -225,7 +225,7 @@ export function AppSidebar({
                     asChild
                     className="h-9 w-9"
                   >
-                    <Link to="/">
+                    <Link to="/home">
                       <Home className="h-4 w-4" />
                     </Link>
                   </Button>

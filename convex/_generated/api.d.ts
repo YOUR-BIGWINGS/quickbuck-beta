@@ -20,6 +20,7 @@ import type * as crons from "../crons.js";
 import type * as crypto from "../crypto.js";
 import type * as gambling from "../gambling.js";
 import type * as gameConfig from "../gameConfig.js";
+import type * as gameStats from "../gameStats.js";
 import type * as http from "../http.js";
 import type * as leaderboard from "../leaderboard.js";
 import type * as loans from "../loans.js";
@@ -65,6 +66,7 @@ declare const fullApi: ApiFromModules<{
   crypto: typeof crypto;
   gambling: typeof gambling;
   gameConfig: typeof gameConfig;
+  gameStats: typeof gameStats;
   http: typeof http;
   leaderboard: typeof leaderboard;
   loans: typeof loans;
