@@ -9,6 +9,7 @@ import { Id } from "./_generated/dataModel";
 /**
  * Send a message from one player to another
  * If sent from mod panel, isMod should be true
+ * Supports replying to messages for threading
  */
 export const sendMessage = mutation({
   args: {
@@ -16,6 +17,7 @@ export const sendMessage = mutation({
     content: v.string(),
     subject: v.optional(v.string()),
     isMod: v.optional(v.boolean()), // True when sent from mod panel
+    parentMessageId: v.optional(v.id("messages")), // Reply to this message
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -58,6 +60,29 @@ export const sendMessage = mutation({
       throw new Error("Recipient not found");
     }
 
+    // Determine thread information
+    let threadRootId: Id<"messages"> | undefined = undefined;
+    let parentMessageId: Id<"messages"> | undefined = args.parentMessageId;
+
+    if (args.parentMessageId) {
+      const parentMessage = await ctx.db.get(args.parentMessageId);
+      if (!parentMessage) {
+        throw new Error("Parent message not found");
+      }
+
+      // Verify sender is part of the conversation (either sender or recipient of parent)
+      if (
+        parentMessage.senderId !== sender._id &&
+        parentMessage.recipientId !== sender._id
+      ) {
+        throw new Error("Not authorized to reply to this message");
+      }
+
+      // If parent message is already part of a thread, use its thread root
+      // Otherwise, the parent message becomes the thread root
+      threadRootId = parentMessage.threadRootId || args.parentMessageId;
+    }
+
     // Create message
     await ctx.db.insert("messages", {
       senderId: sender._id,
@@ -68,6 +93,8 @@ export const sendMessage = mutation({
       isRead: false,
       sentAt: Date.now(),
       isMod: args.isMod || false,
+      parentMessageId,
+      threadRootId,
     });
 
     return {
@@ -356,5 +383,109 @@ export const searchPlayers = query({
     );
 
     return results.filter((r) => r !== null);
+  },
+});
+
+/**
+ * Get all messages in a thread
+ */
+export const getThreadMessages = query({
+  args: {
+    threadRootId: v.id("messages"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) return [];
+
+    const player = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!player) return [];
+
+    // Get the root message first
+    const rootMessage = await ctx.db.get(args.threadRootId);
+    if (!rootMessage) return [];
+
+    // Verify player is part of the thread
+    if (
+      rootMessage.senderId !== player._id &&
+      rootMessage.recipientId !== player._id
+    ) {
+      throw new Error("Not authorized to view this thread");
+    }
+
+    // Get all messages in the thread (including the root)
+    const threadMessages = await ctx.db
+      .query("messages")
+      .withIndex("by_threadRootId", (q) => q.eq("threadRootId", args.threadRootId))
+      .collect();
+
+    // Include the root message
+    const allMessages = [rootMessage, ...threadMessages];
+
+    // Enrich with sender info and badges
+    const enrichedMessages = await Promise.all(
+      allMessages.map(async (message) => {
+        const senderBadges = await ctx.db
+          .query("playerBadges")
+          .withIndex("by_playerId", (q) => q.eq("playerId", message.senderId))
+          .collect();
+
+        const badges = await Promise.all(
+          senderBadges.map(async (pb) => await ctx.db.get(pb.badgeId))
+        );
+
+        const senderPlayer = await ctx.db.get(message.senderId);
+        const senderUser = senderPlayer ? await ctx.db.get(senderPlayer.userId) : null;
+
+        return {
+          ...message,
+          senderName: senderUser?.name || message.senderName,
+          senderBadges: badges.filter((b) => b !== null),
+        };
+      })
+    );
+
+    // Sort by time
+    enrichedMessages.sort((a, b) => a.sentAt - b.sentAt);
+
+    return enrichedMessages;
+  },
+});
+
+/**
+ * Get reply count for a message
+ */
+export const getReplyCount = query({
+  args: {
+    messageId: v.id("messages"),
+  },
+  handler: async (ctx, args) => {
+    // Check if message is a root or has a thread root
+    const message = await ctx.db.get(args.messageId);
+    if (!message) return 0;
+
+    // Count direct replies
+    const directReplies = await ctx.db
+      .query("messages")
+      .withIndex("by_parentMessageId", (q) => q.eq("parentMessageId", args.messageId))
+      .collect();
+
+    // If this is a thread root, also count all messages in the thread
+    const threadReplies = await ctx.db
+      .query("messages")
+      .withIndex("by_threadRootId", (q) => q.eq("threadRootId", args.messageId))
+      .collect();
+
+    return Math.max(directReplies.length, threadReplies.length);
   },
 });

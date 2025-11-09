@@ -18,6 +18,8 @@ import {
   Search,
   X,
   ShieldCheck,
+  MessageCircle,
+  Reply,
 } from "lucide-react";
 import type { Id } from "convex/_generated/dataModel";
 import { getAuth } from "@clerk/react-router/ssr.server";
@@ -73,6 +75,15 @@ export default function MessagesPage() {
   const [recipientName, setRecipientName] = useState("");
   const [messageContent, setMessageContent] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [viewingThread, setViewingThread] = useState<Id<"messages"> | null>(null);
+  const [replyingTo, setReplyingTo] = useState<Id<"messages"> | null>(null);
+
+  // Thread queries
+  // @ts-ignore
+  const threadMessages = useQuery(
+    api.messages?.getThreadMessages,
+    viewingThread ? { threadRootId: viewingThread } : "skip"
+  );
 
   // Handle message selection and mark as read
   const handleSelectMessage = async (message: any) => {
@@ -115,6 +126,7 @@ export default function MessagesPage() {
         recipientId,
         content: messageContent,
         isMod: false, // Regular player message
+        parentMessageId: replyingTo || undefined,
       });
 
       showToast(`✓ Message sent to ${recipientName}`);
@@ -124,12 +136,42 @@ export default function MessagesPage() {
       setRecipientId(null);
       setRecipientName("");
       setSearchQuery("");
-      setActiveTab("sent");
+      setReplyingTo(null);
+
+      // If replying in a thread, go back to the thread view
+      if (viewingThread) {
+        setActiveTab("inbox");
+      } else {
+        setActiveTab("sent");
+      }
     } catch (error: any) {
       showToast("✗ Error: " + error.message);
     } finally {
       setIsSending(false);
     }
+  };
+
+  // Handle reply to message
+  const handleReply = (message: any) => {
+    const otherPartyId = activeTab === "inbox" ? message.senderId : message.recipientId;
+    const otherPartyName = activeTab === "inbox" ? message.senderName : message.recipientName;
+
+    setRecipientId(otherPartyId);
+    setRecipientName(otherPartyName);
+    setReplyingTo(message._id);
+    setActiveTab("compose");
+  };
+
+  // Handle view thread
+  const handleViewThread = (message: any) => {
+    const threadRoot = message.threadRootId || message._id;
+    setViewingThread(threadRoot);
+    setSelectedMessage(message);
+  };
+
+  // Handle close thread
+  const handleCloseThread = () => {
+    setViewingThread(null);
   };
 
   // Select recipient from search
@@ -364,6 +406,22 @@ export default function MessagesPage() {
 
                   {activeTab === "compose" && (
                     <div className="p-4 space-y-4">
+                      {replyingTo && (
+                        <div className="p-3 bg-accent/50 rounded-md border border-accent">
+                          <div className="flex items-center gap-2 text-sm">
+                            <Reply className="h-4 w-4" />
+                            <span className="font-medium">Replying to a message</span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setReplyingTo(null)}
+                              className="ml-auto"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                       <div>
                         <label className="text-sm font-medium mb-2 block">
                           To:
@@ -484,92 +542,177 @@ export default function MessagesPage() {
                 </CardHeader>
                 <CardContent>
                   {selectedMessage ? (
-                    <div className="space-y-4">
-                      <div className="flex items-start justify-between pb-4 border-b">
-                        <div className="space-y-2">
+                    viewingThread && threadMessages ? (
+                      // Thread view
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between pb-4 border-b">
                           <div className="flex items-center gap-2">
-                            <span className="font-semibold">
-                              {activeTab === "inbox" ? "From:" : "To:"}
-                            </span>
-                            {activeTab === "inbox" ? (
-                              selectedMessage.senderTag ? (
-                                <span className="inline-flex items-center gap-2">
-                                  <span
-                                    style={{
-                                      color: selectedMessage.senderTag.usernameColor || "inherit",
-                                    }}
-                                    className="font-medium"
-                                  >
-                                    {selectedMessage.senderName}
-                                  </span>
-                                  <span
-                                    style={{
-                                      color: selectedMessage.senderTag.tagColor,
-                                      borderColor: selectedMessage.senderTag.tagColor,
-                                    }}
-                                    className="px-2 py-0.5 rounded border text-xs font-medium"
-                                  >
-                                    {selectedMessage.senderTag.tagText}
-                                  </span>
-                                </span>
-                              ) : (
-                                <span>{selectedMessage.senderName}</span>
-                              )
-                            ) : (
-                              selectedMessage.recipientTag ? (
-                                <span className="inline-flex items-center gap-2">
-                                  <span
-                                    style={{
-                                      color: selectedMessage.recipientTag.usernameColor || "inherit",
-                                    }}
-                                    className="font-medium"
-                                  >
-                                    {selectedMessage.recipientName}
-                                  </span>
-                                  <span
-                                    style={{
-                                      color: selectedMessage.recipientTag.tagColor,
-                                      borderColor: selectedMessage.recipientTag.tagColor,
-                                    }}
-                                    className="px-2 py-0.5 rounded border text-xs font-medium"
-                                  >
-                                    {selectedMessage.recipientTag.tagText}
-                                  </span>
-                                </span>
-                              ) : (
-                                <span>{selectedMessage.recipientName}</span>
-                              )
-                            )}
-                            {selectedMessage.isMod && (
-                              <Badge variant="secondary">
-                                <ShieldCheck className="h-3 w-3 mr-1" />
-                                MODERATOR
-                              </Badge>
-                            )}
+                            <MessageCircle className="h-5 w-5" />
+                            <h3 className="font-semibold">Thread ({threadMessages.length} messages)</h3>
                           </div>
-                          <div className="text-sm text-muted-foreground">
-                            {formatDate(selectedMessage.sentAt)}
-                          </div>
-                        </div>
-                        {activeTab === "inbox" && (
                           <Button
-                            variant="destructive"
+                            variant="outline"
                             size="sm"
-                            onClick={() =>
-                              handleDeleteMessage(selectedMessage._id)
-                            }
+                            onClick={handleCloseThread}
                           >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
+                            <X className="h-4 w-4 mr-2" />
+                            Close Thread
                           </Button>
-                        )}
+                        </div>
+                        <div className="space-y-4 max-h-[500px] overflow-y-auto">
+                          {threadMessages.map((msg: any, index: number) => (
+                            <div
+                              key={msg._id}
+                              className={`p-4 rounded-lg border ${
+                                index === 0 ? "bg-accent/50" : "bg-background"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-sm">
+                                    {msg.senderName}
+                                  </span>
+                                  {msg.isMod && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      <ShieldCheck className="h-3 w-3 mr-1" />
+                                      MOD
+                                    </Badge>
+                                  )}
+                                  {index === 0 && (
+                                    <Badge variant="outline" className="text-xs">
+                                      Original
+                                    </Badge>
+                                  )}
+                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                  {formatDate(msg.sentAt)}
+                                </span>
+                              </div>
+                              <p className="text-sm whitespace-pre-wrap">
+                                {msg.content}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="pt-4 border-t">
+                          <Button
+                            onClick={() => handleReply(selectedMessage)}
+                            className="w-full"
+                          >
+                            <Reply className="h-4 w-4 mr-2" />
+                            Reply to Thread
+                          </Button>
+                        </div>
                       </div>
-                      <div className="prose dark:prose-invert max-w-none">
-                        <p className="whitespace-pre-wrap">
-                          {selectedMessage.content}
-                        </p>
+                    ) : (
+                      // Single message view
+                      <div className="space-y-4">
+                        <div className="flex items-start justify-between pb-4 border-b">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold">
+                                {activeTab === "inbox" ? "From:" : "To:"}
+                              </span>
+                              {activeTab === "inbox" ? (
+                                selectedMessage.senderTag ? (
+                                  <span className="inline-flex items-center gap-2">
+                                    <span
+                                      style={{
+                                        color: selectedMessage.senderTag.usernameColor || "inherit",
+                                      }}
+                                      className="font-medium"
+                                    >
+                                      {selectedMessage.senderName}
+                                    </span>
+                                    <span
+                                      style={{
+                                        color: selectedMessage.senderTag.tagColor,
+                                        borderColor: selectedMessage.senderTag.tagColor,
+                                      }}
+                                      className="px-2 py-0.5 rounded border text-xs font-medium"
+                                    >
+                                      {selectedMessage.senderTag.tagText}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span>{selectedMessage.senderName}</span>
+                                )
+                              ) : (
+                                selectedMessage.recipientTag ? (
+                                  <span className="inline-flex items-center gap-2">
+                                    <span
+                                      style={{
+                                        color: selectedMessage.recipientTag.usernameColor || "inherit",
+                                      }}
+                                      className="font-medium"
+                                    >
+                                      {selectedMessage.recipientName}
+                                    </span>
+                                    <span
+                                      style={{
+                                        color: selectedMessage.recipientTag.tagColor,
+                                        borderColor: selectedMessage.recipientTag.tagColor,
+                                      }}
+                                      className="px-2 py-0.5 rounded border text-xs font-medium"
+                                    >
+                                      {selectedMessage.recipientTag.tagText}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span>{selectedMessage.recipientName}</span>
+                                )
+                              )}
+                              {selectedMessage.isMod && (
+                                <Badge variant="secondary">
+                                  <ShieldCheck className="h-3 w-3 mr-1" />
+                                  MODERATOR
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {formatDate(selectedMessage.sentAt)}
+                            </div>
+                          </div>
+                          {activeTab === "inbox" && (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() =>
+                                handleDeleteMessage(selectedMessage._id)
+                              }
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </Button>
+                          )}
+                        </div>
+                        <div className="prose dark:prose-invert max-w-none">
+                          <p className="whitespace-pre-wrap">
+                            {selectedMessage.content}
+                          </p>
+                        </div>
+                        <div className="flex gap-2 pt-4 border-t">
+                          <Button
+                            onClick={() => handleReply(selectedMessage)}
+                            variant="default"
+                            className="flex-1"
+                          >
+                            <Reply className="h-4 w-4 mr-2" />
+                            Reply
+                          </Button>
+                          {(selectedMessage.threadRootId || selectedMessage.parentMessageId) && (
+                            <Button
+                              onClick={() => handleViewThread(selectedMessage)}
+                              variant="outline"
+                              className="flex-1"
+                            >
+                              <MessageCircle className="h-4 w-4 mr-2" />
+                              View Thread
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )
                   ) : (
                     <div className="flex flex-col items-center justify-center h-full text-center py-12">
                       <Mail className="h-16 w-16 text-muted-foreground mb-4" />

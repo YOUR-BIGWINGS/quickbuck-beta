@@ -30,7 +30,7 @@ async function executeTickLogic(ctx: any) {
   console.log(`Executing tick #${tickNumber}`);
 
   // Hardcode bot budget to avoid extra query (was 10000000 = $100k)
-  const botBudget = 10000000; // $100,000 in cents
+  const botBudget = 50000000; // $500,000 in cents
 
   // Step 1: Bot purchases from marketplace
   const botPurchases = await executeBotPurchases(ctx, botBudget);

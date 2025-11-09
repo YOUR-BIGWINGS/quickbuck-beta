@@ -561,11 +561,16 @@ export default defineSchema({
     isRead: v.boolean(),
     sentAt: v.number(),
     isMod: v.boolean(), // True when sent from mod panel
+    // Threading support
+    parentMessageId: v.optional(v.id("messages")), // Reference to parent message for replies
+    threadRootId: v.optional(v.id("messages")), // Reference to root message of the thread
   })
     .index("by_recipientId", ["recipientId"])
     .index("by_senderId", ["senderId"])
     .index("by_recipient_read", ["recipientId", "isRead"])
-    .index("by_sentAt", ["sentAt"]),
+    .index("by_sentAt", ["sentAt"])
+    .index("by_parentMessageId", ["parentMessageId"])
+    .index("by_threadRootId", ["threadRootId"]),
 
   // Badges (admin-only feature)
   badges: defineTable({

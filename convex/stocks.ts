@@ -133,21 +133,35 @@ function clamp(value: number, min: number, max: number): number {
 
 /**
  * Calculate fair value based on historical average with noise
+ * If stock is linked to a company, fair value is based on 5x company balance
  */
-function calculateFairValue(
+async function calculateFairValue(
+  ctx: any,
   stock: Doc<"stocks">,
   recentPrices: number[]
-): number {
+): Promise<number> {
+  // If stock is linked to a company, use company balance for fair value
+  if (stock.companyId) {
+    const company = await ctx.db.get(stock.companyId);
+    if (company) {
+      // Fair value = 5x company balance / outstanding shares
+      const outstandingShares = stock.outstandingShares ?? 1000000;
+      const companyBasedFairValue = (company.balance * 5) / outstandingShares;
+      return Math.max(1, Math.round(companyBasedFairValue));
+    }
+  }
+
+  // Fallback to historical average for non-company stocks
   if (recentPrices.length === 0) {
     return stock.currentPrice ?? 10000; // Default to 100.00 if undefined
   }
-  
+
   // Use 20-period moving average as base fair value
   const avgPrice = recentPrices.reduce((sum, p) => sum + p, 0) / recentPrices.length;
-  
+
   // Add random earnings factor (simulating P/E ratio changes)
   const earningsFactor = randomUniform(0.95, 1.05);
-  
+
   return avgPrice * earningsFactor;
 }
 
@@ -389,9 +403,9 @@ export const updateStockPrices = internalMutation({
           .take(20);
         
         const recentPrices = recentHistory.map(h => h.close).filter((p): p is number => p !== undefined);
-        
+
         // Calculate fair value
-        const fairValue = calculateFairValue(stock, recentPrices);
+        const fairValue = await calculateFairValue(ctx, stock, recentPrices);
         
         // Get current volatility
         const volatility = getCurrentVolatility(stock);
