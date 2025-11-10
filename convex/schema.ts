@@ -62,6 +62,23 @@ export default defineSchema({
     ticker: v.optional(v.string()),
     marketCap: v.optional(v.number()),
     sharesOutstanding: v.optional(v.number()),
+    // Employee system
+    employees: v.optional(
+      v.array(
+        v.object({
+          id: v.string(), // unique employee id
+          name: v.string(),
+          bonusType: v.union(
+            v.literal("stock_boost_5"),
+            v.literal("stock_boost_10")
+          ),
+          bonusPercentage: v.number(), // e.g., 5 or 10
+          upfrontCost: v.number(), // in cents
+          tickCostPercentage: v.number(), // percentage of income per tick (e.g., 2 or 5)
+          hiredAt: v.number(),
+        })
+      )
+    ),
   })
     .index("by_ownerId", ["ownerId"])
     .index("by_isPublic", ["isPublic"])

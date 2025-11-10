@@ -38,6 +38,7 @@ import {
   PieChart,
   ShoppingBag,
 } from "lucide-react";
+import { useTheme } from "~/contexts/theme-context";
 
 type SortField = "value" | "amount" | "name";
 type SortOrder = "asc" | "desc";
@@ -51,6 +52,7 @@ export async function loader(args: Route.LoaderArgs) {
 export default function PortfolioPage() {
   const navigate = useNavigate();
   const { userId: clerkUserId } = useAuth();
+  const { preset } = useTheme();
 
   // Get user and player
   const user = useQuery(
@@ -268,11 +270,18 @@ export default function PortfolioPage() {
         <div className="flex flex-col gap-4 p-4 md:gap-6 md:p-6">
           {/* Header / Summary */}
           <motion.div variants={itemVariants}>
-            <Card className="relative overflow-hidden border bg-background">
+            <Card className={`relative overflow-hidden border-0 text-white shadow-2xl ${
+              preset === "default" || preset === "dark-default" 
+                ? "bg-gradient-to-br from-[#FF934F] to-[#EF7176]" 
+                : "bg-primary"
+            }`}>
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-white/5 to-transparent dark:from-black/20 dark:via-black/10 dark:to-transparent" />
+              <div className="absolute -right-32 -top-32 h-64 w-64 rounded-full bg-white/20 blur-3xl dark:bg-black/30" />
+              <div className="absolute -bottom-32 -left-32 h-64 w-64 rounded-full bg-white/20 blur-3xl dark:bg-black/30" />
               <CardHeader className="relative z-10">
                 <div className="flex flex-col gap-1">
-                  <CardDescription>Portfolio Value</CardDescription>
-                  <CardTitle className="text-4xl font-bold tracking-tight md:text-5xl">
+                  <CardDescription className="text-white/70">Portfolio Value</CardDescription>
+                  <CardTitle className="text-4xl font-bold tracking-tight md:text-5xl text-white">
                     <AnimatedNumber
                       value={netWorth}
                       compact={true}
@@ -283,12 +292,12 @@ export default function PortfolioPage() {
               </CardHeader>
               <CardContent className="relative z-10">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <div className="rounded-lg border p-4">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="rounded-lg border border-white/20 bg-white/10 p-4">
+                    <div className="flex items-center gap-2 text-sm text-white/70">
                       <Banknote className="h-4 w-4" />
                       Cash
                     </div>
-                    <div className="mt-1 text-lg font-semibold">
+                    <div className="mt-1 text-lg font-semibold text-white">
                       <AnimatedNumber
                         value={totalBalance}
                         compact={false}
@@ -296,12 +305,12 @@ export default function PortfolioPage() {
                       />
                     </div>
                   </div>
-                  <div className="rounded-lg border p-4">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="rounded-lg border border-white/20 bg-white/10 p-4">
+                    <div className="flex items-center gap-2 text-sm text-white/70">
                       <Building2 className="h-4 w-4" />
                       Stocks
                     </div>
-                    <div className="mt-1 text-lg font-semibold">
+                    <div className="mt-1 text-lg font-semibold text-white">
                       <AnimatedNumber
                         value={totalStockValue}
                         compact={false}
@@ -309,12 +318,12 @@ export default function PortfolioPage() {
                       />
                     </div>
                   </div>
-                  <div className="rounded-lg border p-4">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="rounded-lg border border-white/20 bg-white/10 p-4">
+                    <div className="flex items-center gap-2 text-sm text-white/70">
                       <Coins className="h-4 w-4" />
                       Crypto
                     </div>
-                    <div className="mt-1 text-lg font-semibold">
+                    <div className="mt-1 text-lg font-semibold text-white">
                       <AnimatedNumber
                         value={totalCryptoValue}
                         compact={false}
@@ -322,12 +331,12 @@ export default function PortfolioPage() {
                       />
                     </div>
                   </div>
-                  <div className="rounded-lg border p-4">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="rounded-lg border border-white/20 bg-white/10 p-4">
+                    <div className="flex items-center gap-2 text-sm text-white/70">
                       <PieChart className="h-4 w-4" />
                       Company Equity
                     </div>
-                    <div className="mt-1 text-lg font-semibold">
+                    <div className="mt-1 text-lg font-semibold text-white">
                       <AnimatedNumber
                         value={companyEquity}
                         compact={false}

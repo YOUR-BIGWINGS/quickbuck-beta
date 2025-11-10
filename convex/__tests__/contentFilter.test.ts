@@ -8,9 +8,13 @@ import { describe, expect, test } from "vitest";
 import { api } from "../_generated/api";
 import schema from "../schema";
 
+// Import all convex modules for testing (lazy loading for convex-test)
+// @ts-expect-error - Vite's import.meta.glob not in TypeScript types
+const modules = import.meta.glob(["../*.*s", "../_generated/*.*s"]);
+
 describe("Content Filter - Normal Words (False Positives Check)", () => {
   test("should allow company names with common words", async () => {
-    const t = convexTest(schema);
+    const t = convexTest(schema, modules);
     
     const playerId = await t.run(async (ctx) => {
       const userId = await ctx.db.insert("users", {
@@ -68,7 +72,7 @@ describe("Content Filter - Normal Words (False Positives Check)", () => {
   });
 
   test("should allow product names with common words", async () => {
-    const t = convexTest(schema);
+    const t = convexTest(schema, modules);
     
     const { playerId, companyId } = await t.run(async (ctx) => {
       const userId = await ctx.db.insert("users", {
@@ -122,7 +126,7 @@ describe("Content Filter - Normal Words (False Positives Check)", () => {
   });
 
   test("should allow descriptions with common words", async () => {
-    const t = convexTest(schema);
+    const t = convexTest(schema, modules);
     
     const { playerId } = await t.run(async (ctx) => {
       const userId = await ctx.db.insert("users", {
@@ -165,7 +169,7 @@ describe("Content Filter - Normal Words (False Positives Check)", () => {
   });
 
   test("should allow ticker symbols with common letter combinations", async () => {
-    const t = convexTest(schema);
+    const t = convexTest(schema, modules);
     
     const { playerId } = await t.run(async (ctx) => {
       const userId = await ctx.db.insert("users", {
@@ -226,7 +230,7 @@ describe("Content Filter - Normal Words (False Positives Check)", () => {
 
 describe("Content Filter - Profanity Detection", () => {
   test("should reject company names with profanity", async () => {
-    const t = convexTest(schema);
+    const t = convexTest(schema, modules);
     
     const playerId = await t.run(async (ctx) => {
       const userId = await ctx.db.insert("users", {
@@ -265,7 +269,7 @@ describe("Content Filter - Profanity Detection", () => {
   });
 
   test("should reject product names with profanity", async () => {
-    const t = convexTest(schema);
+    const t = convexTest(schema, modules);
     
     const { playerId, companyId } = await t.run(async (ctx) => {
       const userId = await ctx.db.insert("users", {
@@ -313,7 +317,7 @@ describe("Content Filter - Profanity Detection", () => {
   });
 
   test("should reject descriptions with profanity", async () => {
-    const t = convexTest(schema);
+    const t = convexTest(schema, modules);
     
     const playerId = await t.run(async (ctx) => {
       const userId = await ctx.db.insert("users", {
@@ -350,7 +354,7 @@ describe("Content Filter - Profanity Detection", () => {
   });
 
   test("should reject ticker symbols with profanity", async () => {
-    const t = convexTest(schema);
+    const t = convexTest(schema, modules);
     
     const playerId = await t.run(async (ctx) => {
       const userId = await ctx.db.insert("users", {
@@ -400,7 +404,7 @@ describe("Content Filter - Profanity Detection", () => {
   });
 
   test("should reject tags with profanity", async () => {
-    const t = convexTest(schema);
+    const t = convexTest(schema, modules);
     
     const { playerId } = await t.run(async (ctx) => {
       const userId = await ctx.db.insert("users", {
@@ -434,7 +438,7 @@ describe("Content Filter - Profanity Detection", () => {
 
 describe("Content Filter - Edge Cases", () => {
   test("should handle empty and whitespace-only inputs", async () => {
-    const t = convexTest(schema);
+    const t = convexTest(schema, modules);
     
     const playerId = await t.run(async (ctx) => {
       const userId = await ctx.db.insert("users", {
@@ -478,7 +482,7 @@ describe("Content Filter - Edge Cases", () => {
   });
 
   test("should enforce length limits", async () => {
-    const t = convexTest(schema);
+    const t = convexTest(schema, modules);
     
     const playerId = await t.run(async (ctx) => {
       const userId = await ctx.db.insert("users", {
@@ -560,7 +564,7 @@ describe("Content Filter - Edge Cases", () => {
   });
 
   test("should trim whitespace from inputs", async () => {
-    const t = convexTest(schema);
+    const t = convexTest(schema, modules);
     
     const playerId = await t.run(async (ctx) => {
       const userId = await ctx.db.insert("users", {
@@ -591,3 +595,4 @@ describe("Content Filter - Edge Cases", () => {
     expect(company?.description).toBe("A great company");
   });
 });
+

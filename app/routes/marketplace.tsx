@@ -55,8 +55,8 @@ export default function MarketplacePage() {
     user ? { userId: user._id as Id<"users"> } : "skip"
   );
 
-  // Get in-stock products only and companies
-  const inStockProducts = useQuery(api.products.getInStockProducts, { limit: 10000 });
+  // Get all products and companies
+  const allProducts = useQuery(api.products.getAllProducts, { limit: 10000 });
   const allCompanies = useQuery(api.companies.getAllCompanies);
 
   // Get player's cart
@@ -111,11 +111,11 @@ export default function MarketplacePage() {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [addingToCart, setAddingToCart] = useState<string | null>(null);
 
-  // Filter and sort products - only show in-stock
+  // Filter and sort products - show all products
   const filteredProducts = useMemo(() => {
-    if (!inStockProducts) return [];
+    if (!allProducts) return [];
 
-    let filtered = inStockProducts.filter((product) => {
+    let filtered = allProducts.filter((product) => {
       // Search filter
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -155,7 +155,7 @@ export default function MarketplacePage() {
 
     return filtered;
   }, [
-    inStockProducts,
+    allProducts,
     searchQuery,
     selectedCompany,
     minPrice,
@@ -268,12 +268,12 @@ export default function MarketplacePage() {
 
   // Get cart items with product details
   const cartItems = useMemo(() => {
-    if (!cartData?.items || !inStockProducts) return [];
+    if (!cartData?.items || !allProducts) return [];
     return cartData.items.map((item) => {
-      const product = inStockProducts.find((p) => p._id === item.productId);
+      const product = allProducts.find((p) => p._id === item.productId);
       return { ...item, product };
     });
-  }, [cartData, inStockProducts]);
+  }, [cartData, allProducts]);
 
   const cartTotal = cartData?.cart?.totalPrice || 0;
   const cartItemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
@@ -412,7 +412,7 @@ export default function MarketplacePage() {
           </Card>
 
           {/* Products Grid */}
-          {!inStockProducts ? (
+          {!allProducts ? (
             <p className="text-sm text-muted-foreground">Loading products...</p>
           ) : filteredProducts.length === 0 ? (
             <Card>

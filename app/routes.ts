@@ -25,6 +25,7 @@ export default [
     route("stocks", "routes/stocks.tsx"),
     route("stocks/:symbol", "routes/stocks.$symbol.tsx"),
     route("portfolio", "routes/portfolio.tsx"),
+    route("employees", "routes/employees.tsx"),
     route("company-marketplace", "routes/dashboard/company-marketplace.tsx"),
     route("gamble", "routes/gamble.tsx"),
     route("upgrades", "routes/upgrades.tsx"),

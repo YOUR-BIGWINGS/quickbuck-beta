@@ -695,7 +695,7 @@ export default function CompanyDashboardPage() {
                         <p className="text-xs text-muted-foreground mb-2">
                           (35-67% of selling price, randomly determined)
                         </p>
-                        <p className="text-lg font-semibold text-orange-600">
+                        <p className="text-lg font-semibold text-[var(--chart-3)]">
                           ~$
                           {(
                             (parseFloat(productPrice) * 0.35 +
@@ -798,7 +798,7 @@ export default function CompanyDashboardPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold text-orange-600">
+                <p className="text-2xl font-bold text-[var(--chart-3)]">
                   {formatCurrency(totalStockValue)}
                 </p>
               </CardContent>
@@ -920,7 +920,7 @@ export default function CompanyDashboardPage() {
                           <TableCell className="font-medium">
                             {formatCurrency(product.price)}
                           </TableCell>
-                          <TableCell className="text-orange-600">
+                          <TableCell className="text-[var(--chart-3)]">
                             {formatCurrency(
                               Math.floor(
                                 product.price *
@@ -935,7 +935,7 @@ export default function CompanyDashboardPage() {
                                 (product.stock || 0) === 0
                                   ? "text-red-600"
                                   : (product.stock || 0) < 10
-                                  ? "text-orange-600"
+                                  ? "text-[var(--chart-3)]"
                                   : "text-green-600"
                               )}
                             >
@@ -1030,7 +1030,7 @@ export default function CompanyDashboardPage() {
                         <TableCell className="text-sm text-muted-foreground">
                           {order.description}
                         </TableCell>
-                        <TableCell className="text-right font-medium text-orange-600">
+                        <TableCell className="text-right font-medium text-[var(--chart-3)]">
                           -{formatCurrency(order.amount)}
                         </TableCell>
                       </TableRow>
@@ -1172,7 +1172,7 @@ export default function CompanyDashboardPage() {
                               <span className="text-sm text-muted-foreground">
                                 Cost per unit:
                               </span>
-                              <span className="font-medium text-orange-600">
+                              <span className="font-medium text-[var(--chart-3)]">
                                 {formatCurrency(productionCost)}
                               </span>
                             </div>
@@ -1249,7 +1249,7 @@ export default function CompanyDashboardPage() {
                             <div className="rounded-md border-2 border-primary/20 bg-primary/5 p-4 space-y-2">
                               <div className="flex justify-between text-lg">
                                 <span className="font-medium">Total Cost:</span>
-                                <span className="font-bold text-orange-600">
+                                <span className="font-bold text-[var(--chart-3)]">
                                   {formatCurrency(totalCost)}
                                 </span>
                               </div>

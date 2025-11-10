@@ -318,6 +318,10 @@ export const checkout = mutation({
 
     const now = Date.now();
 
+    // Track unique companies for payment distribution
+    const companyPayments = new Map<Id<"companies">, number>();
+    const itemDescriptions: string[] = [];
+
     // Process each item
     for (const item of cartItems) {
       const product = await ctx.db.get(item.productId);
@@ -385,22 +389,35 @@ export const checkout = mutation({
         createdAt: now,
       });
 
-      // Create transaction
-      await ctx.db.insert("transactions", {
-        fromAccountId: args.accountId,
-        fromAccountType: args.accountType,
-        toAccountId: product.companyId,
-        toAccountType: "company" as const,
-        amount: product.price * item.quantity,
-        assetType: "product" as const,
-        assetId: item.productId,
-        description: `Purchased ${item.quantity}x ${product.name}`,
-        createdAt: now,
-      });
+      // Track company payments for consolidated transaction
+      const itemTotal = product.price * item.quantity;
+      const currentAmount = companyPayments.get(product.companyId) || 0;
+      companyPayments.set(product.companyId, currentAmount + itemTotal);
+
+      // Build description
+      itemDescriptions.push(`${item.quantity}x ${product.name}`);
 
       // Delete cart item
       await ctx.db.delete(item._id);
     }
+
+    // DUPLICATE FIX: Create ONE consolidated transaction for the entire cart purchase
+    // instead of separate transactions per item
+    const itemCount = cartItems.length;
+    const description = itemCount === 1 
+      ? itemDescriptions[0] 
+      : `Cart checkout: ${itemCount} items (${itemDescriptions.slice(0, 3).join(", ")}${itemCount > 3 ? "..." : ""})`;
+
+    await ctx.db.insert("transactions", {
+      fromAccountId: args.accountId,
+      fromAccountType: args.accountType,
+      toAccountId: args.accountId, // Self-reference for cart purchases
+      toAccountType: args.accountType,
+      amount: total,
+      assetType: "product" as const,
+      description: description,
+      createdAt: now,
+    });
 
     // Clear cart
     await ctx.db.patch(cart._id, {
@@ -522,6 +539,9 @@ export const checkoutWithCrypto = mutation({
 
     const now = Date.now();
 
+    // Track items for consolidated transaction
+    const itemDescriptions: string[] = [];
+
     // Process each item
     for (const item of cartItems) {
       const product = await ctx.db.get(item.productId);
@@ -587,23 +607,29 @@ export const checkoutWithCrypto = mutation({
         createdAt: now,
       });
 
-      // Create transaction record
-      await ctx.db.insert("transactions", {
-        fromAccountId: args.accountId,
-        fromAccountType: "player" as const,
-        toAccountId: product.companyId,
-        toAccountType: "company" as const,
-        amount: product.price * item.quantity,
-        assetType: "product" as const,
-        assetId: item.productId,
-        description: `Purchased ${item.quantity}x ${
-          product.name
-        } (paid with ${cryptoNeeded.toFixed(8)} ${crypto.symbol})`,
-        createdAt: now,
-      });
+      // Build description
+      itemDescriptions.push(`${item.quantity}x ${product.name}`);
 
       await ctx.db.delete(item._id);
     }
+
+    // DUPLICATE FIX: Create ONE consolidated transaction for the entire crypto cart purchase
+    const itemCount = cartItems.length;
+    const description = itemCount === 1 
+      ? `Purchased ${itemDescriptions[0]} (paid with ${cryptoNeeded.toFixed(8)} ${crypto.symbol})`
+      : `Cart checkout: ${itemCount} items (${itemDescriptions.slice(0, 3).join(", ")}${itemCount > 3 ? "..." : ""}) (paid with ${cryptoNeeded.toFixed(8)} ${crypto.symbol})`;
+
+    await ctx.db.insert("transactions", {
+      fromAccountId: args.accountId,
+      fromAccountType: "player" as const,
+      toAccountId: args.accountId, // Self-reference for cart purchases
+      toAccountType: "player" as const,
+      amount: total,
+      assetType: "crypto" as const,
+      assetId: args.cryptoId,
+      description: description,
+      createdAt: now,
+    });
 
     // Clear cart
     await ctx.db.patch(cart._id, {

@@ -29,35 +29,34 @@ export const getTotalMarketCap = query({
   },
 });
 
-// Get total trades count (stock and crypto trades)
-export const getTotalTradesCount = query({
+// Get active products count
+export const getActiveProductsCount = query({
   handler: async (ctx) => {
-    const [stockTransactions, cryptoTransactions] = await Promise.all([
-      ctx.db.query("stockTransactions").collect(),
-      ctx.db.query("cryptoTransactions").collect(),
-    ]);
-    return stockTransactions.length + cryptoTransactions.length;
+    const products = await ctx.db
+      .query("products")
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+    return products.length;
   },
 });
 
 // Get all game stats in one query for efficiency
 export const getGameStats = query({
   handler: async (ctx) => {
-    const [players, companies, stockTransactions, cryptoTransactions] = await Promise.all([
+    const [players, companies, allProducts] = await Promise.all([
       ctx.db.query("players").collect(),
       ctx.db.query("companies").collect(),
-      ctx.db.query("stockTransactions").collect(),
-      ctx.db.query("cryptoTransactions").collect(),
+      ctx.db.query("products").collect(),
     ]);
 
     const totalMarketCap = companies.reduce((sum, company) => sum + company.balance, 0);
-    const totalTrades = stockTransactions.length + cryptoTransactions.length;
+    const activeProducts = allProducts.filter((p) => p.isActive && !p.isArchived).length;
 
     return {
       activePlayers: players.length,
       totalCompanies: companies.length,
       totalMarketCap,
-      totalTrades,
+      activeProducts,
     };
   },
 });

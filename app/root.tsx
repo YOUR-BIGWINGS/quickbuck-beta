@@ -21,6 +21,7 @@ import { initializeSentryClient } from "./lib/sentry.client";
 import { useEffect } from "react";
 import { Toaster } from "sonner";
 import "number-flow";
+import { ThemeProvider } from "./contexts/theme-context";
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
 
@@ -98,7 +99,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "(function(){try{var t=localStorage.getItem('theme');var m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;var d=(t==='dark'||(!t&&m));var c=document.documentElement.classList;c.toggle('dark',d);}catch(e){}})();",
+              "(function(){try{var t=localStorage.getItem('theme');var p=localStorage.getItem('themePreset');var m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;var d=(t==='dark'||(!t&&m));var c=document.documentElement.classList;c.toggle('dark',d);}catch(e){}})();",
           }}
         />
         <script
@@ -133,10 +134,12 @@ function AppContent({ loaderData }: Route.ComponentProps) {
       signInFallbackRedirectUrl="/"
     >
       <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-        <GlobalAlertBanner />
-        <CompanyOfferNotifications />
-        <Toaster />
-        <Outlet />
+        <ThemeProvider>
+          <GlobalAlertBanner />
+          <CompanyOfferNotifications />
+          <Toaster />
+          <Outlet />
+        </ThemeProvider>
       </ConvexProviderWithClerk>
     </ClerkProvider>
   );

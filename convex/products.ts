@@ -156,9 +156,22 @@ export const orderProductBatch = mutation({
       updatedAt: now,
     });
 
-    // Add stock to product
+    // Calculate employee bonus for stock boost
+    const employees = company.employees || [];
+    let totalStockBoost = 0;
+    for (const employee of employees) {
+      if (employee.bonusType.startsWith("stock_boost")) {
+        totalStockBoost += employee.bonusPercentage;
+      }
+    }
+
+    // Apply bonus to quantity
+    const bonusMultiplier = 1 + (totalStockBoost / 100);
+    const actualQuantity = Math.floor(args.quantity * bonusMultiplier);
+
+    // Add stock to product (with bonus applied)
     await ctx.db.patch(args.productId, {
-      stock: (product.stock || 0) + args.quantity,
+      stock: (product.stock || 0) + actualQuantity,
       updatedAt: now,
     });
 
@@ -171,15 +184,17 @@ export const orderProductBatch = mutation({
       amount: totalCost,
       assetType: "product" as const,
       assetId: args.productId,
-      description: `Ordered ${args.quantity} units of ${product.name}`,
+      description: `Ordered ${args.quantity} units of ${product.name}${totalStockBoost > 0 ? ` (+${totalStockBoost}% employee bonus = ${actualQuantity} total)` : ''}`,
       createdAt: now,
     });
 
     return {
       productId: args.productId,
       quantity: args.quantity,
+      actualQuantity,
+      bonusApplied: totalStockBoost,
       totalCost,
-      newStock: (product.stock || 0) + args.quantity,
+      newStock: (product.stock || 0) + actualQuantity,
     };
   },
 });
@@ -381,7 +396,20 @@ export const bulkOrderProducts = mutation({
         throw new Error("Cost calculation overflow");
       }
 
-      const newStock = (product.stock || 0) + quantity;
+      // Calculate employee bonus for stock boost
+      const employees = company.employees || [];
+      let totalStockBoost = 0;
+      for (const employee of employees) {
+        if (employee.bonusType.startsWith("stock_boost")) {
+          totalStockBoost += employee.bonusPercentage;
+        }
+      }
+
+      // Apply bonus to quantity
+      const bonusMultiplier = 1 + (totalStockBoost / 100);
+      const actualQuantity = Math.floor(quantity * bonusMultiplier);
+
+      const newStock = (product.stock || 0) + actualQuantity;
       if (!Number.isSafeInteger(newStock)) {
         throw new Error("Stock calculation overflow");
       }
@@ -398,6 +426,8 @@ export const bulkOrderProducts = mutation({
         productId: allocation.productId,
         productName: product.name,
         quantity,
+        actualQuantity,
+        bonusApplied: totalStockBoost,
         costPerUnit: productionCost,
         totalCost: actualCost,
         newStock,

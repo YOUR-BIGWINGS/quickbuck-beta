@@ -27,6 +27,7 @@ import type { Route } from "./+types/leaderboard";
 import { cn } from "~/lib/utils";
 import { motion } from "motion/react";
 import { AnimatedNumber } from "~/components/ui/animated-number";
+import { useTheme } from "~/contexts/theme-context";
 
 export async function loader(args: Route.LoaderArgs) {
   const { userId } = await getAuth(args);
@@ -77,6 +78,7 @@ export default function LeaderboardPage() {
     },
   };
   const { userId: clerkUserId } = useAuth();
+  const { preset } = useTheme();
   const upsertUser = useMutation(api.users.upsertUser);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -304,7 +306,11 @@ export default function LeaderboardPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-[#FF934F] to-[#EF7176] text-white shadow-2xl">
+            <Card className={`relative overflow-hidden border-0 text-white shadow-2xl ${
+              preset === "default" || preset === "dark-default" 
+                ? "bg-gradient-to-br from-[#FF934F] to-[#EF7176]" 
+                : "bg-primary"
+            }`}>
               <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-white/5 to-transparent dark:from-black/20 dark:via-black/10 dark:to-transparent" />
               <div className="absolute -right-32 -top-32 h-64 w-64 rounded-full bg-white/20 blur-3xl dark:bg-black/30" />
               <div className="absolute -bottom-32 -left-32 h-64 w-64 rounded-full bg-white/20 blur-3xl dark:bg-black/30" />

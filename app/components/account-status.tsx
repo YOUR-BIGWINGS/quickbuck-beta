@@ -545,12 +545,13 @@ export function BannedAccountScreen({ reason }: BannedAccountScreenProps) {
               <strong>Reason:</strong> {reason}
             </p>
             <p className="ban-message">
-              Your account has been permanently banned from Quickbuck. You no
-              longer have access to any features or content.
+              Your account has been banned from Quickbuck. You no
+              longer have access to any features or content. You may be unbanned
+              in the future at the discretion of the moderation team.
             </p>
             <p className="contact-info">
               If you believe this ban was made in error, please contact support
-              at{" "}
+              at{" brodie.lamprecht@gmail.com"}
               <a href="mailto:support@quickbuck.com">support@quickbuck.com</a>
             </p>
           </div>

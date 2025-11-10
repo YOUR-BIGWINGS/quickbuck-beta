@@ -105,7 +105,7 @@ export const HeroSection = ({ isSignedIn }: { isSignedIn: boolean }) => {
           <FeatureCard
             icon={<TrendingUp className="h-6 w-6" />}
             title="Live Markets"
-            description="Real-time price updates every 20 minutes"
+            description="Real-time price updates every 5 minutes"
           />
           <FeatureCard
             icon={<Trophy className="h-6 w-6" />}

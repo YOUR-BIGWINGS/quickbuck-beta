@@ -67,13 +67,13 @@ export function CountdownTimer({
     >
       <Card
         className={`relative overflow-hidden ${heightPx ? "h-full" : ""} ${
-          isAlmostDue ? "border-orange-200 dark:border-orange-800" : ""
+          isAlmostDue ? "border-[var(--chart-3)]/20 dark:border-[var(--chart-3)]/30" : ""
         }`}
       >
         {/* Progress bar background */}
         <div className="absolute inset-x-0 top-0 h-1 bg-muted">
           <motion.div
-            className={`h-full ${isAlmostDue ? "bg-orange-500" : "bg-primary"}`}
+            className={`h-full ${isAlmostDue ? "bg-[var(--chart-3)]" : "bg-primary"}`}
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
             transition={{ duration: 0.5, ease: "easeOut" }}
@@ -88,7 +88,7 @@ export function CountdownTimer({
             {isAlmostDue && (
               <Badge
                 variant="secondary"
-                className="bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300"
+                className="bg-[var(--chart-3)]/10 text-[var(--chart-3)] dark:bg-[var(--chart-3)]/20 dark:text-[var(--chart-3)]"
               >
                 <Zap className="mr-1 h-3 w-3" />
                 Soon
@@ -97,7 +97,7 @@ export function CountdownTimer({
           </div>
           <motion.div
             className={`rounded-lg p-2 ${
-              isAlmostDue ? "bg-orange-100 dark:bg-orange-950/50" : "bg-muted"
+              isAlmostDue ? "bg-[var(--chart-3)]/10 dark:bg-[var(--chart-3)]/20" : "bg-muted"
             }`}
             animate={isAlmostDue ? { scale: [1, 1.1, 1] } : {}}
             transition={{ duration: 1, repeat: isAlmostDue ? Infinity : 0 }}
@@ -105,7 +105,7 @@ export function CountdownTimer({
             <Clock
               className={`h-5 w-5 ${
                 isAlmostDue
-                  ? "text-orange-600 dark:text-orange-400"
+                  ? "text-[var(--chart-3)]"
                   : "text-muted-foreground"
               }`}
             />
@@ -114,7 +114,7 @@ export function CountdownTimer({
         <CardContent className="space-y-3">
           <motion.div
             className={`text-3xl font-bold tracking-tight ${
-              isAlmostDue ? "text-orange-600 dark:text-orange-400" : ""
+              isAlmostDue ? "text-[var(--chart-3)]" : ""
             }`}
             animate={isAlmostDue ? { scale: [1, 1.05, 1] } : {}}
             transition={{ duration: 1, repeat: isAlmostDue ? Infinity : 0 }}
@@ -128,7 +128,7 @@ export function CountdownTimer({
             <div className="flex items-center gap-2 text-xs">
               <div
                 className={`h-2 w-2 rounded-full ${
-                  isAlmostDue ? "bg-orange-500" : "bg-emerald-500"
+                  isAlmostDue ? "bg-[var(--chart-3)]" : "bg-emerald-500"
                 } animate-pulse`}
               />
               <span className="text-muted-foreground">

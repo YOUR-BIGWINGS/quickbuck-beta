@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { AnimatedNumber } from "~/components/ui/animated-number";
 import { formatCompactCurrency, formatCurrency } from "~/lib/game-utils";
+import { useTheme } from "~/contexts/theme-context";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -62,6 +63,7 @@ const cardHoverVariants = {
 
 export default function DashboardPage() {
   const { userId } = useAuth();
+  const { preset } = useTheme();
   const {
     player,
     balance,
@@ -124,8 +126,8 @@ export default function DashboardPage() {
       label: "Liquidity Ratio",
       value: liquidityRatio,
       icon: Activity,
-      color: "text-orange-600 dark:text-orange-400",
-      bgColor: "bg-orange-50 dark:bg-orange-950/50",
+      color: "text-[var(--chart-3)]",
+      bgColor: "bg-[var(--chart-3)]/10",
       change: "-1.2%",
       isPositive: false,
       isPercentage: true,
@@ -154,7 +156,7 @@ export default function DashboardPage() {
     {
       label: "Companies",
       value: companyEquity,
-      color: "bg-orange-500",
+      color: "bg-[var(--chart-3)]",
       percentage: totalAssets > 0 ? (companyEquity / totalAssets) * 100 : 0,
     },
   ].filter((item) => item.value > 0);
@@ -189,8 +191,8 @@ export default function DashboardPage() {
       description: "Track your financial performance",
       icon: BarChart3,
       href: "/portfolio",
-      color: "text-orange-600 dark:text-orange-400",
-      bgColor: "bg-orange-50 dark:bg-orange-950/50",
+      color: "text-[var(--chart-3)]",
+      bgColor: "bg-[var(--chart-3)]/10",
     },
   ];
 
@@ -207,7 +209,11 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-6 p-6">
           {/* Hero Section */}
           <motion.div variants={itemVariants}>
-            <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-[#FF934F] to-[#EF7176] text-white shadow-2xl dark:from-[#FF934F] dark:to-[#EF7176]">
+            <Card className={`relative overflow-hidden border-0 text-white shadow-2xl ${
+              preset === "default" || preset === "dark-default" 
+                ? "bg-gradient-to-br from-[#FF934F] to-[#EF7176] dark:from-[#FF934F] dark:to-[#EF7176]" 
+                : "bg-primary"
+            }`}>
               <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-white/5 to-transparent dark:from-black/20 dark:via-black/10 dark:to-transparent" />
               <div className="absolute -right-32 -top-32 h-64 w-64 rounded-full bg-white/20 blur-3xl dark:bg-black/30" />
               <div className="absolute -bottom-32 -left-32 h-64 w-64 rounded-full bg-white/20 blur-3xl dark:bg-black/30" />

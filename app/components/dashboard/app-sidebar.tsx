@@ -17,6 +17,7 @@ import {
   MessageSquare,
   Tags,
   Home,
+  Users,
 } from "lucide-react";
 import { Link } from "react-router";
 import { NavMain } from "./nav-main";
@@ -29,7 +30,7 @@ import {
   SidebarMenuItem,
 } from "~/components/ui/sidebar";
 import { UserButton } from "@clerk/react-router";
-import { ThemeToggle } from "~/components/ui/theme-toggle";
+import { ThemeSettings } from "~/components/ui/theme-settings";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useState } from "react";
@@ -80,6 +81,11 @@ const sidebarGroups = [
         title: "Companies",
         url: "/companies",
         icon: Building2,
+      },
+      {
+        title: "Employees",
+        url: "/employees",
+        icon: Users,
       },
     ],
   },
@@ -215,7 +221,7 @@ export function AppSidebar({
       <SidebarFooter>
         <div className="flex items-center justify-between gap-2 px-2">
           <div className="flex items-center gap-1">
-            <ThemeToggle />
+            <ThemeSettings />
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>

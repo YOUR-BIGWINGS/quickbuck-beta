@@ -452,3 +452,210 @@ export const deleteCompany = mutation({
     };
   },
 });
+
+// Employee System
+
+// Define available employees with their bonuses
+const AVAILABLE_EMPLOYEES = [
+  {
+    id: "employee_stock_5",
+    name: "Junior Stock Manager",
+    bonusType: "stock_boost_5" as const,
+    bonusPercentage: 5,
+    upfrontCost: 5000000, // $50,000 in cents
+    tickCostPercentage: 2,
+    description: "Increases business stock by 5%",
+  },
+  {
+    id: "employee_stock_10",
+    name: "Senior Stock Manager",
+    bonusType: "stock_boost_10" as const,
+    bonusPercentage: 10,
+    upfrontCost: 10000000, // $100,000 in cents
+    tickCostPercentage: 5,
+    description: "Increases business stock by 10%",
+  },
+];
+
+// Query: Get available employees for a company
+export const getAvailableEmployees = query({
+  args: {
+    companyId: v.id("companies"),
+  },
+  handler: async (ctx, args) => {
+    const company = await ctx.db.get(args.companyId);
+    if (!company) {
+      throw new Error("Company not found");
+    }
+
+    const hiredEmployeeIds = (company.employees || []).map((e) => e.id);
+
+    // Return employees that haven't been hired yet
+    return AVAILABLE_EMPLOYEES.filter(
+      (employee) => !hiredEmployeeIds.includes(employee.id)
+    );
+  },
+});
+
+// Query: Get hired employees for a company
+export const getHiredEmployees = query({
+  args: {
+    companyId: v.id("companies"),
+  },
+  handler: async (ctx, args) => {
+    const company = await ctx.db.get(args.companyId);
+    if (!company) {
+      throw new Error("Company not found");
+    }
+
+    return company.employees || [];
+  },
+});
+
+// Mutation: Hire an employee
+export const hireEmployee = mutation({
+  args: {
+    companyId: v.id("companies"),
+    employeeId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const company = await ctx.db.get(args.companyId);
+    if (!company) {
+      throw new Error("Company not found");
+    }
+
+    // Find the employee template
+    const employeeTemplate = AVAILABLE_EMPLOYEES.find(
+      (e) => e.id === args.employeeId
+    );
+    if (!employeeTemplate) {
+      throw new Error("Invalid employee");
+    }
+
+    // Check if already hired
+    const existingEmployees = company.employees || [];
+    if (existingEmployees.some((e) => e.id === args.employeeId)) {
+      throw new Error("This employee is already hired");
+    }
+
+    // Check if player can afford upfront cost
+    const owner = await ctx.db.get(company.ownerId);
+    if (!owner) {
+      throw new Error("Company owner not found");
+    }
+
+    if (owner.balance < employeeTemplate.upfrontCost) {
+      throw new Error(
+        `Insufficient funds. Need $${(employeeTemplate.upfrontCost / 100).toFixed(2)}`
+      );
+    }
+
+    // Deduct upfront cost from player
+    await ctx.db.patch(company.ownerId, {
+      balance: owner.balance - employeeTemplate.upfrontCost,
+      updatedAt: Date.now(),
+    });
+
+    // Add employee to company
+    const newEmployee = {
+      id: employeeTemplate.id,
+      name: employeeTemplate.name,
+      bonusType: employeeTemplate.bonusType,
+      bonusPercentage: employeeTemplate.bonusPercentage,
+      upfrontCost: employeeTemplate.upfrontCost,
+      tickCostPercentage: employeeTemplate.tickCostPercentage,
+      hiredAt: Date.now(),
+    };
+
+    await ctx.db.patch(args.companyId, {
+      employees: [...existingEmployees, newEmployee],
+      updatedAt: Date.now(),
+    });
+
+    // Record transaction
+    await ctx.db.insert("transactions", {
+      fromAccountId: company.ownerId,
+      fromAccountType: "player",
+      toAccountId: args.companyId,
+      toAccountType: "company",
+      amount: employeeTemplate.upfrontCost,
+      assetType: "cash",
+      description: `Hired ${employeeTemplate.name} for company`,
+      createdAt: Date.now(),
+    });
+
+    return {
+      success: true,
+      employee: newEmployee,
+    };
+  },
+});
+
+// Mutation: Fire an employee
+export const fireEmployee = mutation({
+  args: {
+    companyId: v.id("companies"),
+    employeeId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const company = await ctx.db.get(args.companyId);
+    if (!company) {
+      throw new Error("Company not found");
+    }
+
+    const existingEmployees = company.employees || [];
+    const employeeToFire = existingEmployees.find(
+      (e) => e.id === args.employeeId
+    );
+
+    if (!employeeToFire) {
+      throw new Error("Employee not found");
+    }
+
+    // Remove employee from company
+    const updatedEmployees = existingEmployees.filter(
+      (e) => e.id !== args.employeeId
+    );
+
+    await ctx.db.patch(args.companyId, {
+      employees: updatedEmployees,
+      updatedAt: Date.now(),
+    });
+
+    return {
+      success: true,
+      firedEmployee: employeeToFire,
+    };
+  },
+});
+
+// Query: Calculate total employee bonus for a company
+export const getCompanyEmployeeBonus = query({
+  args: {
+    companyId: v.id("companies"),
+  },
+  handler: async (ctx, args) => {
+    const company = await ctx.db.get(args.companyId);
+    if (!company) {
+      return { totalStockBoost: 0, totalTickCostPercentage: 0 };
+    }
+
+    const employees = company.employees || [];
+    
+    let totalStockBoost = 0;
+    let totalTickCostPercentage = 0;
+
+    for (const employee of employees) {
+      if (employee.bonusType.startsWith("stock_boost")) {
+        totalStockBoost += employee.bonusPercentage;
+      }
+      totalTickCostPercentage += employee.tickCostPercentage;
+    }
+
+    return {
+      totalStockBoost,
+      totalTickCostPercentage,
+      employees,
+    };
+  },
+});

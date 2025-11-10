@@ -35,6 +35,9 @@ async function executeTickLogic(ctx: any) {
   // Step 1: Bot purchases from marketplace
   const botPurchases = await executeBotPurchases(ctx, botBudget);
 
+  // Step 1.5: Deduct employee costs from company income
+  await deductEmployeeCosts(ctx);
+
   // Step 2: Update stock prices
   const stockPriceUpdates: any = await ctx.runMutation(
     internal.stocks.updateStockPrices
@@ -264,6 +267,71 @@ async function executeBotPurchases(ctx: any, totalBudget: number) {
 }
 
 // Stock market functionality has been removed
+
+// Deduct employee costs from companies based on their income
+async function deductEmployeeCosts(ctx: any) {
+  // Get all companies with employees
+  const allCompanies = await ctx.db.query("companies").collect();
+  
+  for (const company of allCompanies) {
+    const employees = company.employees || [];
+    
+    if (employees.length === 0) continue;
+
+    // Calculate total tick cost percentage
+    let totalTickCostPercentage = 0;
+    for (const employee of employees) {
+      totalTickCostPercentage += employee.tickCostPercentage;
+    }
+
+    if (totalTickCostPercentage === 0) continue;
+
+    // Get recent sales (last tick's income) to calculate employee costs from
+    // We'll use sales from the last 20 minutes (one tick cycle)
+    const twentyMinutesAgo = Date.now() - (20 * 60 * 1000);
+    
+    const recentSales = await ctx.db
+      .query("marketplaceSales")
+      .withIndex("by_companyId", (q: any) => q.eq("companyId", company._id))
+      .filter((q: any) => q.gte(q.field("createdAt"), twentyMinutesAgo))
+      .collect();
+
+    const tickIncome = recentSales.reduce((sum: number, sale: any) => sum + sale.totalPrice, 0);
+
+    if (tickIncome === 0) continue;
+
+    // Calculate employee cost
+    const employeeCost = Math.floor(tickIncome * (totalTickCostPercentage / 100));
+
+    if (employeeCost > 0 && employeeCost <= company.balance) {
+      // Deduct from company balance
+      await ctx.db.patch(company._id, {
+        balance: company.balance - employeeCost,
+        updatedAt: Date.now(),
+      });
+
+      // Transfer to company owner
+      const owner = await ctx.db.get(company.ownerId);
+      if (owner) {
+        // This money goes back to owner as it's overhead, not salary to employees
+        // The upfront cost was already paid, this is the recurring cost
+        // We deduct it from company but don't give it back to player (it's operating cost)
+        
+        // Record transaction for audit
+        await ctx.db.insert("transactions", {
+          fromAccountId: company._id,
+          fromAccountType: "company",
+          toAccountId: company.ownerId,
+          toAccountType: "player",
+          amount: employeeCost,
+          assetType: "cash",
+          description: `Employee costs for tick (${totalTickCostPercentage}% of income)`,
+          createdAt: Date.now(),
+        });
+      }
+    }
+  }
+}
 
 // Update player net worth values for efficient leaderboard queries
 async function updatePlayerNetWorth(ctx: any) {

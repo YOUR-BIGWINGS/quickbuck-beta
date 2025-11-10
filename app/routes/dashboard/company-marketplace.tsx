@@ -52,8 +52,8 @@ export default function CompanyMarketplacePage() {
   // Get all companies for sale
   const companiesForSale = useQuery(api.companySales.getAllCompaniesForSale);
 
-  // Mutation for making an offer
-  const makeOffer = useMutation(api.companySales.makeCompanySaleOffer);
+  // Mutation for buying directly
+  const buyCompany = useMutation(api.companySales.buyCompanyDirectly);
 
   // State for offer modal
   const [offerModalOpen, setOfferModalOpen] = useState(false);
@@ -87,10 +87,9 @@ export default function CompanyMarketplacePage() {
 
     setIsSubmitting(true);
     try {
-      await makeOffer({
-        companyId: selectedCompany.companyId,
+      await buyCompany({
+        saleId: selectedCompany._id,
         buyerId: player._id,
-        offeredPrice: amountInCents,
       });
 
       // Reset and close
@@ -98,7 +97,7 @@ export default function CompanyMarketplacePage() {
       setOfferModalOpen(false);
       setSelectedCompany(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to make offer");
+      setError(err instanceof Error ? err.message : "Failed to purchase company");
     } finally {
       setIsSubmitting(false);
     }

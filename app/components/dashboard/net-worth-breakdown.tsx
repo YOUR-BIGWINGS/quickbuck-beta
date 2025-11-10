@@ -25,25 +25,25 @@ export function NetWorthBreakdown({
     {
       label: "Cash",
       value: cash,
-      color: "bg-green-500",
+      color: "bg-[var(--chart-2)]",
       percentage: total > 0 ? (cash / total) * 100 : 0,
     },
     {
       label: "Stocks",
       value: stocksValue,
-      color: "bg-blue-500",
+      color: "bg-[var(--chart-1)]",
       percentage: total > 0 ? (stocksValue / total) * 100 : 0,
     },
     {
       label: "Crypto",
       value: cryptoValue,
-      color: "bg-purple-500",
+      color: "bg-[var(--chart-5)]",
       percentage: total > 0 ? (cryptoValue / total) * 100 : 0,
     },
     {
       label: "Company Equity",
       value: companyEquity,
-      color: "bg-orange-500",
+      color: "bg-[var(--chart-3)]",
       percentage: total > 0 ? (companyEquity / total) * 100 : 0,
     },
   ];

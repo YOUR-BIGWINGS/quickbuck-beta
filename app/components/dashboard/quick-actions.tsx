@@ -12,28 +12,28 @@ export function QuickActions() {
       description: "Create and manage your companies",
       icon: Building2,
       href: "/companies",
-      color: "text-blue-500",
+      color: "text-[var(--chart-1)]",
     },
     {
       title: "Browse Marketplace",
       description: "Shop for products",
       icon: ShoppingCart,
       href: "/marketplace",
-      color: "text-green-500",
+      color: "text-[var(--chart-2)]",
     },
     {
       title: "Trade Stocks",
       description: "Buy and sell company stocks",
       icon: TrendingUp,
       href: "/stocks",
-      color: "text-purple-500",
+      color: "text-[var(--chart-5)]",
     },
     {
       title: "View Accounts",
       description: "Manage your accounts",
       icon: Wallet,
       href: "/accounts",
-      color: "text-orange-500",
+      color: "text-[var(--chart-3)]",
     },
   ];
 

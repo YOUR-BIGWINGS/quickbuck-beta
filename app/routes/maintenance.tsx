@@ -3,9 +3,11 @@ import { useNavigate } from "react-router";
 import { useEffect } from "react";
 import { api } from "../../convex/_generated/api";
 import { Skeleton } from "~/components/ui/skeleton";
+import { useTheme } from "~/contexts/theme-context";
 
 export default function MaintenancePage() {
   const navigate = useNavigate();
+  const { preset } = useTheme();
   const maintenanceStatus = useQuery(api.maintenance.getMaintenanceStatus);
 
   // Redirect back to dashboard if maintenance is disabled
@@ -66,10 +68,22 @@ export default function MaintenancePage() {
         {/* Animated icon */}
         <div className="mb-8 inline-block">
           <div className="relative w-24 h-24">
-            <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full blur-lg opacity-50 animate-pulse"></div>
-            <div className="relative w-24 h-24 bg-slate-800 rounded-full flex items-center justify-center border-2 border-amber-400">
+            <div className={`absolute inset-0 rounded-full blur-lg opacity-50 animate-pulse ${
+              preset === "default" || preset === "dark-default" 
+                ? "bg-gradient-to-r from-amber-400 to-orange-500" 
+                : "bg-primary"
+            }`}></div>
+            <div className={`relative w-24 h-24 bg-slate-800 rounded-full flex items-center justify-center border-2 ${
+              preset === "default" || preset === "dark-default" 
+                ? "border-amber-400" 
+                : "border-primary"
+            }`}>
               <svg
-                className="w-12 h-12 text-amber-400 animate-bounce"
+                className={`w-12 h-12 animate-bounce ${
+                  preset === "default" || preset === "dark-default" 
+                    ? "text-amber-400" 
+                    : "text-primary"
+                }`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"

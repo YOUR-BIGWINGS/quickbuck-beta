@@ -17,6 +17,12 @@ export const StatsSection = () => {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (gameStats) {
+      console.log("Game Stats:", gameStats);
+    }
+  }, [gameStats]);
+
   // Convert market cap from cents to millions
   const marketCapInMillions = gameStats?.totalMarketCap 
     ? (gameStats.totalMarketCap / 100 / 1_000_000).toFixed(1) 
@@ -30,8 +36,8 @@ export const StatsSection = () => {
       suffix: "+",
     },
     {
-      label: "Total Trades",
-      value: gameStats?.totalTrades ?? 0,
+      label: "Active Products",
+      value: gameStats?.activeProducts ?? 0,
       icon: TrendingUp,
       suffix: "+",
     },

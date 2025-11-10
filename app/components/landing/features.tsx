@@ -77,7 +77,7 @@ const features = [
     icon: Zap,
     title: "Real-Time Updates",
     description:
-      "Markets update every 20 minutes with bot trading activity and dynamic price changes.",
+      "Markets update every 5 minutes with bot trading activity and dynamic price changes.",
     gradient: "from-violet-500 to-purple-500",
   },
 ];

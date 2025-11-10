@@ -17,13 +17,7 @@ export const listCompanyForSale = mutation({
     const existing = await ctx.db
       .query("companySales")
       .withIndex("by_companyId", (q) => q.eq("companyId", args.companyId))
-      .filter((q) => 
-        q.or(
-          q.eq(q.field("status"), "listed"),
-          q.eq(q.field("status"), "offer_pending"),
-          q.eq(q.field("status"), "counter_offer")
-        )
-      )
+      .filter((q) => q.eq(q.field("status"), "listed"))
       .first();
 
     if (existing) {
@@ -45,22 +39,25 @@ export const listCompanyForSale = mutation({
   },
 });
 
-// Mutation: Make offer on company
-export const makeCompanySaleOffer = mutation({
+// Mutation: Buy company directly (instant purchase at asking price)
+export const buyCompanyDirectly = mutation({
   args: {
-    companyId: v.id("companies"),
+    saleId: v.id("companySales"),
     buyerId: v.id("players"),
-    offeredPrice: v.number(), // in cents
   },
   handler: async (ctx, args) => {
-    const company = await ctx.db.get(args.companyId);
-    if (!company) {
-      throw new Error("Company not found");
+    const sale = await ctx.db.get(args.saleId);
+    if (!sale) {
+      throw new Error("Sale listing not found");
     }
 
-    const buyer = await ctx.db.get(args.buyerId);
-    if (!buyer) {
-      throw new Error("Buyer not found");
+    if (sale.status !== "listed") {
+      throw new Error("Company is not available for purchase");
+    }
+
+    const company = await ctx.db.get(sale.companyId);
+    if (!company) {
+      throw new Error("Company not found");
     }
 
     // Check buyer isn't the owner
@@ -68,238 +65,96 @@ export const makeCompanySaleOffer = mutation({
       throw new Error("Cannot buy your own company");
     }
 
-    // Check buyer balance
-    if (buyer.balance < args.offeredPrice) {
-      throw new Error("Insufficient balance for offer");
+    const buyer = await ctx.db.get(args.buyerId);
+    if (!buyer) {
+      throw new Error("Buyer not found");
     }
 
-    // Check if company is listed
+    // Check buyer balance
+    if (buyer.balance < sale.askingPrice) {
+      throw new Error("Insufficient balance");
+    }
+
+    const now = Date.now();
+
+    // Transfer payment
+    await ctx.db.patch(args.buyerId, {
+      balance: buyer.balance - sale.askingPrice,
+      updatedAt: now,
+    });
+
+    const seller = await ctx.db.get(sale.sellerId);
+    if (seller) {
+      await ctx.db.patch(sale.sellerId, {
+        balance: seller.balance + sale.askingPrice,
+        updatedAt: now,
+      });
+    }
+
+    // Transfer company ownership
+    await ctx.db.patch(sale.companyId, {
+      ownerId: args.buyerId,
+      updatedAt: now,
+    });
+
+    // Update sale status
+    await ctx.db.patch(args.saleId, {
+      status: "accepted" as const,
+      buyerId: args.buyerId,
+      updatedAt: now,
+    });
+
+    // Create transaction
+    await ctx.db.insert("transactions", {
+      fromAccountId: args.buyerId,
+      fromAccountType: "player" as const,
+      toAccountId: sale.sellerId,
+      toAccountType: "player" as const,
+      amount: sale.askingPrice,
+      assetType: "cash" as const,
+      description: `Purchased company: ${company.name}`,
+      createdAt: now,
+    });
+
+    return { success: true, newOwnerId: args.buyerId };
+  },
+});
+
+// Mutation: Unlist company from sale
+export const unlistCompany = mutation({
+  args: {
+    companyId: v.id("companies"),
+    sellerId: v.id("players"),
+  },
+  handler: async (ctx, args) => {
+    const company = await ctx.db.get(args.companyId);
+    if (!company) {
+      throw new Error("Company not found");
+    }
+
+    // Verify ownership
+    if (company.ownerId !== args.sellerId) {
+      throw new Error("Only the company owner can unlist the company");
+    }
+
+    // Find active listing
     const listing = await ctx.db
       .query("companySales")
       .withIndex("by_companyId", (q) => q.eq("companyId", args.companyId))
       .filter((q) => q.eq(q.field("status"), "listed"))
       .first();
 
-    const now = Date.now();
-
-    if (listing) {
-      // Update existing listing with offer
-      await ctx.db.patch(listing._id, {
-        buyerId: args.buyerId,
-        offeredPrice: args.offeredPrice,
-        status: "offer_pending" as const,
-        updatedAt: now,
-      });
-      return listing._id;
-    } else {
-      // Create new offer (unsolicited)
-      const saleId = await ctx.db.insert("companySales", {
-        companyId: args.companyId,
-        sellerId: company.ownerId,
-        buyerId: args.buyerId,
-        askingPrice: 0, // Unsolicited offer
-        offeredPrice: args.offeredPrice,
-        status: "offer_pending" as const,
-        createdAt: now,
-        updatedAt: now,
-      });
-      return saleId;
-    }
-  },
-});
-
-// Mutation: Respond to company sale offer
-export const respondToCompanySaleOffer = mutation({
-  args: {
-    offerId: v.id("companySales"),
-    response: v.union(v.literal("accept"), v.literal("reject"), v.literal("counter")),
-    counterOfferPrice: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    const offer = await ctx.db.get(args.offerId);
-    if (!offer) {
-      throw new Error("Offer not found");
+    if (!listing) {
+      throw new Error("No active listing found for this company");
     }
 
-    if (offer.status !== "offer_pending" && offer.status !== "counter_offer") {
-      throw new Error("Offer is not pending");
-    }
-
-    const company = await ctx.db.get(offer.companyId);
-    if (!company) {
-      throw new Error("Company not found");
-    }
-
-    const now = Date.now();
-
-    if (args.response === "accept") {
-      // Process sale
-      if (!offer.buyerId || !offer.offeredPrice) {
-        throw new Error("Invalid offer data");
-      }
-
-      const buyer = await ctx.db.get(offer.buyerId);
-      if (!buyer) {
-        throw new Error("Buyer not found");
-      }
-
-      const finalPrice = offer.counterOfferPrice || offer.offeredPrice;
-
-      if (buyer.balance < finalPrice) {
-        throw new Error("Buyer has insufficient balance");
-      }
-
-      // Transfer payment
-      await ctx.db.patch(offer.buyerId, {
-        balance: buyer.balance - finalPrice,
-        updatedAt: now,
-      });
-
-      const seller = await ctx.db.get(offer.sellerId);
-      if (seller) {
-        await ctx.db.patch(offer.sellerId, {
-          balance: seller.balance + finalPrice,
-          updatedAt: now,
-        });
-      }
-
-      // Transfer company ownership
-      await ctx.db.patch(offer.companyId, {
-        ownerId: offer.buyerId,
-        updatedAt: now,
-      });
-
-      // Update offer status
-      await ctx.db.patch(args.offerId, {
-        status: "accepted" as const,
-        updatedAt: now,
-      });
-
-      // Create transaction
-      await ctx.db.insert("transactions", {
-        fromAccountId: offer.buyerId,
-        fromAccountType: "player" as const,
-        toAccountId: offer.sellerId,
-        toAccountType: "player" as const,
-        amount: finalPrice,
-        assetType: "cash" as const,
-        description: `Company sale: ${company.name}`,
-        createdAt: now,
-      });
-
-      return { success: true, newOwnerId: offer.buyerId };
-    } else if (args.response === "reject") {
-      await ctx.db.patch(args.offerId, {
-        status: "rejected" as const,
-        updatedAt: now,
-      });
-      return { success: true };
-    } else if (args.response === "counter") {
-      if (!args.counterOfferPrice) {
-        throw new Error("Counter offer price is required");
-      }
-      await ctx.db.patch(args.offerId, {
-        counterOfferPrice: args.counterOfferPrice,
-        status: "counter_offer" as const,
-        updatedAt: now,
-      });
-      return { success: true, counterPrice: args.counterOfferPrice };
-    }
-
-    throw new Error("Invalid response");
-  },
-});
-
-// Mutation: Cancel company sale listing
-export const cancelCompanySaleListing = mutation({
-  args: {
-    offerId: v.id("companySales"),
-  },
-  handler: async (ctx, args) => {
-    const offer = await ctx.db.get(args.offerId);
-    if (!offer) {
-      throw new Error("Offer not found");
-    }
-
-    await ctx.db.patch(args.offerId, {
+    // Update status to cancelled
+    await ctx.db.patch(listing._id, {
       status: "cancelled" as const,
       updatedAt: Date.now(),
     });
-  },
-});
 
-// Query: Get company sale offers
-export const getCompanySaleOffers = query({
-  args: {
-    companyId: v.id("companies"),
-  },
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query("companySales")
-      .withIndex("by_companyId", (q) => q.eq("companyId", args.companyId))
-      .collect();
-  },
-});
-
-// Query: Get player's pending offers (as seller)
-export const getPlayerPendingOffers = query({
-  args: {
-    playerId: v.id("players"),
-  },
-  handler: async (ctx, args) => {
-    const offers = await ctx.db
-      .query("companySales")
-      .withIndex("by_sellerId", (q) => q.eq("sellerId", args.playerId))
-      .filter((q) =>
-        q.or(
-          q.eq(q.field("status"), "offer_pending"),
-          q.eq(q.field("status"), "counter_offer")
-        )
-      )
-      .collect();
-
-    // Enrich with company data
-    const enrichedOffers = await Promise.all(
-      offers.map(async (offer) => {
-        const company = await ctx.db.get(offer.companyId);
-        const buyer = offer.buyerId ? await ctx.db.get(offer.buyerId) : null;
-        return {
-          ...offer,
-          company,
-          buyer,
-        };
-      })
-    );
-
-    return enrichedOffers;
-  },
-});
-
-// Query: Get player's offers as buyer
-export const getPlayerOffersAsBuyer = query({
-  args: {
-    playerId: v.id("players"),
-  },
-  handler: async (ctx, args) => {
-    const offers = await ctx.db
-      .query("companySales")
-      .withIndex("by_buyerId", (q) => q.eq("buyerId", args.playerId))
-      .collect();
-
-    // Enrich with company data
-    const enrichedOffers = await Promise.all(
-      offers.map(async (offer) => {
-        const company = await ctx.db.get(offer.companyId);
-        const seller = await ctx.db.get(offer.sellerId);
-        return {
-          ...offer,
-          company,
-          seller,
-        };
-      })
-    );
-
-    return enrichedOffers;
+    return { success: true };
   },
 });
 
@@ -325,5 +180,32 @@ export const getAllCompaniesForSale = query({
     );
 
     return enrichedSales.filter((s) => s.company && s.seller);
+  },
+});
+
+// Query: Get player's listed companies
+export const getPlayerListedCompanies = query({
+  args: {
+    playerId: v.id("players"),
+  },
+  handler: async (ctx, args) => {
+    const listings = await ctx.db
+      .query("companySales")
+      .withIndex("by_sellerId", (q) => q.eq("sellerId", args.playerId))
+      .filter((q) => q.eq(q.field("status"), "listed"))
+      .collect();
+
+    // Enrich with company data
+    const enrichedListings = await Promise.all(
+      listings.map(async (listing) => {
+        const company = await ctx.db.get(listing.companyId);
+        return {
+          ...listing,
+          company,
+        };
+      })
+    );
+
+    return enrichedListings.filter((l) => l.company);
   },
 });

@@ -21,12 +21,14 @@
       "routes/admin/maintenance": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/dashboard/index": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/leaderboard": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/messages": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/marketplace": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/crypto": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/crypto.$symbol": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/stocks": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/stocks.$symbol": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/portfolio": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/employees": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/dashboard/company-marketplace": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/gamble": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/upgrades": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
@@ -149,6 +151,15 @@
           "runtime": "nodejs"
         }
       },
+      "routes/messages": {
+        "id": "routes/messages",
+        "parentId": "routes/dashboard/layout",
+        "file": "app/routes/messages.tsx",
+        "path": "messages",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
       "routes/marketplace": {
         "id": "routes/marketplace",
         "parentId": "routes/dashboard/layout",
@@ -199,6 +210,15 @@
         "parentId": "routes/dashboard/layout",
         "file": "app/routes/portfolio.tsx",
         "path": "portfolio",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/employees": {
+        "id": "routes/employees",
+        "parentId": "routes/dashboard/layout",
+        "file": "app/routes/employees.tsx",
+        "path": "employees",
         "config": {
           "runtime": "nodejs"
         }
@@ -374,6 +394,12 @@
         "file": "routes/leaderboard.tsx",
         "path": "leaderboard"
       },
+      "routes/messages": {
+        "id": "routes/messages",
+        "parentId": "routes/dashboard/layout",
+        "file": "routes/messages.tsx",
+        "path": "messages"
+      },
       "routes/marketplace": {
         "id": "routes/marketplace",
         "parentId": "routes/dashboard/layout",
@@ -409,6 +435,12 @@
         "parentId": "routes/dashboard/layout",
         "file": "routes/portfolio.tsx",
         "path": "portfolio"
+      },
+      "routes/employees": {
+        "id": "routes/employees",
+        "parentId": "routes/dashboard/layout",
+        "file": "routes/employees.tsx",
+        "path": "employees"
       },
       "routes/dashboard/company-marketplace": {
         "id": "routes/dashboard/company-marketplace",
@@ -526,6 +558,10 @@
                 "path": "leaderboard"
               },
               {
+                "file": "routes/messages.tsx",
+                "path": "messages"
+              },
+              {
                 "file": "routes/marketplace.tsx",
                 "path": "marketplace"
               },
@@ -548,6 +584,10 @@
               {
                 "file": "routes/portfolio.tsx",
                 "path": "portfolio"
+              },
+              {
+                "file": "routes/employees.tsx",
+                "path": "employees"
               },
               {
                 "file": "routes/dashboard/company-marketplace.tsx",
