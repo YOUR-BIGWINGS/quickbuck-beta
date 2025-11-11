@@ -17,6 +17,7 @@ export default defineSchema({
     userId: v.id("users"),
     balance: v.number(), // in cents
     netWorth: v.number(), // in cents, calculated field
+    lastNetWorthUpdate: v.optional(v.number()), // timestamp of last net worth calculation (for rotation)
     role: v.optional(
       v.union(
         v.literal("normal"),
@@ -43,7 +44,8 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_role", ["role"])
     .index("by_balance", ["balance"])
-    .index("by_netWorth", ["netWorth"]),
+    .index("by_netWorth", ["netWorth"])
+    .index("by_lastNetWorthUpdate", ["lastNetWorthUpdate"]),
 
   companies: defineTable({
     ownerId: v.id("players"),
@@ -409,7 +411,8 @@ export default defineSchema({
     lastUpdated: v.number(),
   })
     .index("by_symbol", ["symbol"])
-    .index("by_createdByPlayerId", ["createdByPlayerId"]),
+    .index("by_createdByPlayerId", ["createdByPlayerId"])
+    .index("by_lastUpdated", ["lastUpdated"]),
 
   cryptoPriceHistory: defineTable({
     cryptoId: v.id("cryptocurrencies"),
@@ -476,7 +479,8 @@ export default defineSchema({
     updatedAt: v.optional(v.number()),
   })
     .index("by_symbol", ["symbol"])
-    .index("by_sector", ["sector"]),
+    .index("by_sector", ["sector"])
+    .index("by_lastUpdated", ["lastUpdated"]),
 
   stockPriceHistory: defineTable({
     stockId: v.id("stocks"),

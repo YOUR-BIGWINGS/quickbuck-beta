@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 
 // ============================================================================
 // HELPER FUNCTIONS FOR REALISTIC PRICE CALCULATIONS
@@ -27,12 +27,23 @@ function randomUniform(min: number, max: number): number {
  * Calculate momentum from recent price history
  * Returns a drift factor based on recent price movements
  */
-async function getMomentum(ctx: any, cryptoId: Id<"cryptocurrencies">): Promise<number> {
-  const recentHistory = await ctx.db
-    .query("cryptoPriceHistory")
-    .withIndex("by_crypto_time", (q: any) => q.eq("cryptoId", cryptoId))
-    .order("desc")
-    .take(5);
+async function getMomentum(
+  ctx: any, 
+  cryptoId: Id<"cryptocurrencies">,
+  priceHistoryMap?: Map<string, any[]>
+): Promise<number> {
+  // Use pre-fetched history if available, otherwise query
+  let recentHistory: any[];
+  
+  if (priceHistoryMap && priceHistoryMap.has(cryptoId)) {
+    recentHistory = priceHistoryMap.get(cryptoId) || [];
+  } else {
+    recentHistory = await ctx.db
+      .query("cryptoPriceHistory")
+      .withIndex("by_crypto_time", (q: any) => q.eq("cryptoId", cryptoId))
+      .order("desc")
+      .take(5);
+  }
 
   if (recentHistory.length < 2) return 0;
 
@@ -168,6 +179,41 @@ function simulateSubTicks(
   }
   
   return prices;
+}
+
+const CRYPTO_UPDATE_BATCH_SIZE = 30; // Total cryptos to update per tick
+const CRYPTO_MICRO_BATCH_SIZE = 5; // Process 5 cryptos at a time to avoid read limits
+const CRYPTO_VOLUME_TX_LIMIT = 50; // Transactions to check per crypto for volume
+const CRYPTO_HISTORY_LIMIT = 5; // Limit for price history per crypto
+const FIVE_MINUTES_MS = 5 * 60 * 1000;
+
+async function loadCryptosBatch(ctx: any, limit: number) {
+  const seen = new Set<string>();
+  const ordered: Doc<"cryptocurrencies">[] = await ctx.db
+    .query("cryptocurrencies")
+    .withIndex("by_lastUpdated", (q: any) => q.gt("lastUpdated", 0))
+    .order("asc")
+    .take(limit);
+
+  const batch: Doc<"cryptocurrencies">[] = [];
+
+  for (const crypto of ordered) {
+    batch.push(crypto);
+    seen.add(`${crypto._id}`);
+  }
+
+  if (batch.length < limit) {
+    const fallback = await ctx.db.query("cryptocurrencies").take(limit - batch.length);
+    for (const crypto of fallback) {
+      const id = `${crypto._id}`;
+      if (seen.has(id)) continue;
+      batch.push(crypto);
+      seen.add(id);
+      if (batch.length === limit) break;
+    }
+  }
+
+  return batch;
 }
 
 // ============================================================================
@@ -706,14 +752,46 @@ async function updateCurrentTickOHLC(
  */
 export const updateCryptoPrices = internalMutation({
   handler: async (ctx) => {
-    const cryptos = await ctx.db.query("cryptocurrencies").collect();
+    const cryptos = await loadCryptosBatch(ctx, CRYPTO_UPDATE_BATCH_SIZE);
     const updates: Array<{
       cryptoId: Id<"cryptocurrencies">;
       oldPrice: number;
       newPrice: number;
     }> = [];
 
-    for (const crypto of cryptos) {
+    if (cryptos.length === 0) {
+      return updates;
+    }
+
+    // Process cryptos in micro-batches to avoid document read limits
+    // Each micro-batch: 5 cryptos × (1 + 5 history + 50 txs) = ~280 reads
+    for (let i = 0; i < cryptos.length; i += CRYPTO_MICRO_BATCH_SIZE) {
+      const microBatch = cryptos.slice(i, i + CRYPTO_MICRO_BATCH_SIZE);
+      
+      // Pre-fetch data for this micro-batch only
+      const priceHistoryMap = new Map<string, any[]>();
+      const transactionsMap = new Map<string, any[]>();
+      const volumeWindowStart = Date.now() - FIVE_MINUTES_MS;
+      
+      for (const crypto of microBatch) {
+        const history = await ctx.db
+          .query("cryptoPriceHistory")
+          .withIndex("by_crypto_time", (q: any) => q.eq("cryptoId", crypto._id))
+          .order("desc")
+          .take(CRYPTO_HISTORY_LIMIT);
+        priceHistoryMap.set(crypto._id, history);
+        
+        const txs = await ctx.db
+          .query("cryptoTransactions")
+          .withIndex("by_cryptoId", (q) => q.eq("cryptoId", crypto._id))
+          .order("desc")
+          .filter((q) => q.gte(q.field("timestamp"), volumeWindowStart))
+          .take(CRYPTO_VOLUME_TX_LIMIT);
+        transactionsMap.set(crypto._id, txs);
+      }
+
+      // Process this micro-batch
+      for (const crypto of microBatch) {
       try {
         // Validate crypto data before processing
         if (!isFinite(crypto.currentPrice) || crypto.currentPrice < 1) {
@@ -728,14 +806,14 @@ export const updateCryptoPrices = internalMutation({
         
         const oldPrice = crypto.currentPrice;
         
-        // Get momentum from recent history
-        const momentum = await getMomentum(ctx, crypto._id);
+        // Get momentum from recent history (using pre-fetched data)
+        const momentum = await getMomentum(ctx, crypto._id, priceHistoryMap);
         
         // Get volatility with clustering
         const volatility = await getVolatility(ctx, crypto);
         
         // Check for random events
-        const eventMultiplier = checkRandomEvent();
+  const eventMultiplier = checkRandomEvent();
         
         // Base drift (trend + momentum)
         const baseDrift = (crypto.trendDrift || 0) + momentum;
@@ -800,28 +878,24 @@ export const updateCryptoPrices = internalMutation({
           continue; // Skip this update
         }
         
+        const updateTimestamp = Date.now();
+
         await ctx.db.patch(crypto._id, {
           currentPrice: newPrice,
           marketCap: newMarketCap,
           lastPriceChange: validPriceChange,
-          lastVolatilityUpdate: Date.now(),
-          lastUpdated: Date.now(),
+          lastVolatilityUpdate: updateTimestamp,
+          lastUpdated: updateTimestamp,
         });
         
-        // Get volume from recent transactions
-        const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
-        const recentTxs = await ctx.db
-          .query("cryptoTransactions")
-          .withIndex("by_cryptoId", (q) => q.eq("cryptoId", crypto._id))
-          .filter((q) => q.gte(q.field("timestamp"), fiveMinutesAgo))
-          .collect();
-        
+        // Get volume from pre-fetched transactions
+        const recentTxs = transactionsMap.get(crypto._id) || [];
         const volume = recentTxs.reduce((sum, tx) => sum + tx.amount, 0);
         
         // Record price history with realistic OHLC
         await ctx.db.insert("cryptoPriceHistory", {
           cryptoId: crypto._id,
-          timestamp: Date.now(),
+          timestamp: updateTimestamp,
           open: open,
           high: Math.floor(high),
           low: Math.floor(low),
@@ -837,7 +911,8 @@ export const updateCryptoPrices = internalMutation({
       } catch (error) {
         console.error(`Error updating crypto ${crypto._id}:`, error);
       }
-    }
+    } // End micro-batch processing
+    } // End micro-batch loop
 
     return updates;
   },

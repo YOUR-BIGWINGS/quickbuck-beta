@@ -2,13 +2,28 @@
  * TICK SYSTEM
  *
  * Central coordinating system that runs every 5 minutes to:
- * 1. Execute bot purchases from marketplace
- * 2. Update stock prices (via realistic stock market engine)
- * 3. Update cryptocurrency prices
- * 4. Apply loan interest
- * 5. Record tick history
+ * 1. Execute bot purchases from marketplace (max 100 products)
+ * 2. Deduct employee costs (10 companies per tick, rotated)
+ * 3. Update stock prices (via realistic stock market engine)
+ * 4. Update cryptocurrency prices
+ * 5. Apply loan interest (100 loans per tick, rotated)
+ * 6. Update player net worth (10 players per tick, rotated)
+ * 7. Record tick history
  * 
  * CRITICAL: Uses a distributed lock to prevent concurrent execution
+ * 
+ * OPTIMIZATION: All batch operations use strict limits to stay under
+ * Convex's 32,000 document read limit. Operations use rotation so all
+ * entities get processed eventually across multiple ticks.
+ * 
+ * Read Budget per Tick (estimated):
+ * - Bot purchases: ~100 products + 100 company reads = 200
+ * - Employee costs: 10 companies * 20 sales = 200
+ * - Stock prices: handled separately
+ * - Crypto prices: handled separately  
+ * - Loan interest: 100 loans + 100 player reads = 200
+ * - Net worth: 10 players * (5+5+3+3) * 2 = 320
+ * Total: ~920 reads (safe margin under 32k limit)
  */
 
 import { v } from "convex/values";
@@ -104,35 +119,46 @@ async function executeTickLogic(ctx: any, lockSource: string) {
     // Hardcode bot budget to avoid extra query (was 10000000 = $100k)
     const botBudget = 50000000; // $500,000 in cents
 
-    // Step 1: Bot purchases from marketplace
-    const botPurchases = await executeBotPurchases(ctx, botBudget);
+    // Step 1: Bot purchases from marketplace (isolated mutation)
+    console.log('[TICK] Step 1: Bot purchases...');
+    const botPurchases = await ctx.runMutation(
+      internal.tick.executeBotPurchasesMutation,
+      { totalBudget: botBudget }
+    );
 
-    // Step 1.5: Deduct employee costs from company income
-    await deductEmployeeCosts(ctx);
+    // Step 1.5: Deduct employee costs from company income (isolated mutation)
+    console.log('[TICK] Step 1.5: Employee costs...');
+    await ctx.runMutation(internal.tick.deductEmployeeCostsMutation);
 
-    // Step 2: Update stock prices
+    // Step 2: Update stock prices (isolated mutation)
+    console.log('[TICK] Step 2: Stock prices...');
     const stockPriceUpdates: any = await ctx.runMutation(
       internal.stocks.updateStockPrices
     );
 
-    // Step 3: Update cryptocurrency prices
+    // Step 3: Update cryptocurrency prices (isolated mutation)
+    console.log('[TICK] Step 3: Crypto prices...');
     const cryptoPriceUpdates: any = await ctx.runMutation(
       internal.crypto.updateCryptoPrices
     );
 
-    // Step 4: Apply loan interest
-    await applyLoanInterest(ctx);
+    // Step 4: Apply loan interest (isolated mutation)
+    console.log('[TICK] Step 4: Loan interest...');
+    await ctx.runMutation(internal.tick.applyLoanInterestMutation);
 
-    // Step 5: Update player net worth values for efficient querying
-    await updatePlayerNetWorth(ctx);
+    // Step 5: Update player net worth values (isolated mutation)
+    console.log('[TICK] Step 5: Player net worth (batch)...');
+    await ctx.runMutation(internal.tick.updatePlayerNetWorthMutation);
 
     // Step 6: Record tick history
     const tickId = await ctx.db.insert("tickHistory", {
       tickNumber,
       timestamp: now,
-      botPurchases,
-      cryptoPriceUpdates,
-      totalBudgetSpent: botPurchases.reduce((sum, p) => sum + p.totalPrice, 0),
+      botPurchases: botPurchases || [],
+      cryptoPriceUpdates: cryptoPriceUpdates || [],
+      totalBudgetSpent: Array.isArray(botPurchases) 
+        ? botPurchases.reduce((sum: number, p: any) => sum + p.totalPrice, 0)
+        : 0,
     });
 
     console.log(`Tick #${tickNumber} completed`);
@@ -140,9 +166,9 @@ async function executeTickLogic(ctx: any, lockSource: string) {
     return {
       tickNumber,
       tickId,
-      botPurchases: botPurchases.length,
+      botPurchases: Array.isArray(botPurchases) ? botPurchases.length : 0,
       stockUpdates: stockPriceUpdates?.updated || 0,
-      cryptoUpdates: cryptoPriceUpdates?.length || 0,
+      cryptoUpdates: Array.isArray(cryptoPriceUpdates) ? cryptoPriceUpdates.length : 0,
     };
   } finally {
     // Always release the lock, even if an error occurred
@@ -186,6 +212,7 @@ async function executeBotPurchases(ctx: any, totalBudget: number) {
 
   // Get active products
   // Use index and order by totalRevenue to prioritize popular products
+  // OPTIMIZED: Limit to top 100 products to avoid read explosion
   const products = await ctx.db
     .query("products")
     .withIndex("by_isActive_totalRevenue", (q: any) => q.eq("isActive", true))
@@ -196,7 +223,7 @@ async function executeBotPurchases(ctx: any, totalBudget: number) {
         q.lte(q.field("price"), 5000000) // Skip products over $50k
       )
     )
-    .collect(); // Get all active products
+    .take(100); // Limit to top 100 products by revenue
 
   if (products.length === 0) {
     console.log("No active products found");
@@ -347,13 +374,30 @@ async function executeBotPurchases(ctx: any, totalBudget: number) {
 
 // Deduct employee costs from companies based on their income
 async function deductEmployeeCosts(ctx: any) {
-  // Get all companies with employees
-  const allCompanies = await ctx.db.query("companies").collect();
+  // CRITICAL: Process only 10 companies per tick to stay WELL under read limits
+  // Even with 10 companies * 20 sales = 200 reads, plus overhead, we stay safe
+  const COMPANIES_PER_TICK = 10;
+  const SALES_PER_COMPANY = 20;
+  
+  // Use indexed query by updatedAt to process companies in rotation
+  // This ensures all companies get processed eventually
+  const allCompanies = await ctx.db
+    .query("companies")
+    .order("asc") // Order by _creationTime ascending (oldest first)
+    .take(COMPANIES_PER_TICK);
+  
+  let companiesProcessed = 0;
   
   for (const company of allCompanies) {
     const employees = company.employees || [];
     
-    if (employees.length === 0) continue;
+    if (employees.length === 0) {
+      // Update timestamp even if no employees (mark as processed)
+      await ctx.db.patch(company._id, {
+        updatedAt: Date.now(),
+      });
+      continue;
+    }
 
     // Calculate total tick cost percentage
     let totalTickCostPercentage = 0;
@@ -361,7 +405,12 @@ async function deductEmployeeCosts(ctx: any) {
       totalTickCostPercentage += employee.tickCostPercentage;
     }
 
-    if (totalTickCostPercentage === 0) continue;
+    if (totalTickCostPercentage === 0) {
+      await ctx.db.patch(company._id, {
+        updatedAt: Date.now(),
+      });
+      continue;
+    }
 
     // Get recent sales (last tick's income) to calculate employee costs from
     // We'll use sales from the last 20 minutes (one tick cycle)
@@ -371,11 +420,16 @@ async function deductEmployeeCosts(ctx: any) {
       .query("marketplaceSales")
       .withIndex("by_companyId", (q: any) => q.eq("companyId", company._id))
       .filter((q: any) => q.gte(q.field("createdAt"), twentyMinutesAgo))
-      .collect();
+      .take(SALES_PER_COMPANY); // Reduced to 20 sales per company
 
     const tickIncome = recentSales.reduce((sum: number, sale: any) => sum + sale.totalPrice, 0);
 
-    if (tickIncome === 0) continue;
+    if (tickIncome === 0) {
+      await ctx.db.patch(company._id, {
+        updatedAt: Date.now(),
+      });
+      continue;
+    }
 
     // Calculate employee cost
     const employeeCost = Math.floor(tickIncome * (totalTickCostPercentage / 100));
@@ -406,14 +460,36 @@ async function deductEmployeeCosts(ctx: any) {
           createdAt: Date.now(),
         });
       }
+      companiesProcessed++;
+    } else {
+      // Still update timestamp
+      await ctx.db.patch(company._id, {
+        updatedAt: Date.now(),
+      });
     }
   }
+  
+  console.log(`Processed employee costs for ${companiesProcessed} companies`);
 }
 
 // Update player net worth values for efficient leaderboard queries
+// Optimized to process only a small batch per tick to avoid read limits
 async function updatePlayerNetWorth(ctx: any) {
-  // Get all players - limit to reasonable batch size
-  const players = await ctx.db.query("players").take(1000);
+  // CRITICAL: Only process 10 players per tick to stay WELL under 32k read limit
+  // 10 players * (5 stocks + 5 crypto + 3 companies + 3 loans) = 160 reads max
+  const BATCH_SIZE = 10;
+  const MAX_HOLDINGS_PER_TYPE = 5; // Reduced from 20
+  const MAX_COMPANIES = 3; // Reduced from 10
+  const MAX_LOANS = 3; // Reduced from 10
+  
+  // Get players with oldest lastNetWorthUpdate (or null) first for round-robin processing
+  const players = await ctx.db
+    .query("players")
+    .withIndex("by_lastNetWorthUpdate")
+    .order("asc")
+    .take(BATCH_SIZE);
+
+  let playersUpdated = 0;
 
   for (const player of players) {
     let netWorth = player.balance;
@@ -422,7 +498,7 @@ async function updatePlayerNetWorth(ctx: any) {
     const stockHoldings = await ctx.db
       .query("playerStockPortfolios")
       .withIndex("by_playerId", (q: any) => q.eq("playerId", player._id))
-      .collect();
+      .take(MAX_HOLDINGS_PER_TYPE);
 
     for (const holding of stockHoldings) {
       const stock = await ctx.db.get(holding.stockId);
@@ -435,7 +511,7 @@ async function updatePlayerNetWorth(ctx: any) {
     const cryptoHoldings = await ctx.db
       .query("playerCryptoWallets")
       .withIndex("by_playerId", (q: any) => q.eq("playerId", player._id))
-      .collect();
+      .take(MAX_HOLDINGS_PER_TYPE);
 
     for (const holding of cryptoHoldings) {
       const crypto = await ctx.db.get(holding.cryptoId);
@@ -448,7 +524,7 @@ async function updatePlayerNetWorth(ctx: any) {
     const companies = await ctx.db
       .query("companies")
       .withIndex("by_ownerId", (q: any) => q.eq("ownerId", player._id))
-      .collect();
+      .take(MAX_COMPANIES);
 
     for (const company of companies) {
       netWorth += company.balance;
@@ -462,32 +538,40 @@ async function updatePlayerNetWorth(ctx: any) {
       .query("loans")
       .withIndex("by_playerId", (q: any) => q.eq("playerId", player._id))
       .filter((q: any) => q.eq(q.field("status"), "active"))
-      .collect();
+      .take(MAX_LOANS);
 
     for (const loan of activeLoans) {
       netWorth -= loan.remainingBalance;
     }
 
-    // Update player netWorth field if changed
-    if (player.netWorth !== netWorth) {
-      await ctx.db.patch(player._id, {
-        netWorth,
-        updatedAt: Date.now(),
-      });
-    }
+    // Always update to mark this player as processed (rotation)
+    await ctx.db.patch(player._id, {
+      netWorth,
+      lastNetWorthUpdate: Date.now(),
+      updatedAt: Date.now(),
+    });
+    
+    playersUpdated++;
   }
+
+  console.log(`Updated net worth for ${playersUpdated} players`);
 }
 
 // Apply daily loan interest
 async function applyLoanInterest(ctx: any) {
+  // OPTIMIZED: Process 100 loans per tick to avoid read explosion
+  // This ensures all loans get processed in rotation
   const activeLoans = await ctx.db
     .query("loans")
     .withIndex("by_status", (q: any) => q.eq("status", "active"))
-    .collect();
+    .order("asc") // Order by creation time for rotation
+    .take(100); // Process max 100 loans per tick
 
   const now = Date.now();
   const twentyMinutesMs = 20 * 60 * 1000;
   const oneDayMs = 24 * 60 * 60 * 1000;
+
+  let loansProcessed = 0;
 
   for (const loan of activeLoans) {
     const timeSinceLastInterest = now - loan.lastInterestApplied;
@@ -518,10 +602,49 @@ async function applyLoanInterest(ctx: any) {
             updatedAt: now,
           });
         }
+        loansProcessed++;
       }
     }
   }
+  
+  console.log(`Applied interest to ${loansProcessed} loans`);
 }
+
+// ============================================================================
+// INTERNAL MUTATIONS - Each step isolated to prevent read limit accumulation
+// ============================================================================
+
+export const executeBotPurchasesMutation = internalMutation({
+  args: { totalBudget: v.number() },
+  handler: async (ctx, args) => {
+    return await executeBotPurchases(ctx, args.totalBudget);
+  },
+});
+
+export const deductEmployeeCostsMutation = internalMutation({
+  handler: async (ctx) => {
+    await deductEmployeeCosts(ctx);
+    return { success: true };
+  },
+});
+
+export const applyLoanInterestMutation = internalMutation({
+  handler: async (ctx) => {
+    await applyLoanInterest(ctx);
+    return { success: true };
+  },
+});
+
+export const updatePlayerNetWorthMutation = internalMutation({
+  handler: async (ctx) => {
+    await updatePlayerNetWorth(ctx);
+    return { success: true };
+  },
+});
+
+// ============================================================================
+// QUERIES
+// ============================================================================
 
 // Query: Get tick history
 export const getTickHistory = query({

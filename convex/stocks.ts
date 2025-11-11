@@ -54,6 +54,38 @@ const POSITIVE_EVENT_PROBABILITY = 0.5; // 50% of events are positive
 
 // Sub-ticks for OHLC generation
 const SUB_TICKS = 5;
+const STOCK_UPDATE_BATCH_SIZE = 50; // Total stocks to update per tick
+const STOCK_MICRO_BATCH_SIZE = 10; // Process 10 stocks at a time to avoid read limits
+const STOCK_HISTORY_WINDOW = 10;
+
+async function loadStocksBatch(ctx: any, limit: number) {
+  const seen = new Set<string>();
+  const ordered: Doc<"stocks">[] = await ctx.db
+    .query("stocks")
+    .withIndex("by_lastUpdated", (q: any) => q.gt("lastUpdated", 0))
+    .order("asc")
+    .take(limit);
+
+  const batch: Doc<"stocks">[] = [];
+
+  for (const stock of ordered) {
+    batch.push(stock);
+    seen.add(`${stock._id}`);
+  }
+
+  if (batch.length < limit) {
+    const fallback = await ctx.db.query("stocks").take(limit - batch.length);
+    for (const stock of fallback) {
+      const id = `${stock._id}`;
+      if (seen.has(id)) continue;
+      batch.push(stock);
+      seen.add(id);
+      if (batch.length === limit) break;
+    }
+  }
+
+  return batch;
+}
 
 // Initial stock configurations
 const INITIAL_STOCKS = [
@@ -138,11 +170,13 @@ function clamp(value: number, min: number, max: number): number {
 async function calculateFairValue(
   ctx: any,
   stock: Doc<"stocks">,
-  recentPrices: number[]
+  recentPrices: number[],
+  companiesMap?: Map<string, any>
 ): Promise<number> {
   // If stock is linked to a company, use company balance for fair value
   if (stock.companyId) {
-    const company = await ctx.db.get(stock.companyId);
+    // Use pre-fetched company from map to avoid individual queries
+    const company = companiesMap?.get(stock.companyId) ?? await ctx.db.get(stock.companyId);
     if (company) {
       // Fair value = 5x company balance / outstanding shares
       const outstandingShares = stock.outstandingShares ?? 1000000;
@@ -366,46 +400,62 @@ export const initializeStockMarket = mutation({
 export const updateStockPrices = internalMutation({
   handler: async (ctx) => {
     const now = Date.now();
-    
-    // Get all stocks grouped by sector
-    const allStocks = await ctx.db.query("stocks").collect();
-    
-    if (allStocks.length === 0) {
+    const stocks = await loadStocksBatch(ctx, STOCK_UPDATE_BATCH_SIZE);
+
+    if (stocks.length === 0) {
       return { updated: 0, message: "No stocks to update" };
     }
-    
-    // Group stocks by sector
-    const stocksBySector = allStocks.reduce((acc, stock) => {
-      const sector = stock.sector ?? "other";
-      if (!acc[sector]) {
-        acc[sector] = [];
-      }
-      acc[sector].push(stock);
-      return acc;
-    }, {} as Record<string, Doc<"stocks">[]>);
     
     // Calculate global market trend
     const marketTrend = getMarketTrend();
     
     const updates: any[] = [];
     
-    // Process each sector
-    for (const [sector, stocks] of Object.entries(stocksBySector)) {
-      // Generate sector-specific drift (correlated movement)
-      const sectorDrift = generateSectorDrift();
+    // Process stocks in micro-batches to avoid document read limits
+    // Each micro-batch: 10 stocks × (1 + 10 companies + 10 history) = ~210 reads
+    for (let i = 0; i < stocks.length; i += STOCK_MICRO_BATCH_SIZE) {
+      const microBatch = stocks.slice(i, i + STOCK_MICRO_BATCH_SIZE);
       
-      for (const stock of stocks) {
-        // Get recent price history for fair value calculation
-        const recentHistory = await ctx.db
-          .query("stockPriceHistory")
-          .withIndex("by_stock_time", (q) => q.eq("stockId", stock._id))
-          .order("desc")
-          .take(20);
+      // Pre-fetch companies for this micro-batch only
+      const companyIds = microBatch
+        .map(s => s.companyId)
+        .filter((id): id is Id<"companies"> => id !== undefined);
+      
+      const companiesMap = new Map<string, any>();
+      for (const companyId of companyIds) {
+        const company = await ctx.db.get(companyId);
+        if (company) {
+          companiesMap.set(companyId, company);
+        }
+      }
+      
+      // Group stocks by sector for this micro-batch
+      const stocksBySector = microBatch.reduce((acc, stock) => {
+        const sector = stock.sector ?? "other";
+        if (!acc[sector]) {
+          acc[sector] = [];
+        }
+        acc[sector].push(stock);
+        return acc;
+      }, {} as Record<string, Doc<"stocks">[]>);
+      
+      // Process each sector in this micro-batch
+      for (const [sector, sectorStocks] of Object.entries(stocksBySector)) {
+        // Generate sector-specific drift (correlated movement)
+        const sectorDrift = generateSectorDrift();
+        
+        for (const stock of sectorStocks) {
+          // Get recent price history for fair value calculation
+          const recentHistory = await ctx.db
+            .query("stockPriceHistory")
+            .withIndex("by_stock_time", (q) => q.eq("stockId", stock._id))
+            .order("desc")
+            .take(STOCK_HISTORY_WINDOW);
         
         const recentPrices = recentHistory.map(h => h.close).filter((p): p is number => p !== undefined);
 
-        // Calculate fair value
-        const fairValue = await calculateFairValue(ctx, stock, recentPrices);
+        // Calculate fair value (pass companiesMap to avoid individual queries)
+        const fairValue = await calculateFairValue(ctx, stock, recentPrices, companiesMap);
         
         // Get current volatility
         const volatility = getCurrentVolatility(stock);
@@ -471,8 +521,9 @@ export const updateStockPrices = internalMutation({
           newPrice: close,
           change: priceChange,
         });
-      }
-    }
+      } // End stock processing
+    } // End sector processing
+    } // End micro-batch loop
     
     return {
       updated: updates.length,
