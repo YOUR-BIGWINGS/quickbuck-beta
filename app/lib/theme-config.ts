@@ -1,6 +1,6 @@
 export type ThemeMode = "light" | "dark";
 
-export type ThemePreset = "default" | "light-cloud" | "dark-default" | "dark-crimson" | "dark-delta" | "light-bubblegum";
+export type ThemePreset = "default" | "light-cloud" | "dark-default" | "dark-crimson" | "dark-delta" | "light-bubblegum" | "light-alpha";
 
 export interface ThemeColors {
   primary: string;
@@ -263,6 +263,42 @@ const bubblegumColors: ThemeColors = {
   sidebarRing: "oklch(0.5916 0.2180 0.5844)",
 };
 
+// Alpha theme (light mode only) - Primary: #7678ed, Secondary: white
+const alphaColors: ThemeColors = {
+  primary: "#7678ed",
+  primaryForeground: "#ffffff",
+  background: "#ffffff",
+  foreground: "#0a0a0a",
+  card: "#ffffff",
+  cardForeground: "#0a0a0a",
+  popover: "#ffffff",
+  popoverForeground: "#0a0a0a",
+  secondary: "#ffffff",
+  secondaryForeground: "#0a0a0a",
+  muted: "#f5f5f5",
+  mutedForeground: "#6b6b6b",
+  accent: "#f0f0ff",
+  accentForeground: "#7678ed",
+  destructive: "#ef4444",
+  destructiveForeground: "#ffffff",
+  border: "#e5e5e5",
+  input: "#e5e5e5",
+  ring: "#7678ed",
+  chart1: "#7678ed",
+  chart2: "#9b9dff",
+  chart3: "#5658d9",
+  chart4: "#a5a7f7",
+  chart5: "#6163e0",
+  sidebar: "#fafafa",
+  sidebarForeground: "#0a0a0a",
+  sidebarPrimary: "#7678ed",
+  sidebarPrimaryForeground: "#ffffff",
+  sidebarAccent: "#f5f5f5",
+  sidebarAccentForeground: "#0a0a0a",
+  sidebarBorder: "#e5e5e5",
+  sidebarRing: "#7678ed",
+};
+
 export const themes: Theme[] = [
   {
     id: "default",
@@ -299,6 +335,12 @@ export const themes: Theme[] = [
     name: "Bubblegum",
     mode: "light",
     colors: bubblegumColors,
+  },
+  {
+    id: "light-alpha",
+    name: "Alpha",
+    mode: "light",
+    colors: alphaColors,
   },
 ];
 

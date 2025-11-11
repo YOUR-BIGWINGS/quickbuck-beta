@@ -49,7 +49,8 @@ export function ThemeSettings() {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="max-h-[60vh] overflow-y-auto px-1">
+          <div className="space-y-6 py-4">
           {/* Current Mode Display (read-only) */}
           <div className="space-y-2">
             <Label className="text-base font-semibold">Current Mode</Label>
@@ -126,6 +127,7 @@ export function ThemeSettings() {
                 />
               ))}
             </div>
+          </div>
           </div>
         </div>
       </DialogContent>
