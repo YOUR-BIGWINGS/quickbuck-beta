@@ -1321,6 +1321,99 @@ export const getAllCompaniesForModeration = query({
   },
 });
 
+// Query: Get all companies owned by a specific player
+export const getPlayerCompanies = query({
+  args: {
+    playerId: v.id("players"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) throw new Error("User not found");
+
+    const currentPlayer = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!currentPlayer) throw new Error("Player not found");
+
+    const hasAccess = await hasPermission(ctx, currentPlayer._id, "mod");
+    if (!hasAccess) {
+      throw new Error("Insufficient permissions");
+    }
+
+    // Get all companies owned by this player
+    const companies = await ctx.db
+      .query("companies")
+      .withIndex("by_ownerId", (q) => q.eq("ownerId", args.playerId))
+      .collect();
+
+    return companies;
+  },
+});
+
+// Query: Get all products from companies owned by a specific player
+export const getPlayerProducts = query({
+  args: {
+    playerId: v.id("players"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) throw new Error("User not found");
+
+    const currentPlayer = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!currentPlayer) throw new Error("Player not found");
+
+    const hasAccess = await hasPermission(ctx, currentPlayer._id, "mod");
+    if (!hasAccess) {
+      throw new Error("Insufficient permissions");
+    }
+
+    // Get all companies owned by this player
+    const companies = await ctx.db
+      .query("companies")
+      .withIndex("by_ownerId", (q) => q.eq("ownerId", args.playerId))
+      .collect();
+
+    // Get all products from these companies
+    const allProducts = [];
+    for (const company of companies) {
+      const products = await ctx.db
+        .query("products")
+        .withIndex("by_companyId", (q) => q.eq("companyId", company._id))
+        .collect();
+      
+      // Enrich with company name
+      for (const product of products) {
+        allProducts.push({
+          ...product,
+          companyName: company.name,
+        });
+      }
+    }
+
+    return allProducts;
+  },
+});
+
 // Query: Get all products for moderation
 export const getAllProductsForModeration = query({
   handler: async (ctx) => {

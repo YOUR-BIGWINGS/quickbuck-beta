@@ -98,11 +98,27 @@ export default function Panel() {
   const [messageText, setMessageText] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
 
+  // Player details modal state
+  const [playerDetailsModal, setPlayerDetailsModal] = useState<{
+    playerId: Id<"players">;
+    playerName: string;
+  } | null>(null);
+
   // Search for users query (after state declaration)
   const searchResults = useQuery(
     // @ts-ignore - messages module exists but not yet in generated types
     api.messages?.searchPlayers,
     messageSearchQuery.length > 1 ? { searchQuery: messageSearchQuery } : "skip"
+  );
+
+  // Player companies and products queries
+  const playerCompanies = useQuery(
+    api.moderation.getPlayerCompanies,
+    playerDetailsModal ? { playerId: playerDetailsModal.playerId } : "skip"
+  );
+  const playerProducts = useQuery(
+    api.moderation.getPlayerProducts,
+    playerDetailsModal ? { playerId: playerDetailsModal.playerId } : "skip"
   );
 
   const showMessage = (message: string) => {
@@ -264,6 +280,10 @@ export default function Panel() {
   // Debug: Log admin status
   console.log("Moderation Access:", moderationAccess);
   console.log("Is Admin:", isAdmin);
+
+  const handleViewPlayerDetails = (playerId: Id<"players">, playerName: string) => {
+    setPlayerDetailsModal({ playerId, playerName });
+  };
 
   const handleLimitPlayer = async (playerId: Id<"players">) => {
     const reason = prompt("Enter reason for limiting this account:");
@@ -669,7 +689,15 @@ export default function Panel() {
                 <tbody>
                   {players.map((player) => (
                     <tr key={player._id}>
-                      <td>{player.userName}</td>
+                      <td>
+                        <span 
+                          className="player-name-link"
+                          onClick={() => handleViewPlayerDetails(player._id, player.userName)}
+                          title="Click to view player's companies and products"
+                        >
+                          {player.userName}
+                        </span>
+                      </td>
                       <td>{player.userEmail}</td>
                       <td>
                         <span
@@ -1373,6 +1401,99 @@ export default function Panel() {
                 Clear All Warnings
               </button>
             )}
+          </div>
+        </div>
+      </div>
+
+      {/* Player Details Modal */}
+      <div className={`warning-modal-overlay ${playerDetailsModal ? "visible" : ""}`}>
+        <div className="warning-modal-box player-details-box">
+          <h3>📊 Player Details</h3>
+          <p>
+            Player: <strong>{playerDetailsModal?.playerName}</strong>
+          </p>
+
+          <div className="player-details-content">
+            {/* Companies Section */}
+            <div className="player-details-section">
+              <h4>🏢 Companies ({playerCompanies?.length || 0})</h4>
+              {playerCompanies === undefined ? (
+                <div className="loading">Loading companies...</div>
+              ) : playerCompanies.length === 0 ? (
+                <p className="no-data">No companies owned</p>
+              ) : (
+                <table className="retro-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Type</th>
+                      <th>Balance</th>
+                      <th>Ticker</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {playerCompanies.map((company) => (
+                      <tr key={company._id}>
+                        <td>{company.name}</td>
+                        <td>{company.isPublic ? "Public" : "Private"}</td>
+                        <td>${(company.balance / 100).toFixed(2)}</td>
+                        <td>{company.ticker || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Products Section */}
+            <div className="player-details-section">
+              <h4>📦 Products ({playerProducts?.length || 0})</h4>
+              {playerProducts === undefined ? (
+                <div className="loading">Loading products...</div>
+              ) : playerProducts.length === 0 ? (
+                <p className="no-data">No products created</p>
+              ) : (
+                <table className="retro-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Company</th>
+                      <th>Price</th>
+                      <th>Stock</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {playerProducts.map((product) => (
+                      <tr key={product._id}>
+                        <td>{product.name}</td>
+                        <td>{product.companyName}</td>
+                        <td>${(product.price / 100).toFixed(2)}</td>
+                        <td>{product.stock}</td>
+                        <td>
+                          {product.isArchived ? (
+                            <span style={{ color: "var(--text-secondary)" }}>Archived</span>
+                          ) : product.isActive ? (
+                            <span style={{ color: "var(--text-success)" }}>Active</span>
+                          ) : (
+                            <span style={{ color: "var(--text-warning)" }}>Inactive</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+
+          <div className="warning-modal-buttons">
+            <button
+              className="btn-cancel"
+              onClick={() => setPlayerDetailsModal(null)}
+            >
+              Close
+            </button>
           </div>
         </div>
       </div>
@@ -2105,6 +2226,62 @@ export default function Panel() {
         .warning-count.clickable {
           cursor: pointer;
           text-decoration: underline;
+        }
+
+        /* Player name link */
+        .player-name-link {
+          color: #0000ff;
+          text-decoration: underline;
+          cursor: pointer;
+          font-weight: bold;
+        }
+
+        .player-name-link:hover {
+          color: #ff00ff;
+          background: rgba(0, 0, 255, 0.1);
+        }
+
+        .player-name-link:active {
+          color: #800080;
+        }
+
+        /* Player details modal */
+        .player-details-box {
+          max-width: 900px;
+        }
+
+        .player-details-content {
+          margin: 20px 0;
+        }
+
+        .player-details-section {
+          margin-bottom: 30px;
+        }
+
+        .player-details-section h4 {
+          color: var(--header-bg);
+          border-bottom: 2px solid var(--header-bg);
+          padding-bottom: 5px;
+          margin-bottom: 15px;
+        }
+
+        .player-details-section .retro-table {
+          font-size: 12px;
+        }
+
+        .player-details-section .no-data {
+          text-align: center;
+          color: var(--text-secondary);
+          font-style: italic;
+          padding: 15px;
+          background: var(--input-bg);
+          border: 2px inset var(--input-border);
+        }
+
+        .player-details-section .loading {
+          text-align: center;
+          color: var(--text-secondary);
+          padding: 15px;
         }
 
         .warning-count.clickable:hover {
