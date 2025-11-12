@@ -15,6 +15,9 @@ export default [
   route("panel", "routes/panel.tsx"),
   route("rules", "routes/rules.tsx"),
   route("admin/maintenance", "routes/admin/maintenance.tsx"),
+  route("admin/diagnostics", "routes/admin/diagnostics.tsx"),
+  route("admin/tick", "routes/admin/tick.tsx"),
+  route("admin/stocks", "routes/admin/stocks.tsx"),
   layout("routes/dashboard/layout.tsx", [
     route("dashboard", "routes/dashboard/index.tsx"),
     route("leaderboard", "routes/leaderboard.tsx"),

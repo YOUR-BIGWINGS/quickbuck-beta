@@ -18,6 +18,7 @@ import type * as companySales from "../companySales.js";
 import type * as contentFilter from "../contentFilter.js";
 import type * as crons from "../crons.js";
 import type * as crypto from "../crypto.js";
+import type * as diagnostics from "../diagnostics.js";
 import type * as gambling from "../gambling.js";
 import type * as gameConfig from "../gameConfig.js";
 import type * as gameStats from "../gameStats.js";
@@ -64,6 +65,7 @@ declare const fullApi: ApiFromModules<{
   contentFilter: typeof contentFilter;
   crons: typeof crons;
   crypto: typeof crypto;
+  diagnostics: typeof diagnostics;
   gambling: typeof gambling;
   gameConfig: typeof gameConfig;
   gameStats: typeof gameStats;

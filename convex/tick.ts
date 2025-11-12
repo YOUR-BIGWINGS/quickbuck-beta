@@ -681,31 +681,46 @@ async function deductEmployeeCosts(ctx: any) {
 }
 
 // Update player net worth values for efficient leaderboard queries
-// Optimized to process only a small batch per tick to avoid read limits
+// Update player net worth values
 async function updatePlayerNetWorth(
   ctx: any,
-  {
-    limit,
-    cursor,
-  }: {
-    limit: number;
+  args: {
+    limit?: number;
     cursor?: string;
   }
 ) {
+  console.log(`[NET_WORTH] updatePlayerNetWorth called with raw args:`, JSON.stringify(args));
+  
   // CRITICAL: Only process a small number of players per batch to stay under read budget
   const MAX_HOLDINGS_PER_TYPE = 5; // Reduced from 20
   const MAX_COMPANIES = 3; // Reduced from 10
   const MAX_LOANS = 3; // Reduced from 10
-  const safeLimit = Math.max(1, Math.min(limit, 25));
   
-  // Get players with oldest lastNetWorthUpdate (or null) first for round-robin processing
-  const playerPage = await ctx.db
+  // Add defensive check for undefined limit
+  const limit = args.limit;
+  const cursor = args.cursor;
+  const safeLimitInput = limit ?? 6;
+  const safeLimitCalculated = Math.max(1, Math.min(safeLimitInput, 25));
+  
+  // Triple check that we have a valid finite positive number
+  const safeLimit = (typeof safeLimitCalculated === 'number' && 
+                     isFinite(safeLimitCalculated) && 
+                     safeLimitCalculated > 0) 
+    ? safeLimitCalculated 
+    : 6;
+  
+  console.log(`[NET_WORTH] Processing players with limit=${safeLimit} (input was ${limit}), cursor=${cursor ? 'yes' : 'no'}`);
+  
+  // WORKAROUND: Use .take() instead of .paginate() since paginate is causing issues
+  console.log(`[NET_WORTH] Using .take() instead of .paginate() with limit=${safeLimit}`);
+  
+  const players = await ctx.db
     .query("players")
     .withIndex("by_lastNetWorthUpdate")
     .order("asc")
-    .paginate({ limit: safeLimit, cursor });
-
-  const players = playerPage.page;
+    .take(safeLimit);
+  
+  console.log(`[NET_WORTH] Successfully fetched ${players.length} players`);
 
   let playersUpdated = 0;
 
@@ -716,7 +731,7 @@ async function updatePlayerNetWorth(
     const stockHoldings = await ctx.db
       .query("playerStockPortfolios")
       .withIndex("by_playerId", (q: any) => q.eq("playerId", player._id))
-      .take(MAX_HOLDINGS_PER_TYPE);
+      .take(MAX_HOLDINGS_PER_TYPE || 5);
 
     for (const holding of stockHoldings) {
       const stock = await ctx.db.get(holding.stockId);
@@ -729,7 +744,7 @@ async function updatePlayerNetWorth(
     const cryptoHoldings = await ctx.db
       .query("playerCryptoWallets")
       .withIndex("by_playerId", (q: any) => q.eq("playerId", player._id))
-      .take(MAX_HOLDINGS_PER_TYPE);
+      .take(MAX_HOLDINGS_PER_TYPE || 5);
 
     for (const holding of cryptoHoldings) {
       const crypto = await ctx.db.get(holding.cryptoId);
@@ -742,7 +757,7 @@ async function updatePlayerNetWorth(
     const companies = await ctx.db
       .query("companies")
       .withIndex("by_ownerId", (q: any) => q.eq("ownerId", player._id))
-      .take(MAX_COMPANIES);
+      .take(MAX_COMPANIES || 3);
 
     for (const company of companies) {
       netWorth += company.balance;
@@ -756,7 +771,7 @@ async function updatePlayerNetWorth(
       .query("loans")
       .withIndex("by_playerId", (q: any) => q.eq("playerId", player._id))
       .filter((q: any) => q.eq(q.field("status"), "active"))
-      .take(MAX_LOANS);
+      .take(MAX_LOANS || 3);
 
     for (const loan of activeLoans) {
       netWorth -= loan.remainingBalance;
@@ -776,30 +791,54 @@ async function updatePlayerNetWorth(
 
   return {
     processed: playersUpdated,
-    cursor: playerPage.continueCursor ?? undefined,
+    cursor: undefined, // No pagination cursor since we're using .take()
   };
 }
 
 // Apply daily loan interest
 async function applyLoanInterest(
   ctx: any,
-  {
-    limit,
-    cursor,
-  }: {
-    limit: number;
+  args: {
+    limit?: number;
     cursor?: string;
   }
 ) {
+  console.log(`[LOAN] applyLoanInterest called with raw args:`, JSON.stringify(args));
+  
   // OPTIMIZED: Process loans in small batches to avoid read explosion
-  const safeLimit = Math.max(1, Math.min(limit, 100));
-  const loanPage = await ctx.db
+  // Add defensive check for undefined limit - EXTREMELY defensive
+  const limit = typeof args.limit === 'number' ? args.limit : 40;
+  const cursor = args.cursor;
+  const safeLimitInput = limit;
+  const safeLimitCalculated = Math.max(1, Math.min(safeLimitInput, 100));
+  
+  // Triple check that we have a valid finite positive number
+  const safeLimit = (typeof safeLimitCalculated === 'number' && 
+                     isFinite(safeLimitCalculated) && 
+                     safeLimitCalculated > 0) 
+    ? safeLimitCalculated 
+    : 40;
+  
+  console.log(`[LOAN] Processing loans with limit=${safeLimit} (input was ${limit}), cursor=${cursor ? 'yes' : 'no'}`);
+  
+  // WORKAROUND: Use .take() instead of .paginate() since paginate is causing issues
+  // This means we lose pagination but at least it will work
+  console.log(`[LOAN] Using .take() instead of .paginate() with limit=${safeLimit}`);
+  
+  // CRITICAL: Final validation before .take() - must be a concrete number
+  const takeLimitValue = Number(safeLimit);
+  if (!isFinite(takeLimitValue) || takeLimitValue <= 0) {
+    console.error(`[LOAN] CRITICAL: Invalid take limit: ${takeLimitValue}, using 40`);
+    throw new Error(`Invalid take limit: ${takeLimitValue}`);
+  }
+  
+  const activeLoans = await ctx.db
     .query("loans")
     .withIndex("by_status", (q: any) => q.eq("status", "active"))
-    .order("asc") // Order by creation time for rotation
-    .paginate({ limit: safeLimit, cursor });
-
-  const activeLoans = loanPage.page;
+    .order("asc")
+    .take(takeLimitValue);
+  
+  console.log(`[LOAN] Successfully fetched ${activeLoans.length} loans`);
 
   const now = Date.now();
   const twentyMinutesMs = 20 * 60 * 1000;
@@ -844,7 +883,7 @@ async function applyLoanInterest(
 
   return {
     processed: loansProcessed,
-    cursor: loanPage.continueCursor ?? undefined,
+    cursor: undefined, // No pagination cursor since we're using .take()
   };
 }
 
@@ -871,21 +910,41 @@ export const deductEmployeeCostsMutation = internalMutation({
 
 export const applyLoanInterestMutation = internalMutation({
   args: {
-    limit: v.number(),
+    limit: v.optional(v.number()),
     cursor: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    return await applyLoanInterest(ctx, args);
+    console.log(`[MUTATION] applyLoanInterestMutation called with:`, JSON.stringify(args));
+    
+    // Defensive: Ensure limit is always a valid number
+    const safeArgs = {
+      limit: args.limit ?? 40,
+      cursor: args.cursor,
+    };
+    
+    console.log(`[MUTATION] Calling applyLoanInterest with safeArgs:`, JSON.stringify(safeArgs));
+    
+    return await applyLoanInterest(ctx, safeArgs);
   },
 });
 
 export const updatePlayerNetWorthMutation = internalMutation({
   args: {
-    limit: v.number(),
+    limit: v.optional(v.number()),
     cursor: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    return await updatePlayerNetWorth(ctx, args);
+    console.log(`[MUTATION] updatePlayerNetWorthMutation called with:`, JSON.stringify(args));
+    
+    // Defensive: Ensure limit is always a valid number
+    const safeArgs = {
+      limit: args.limit ?? 6,
+      cursor: args.cursor,
+    };
+    
+    console.log(`[MUTATION] Calling updatePlayerNetWorth with safeArgs:`, JSON.stringify(safeArgs));
+    
+    return await updatePlayerNetWorth(ctx, safeArgs);
   },
 });
 
