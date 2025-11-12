@@ -31,8 +31,17 @@ import { mutation, internalMutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 
+const LOAN_INTEREST_BATCH_SIZE = 40;
+const LOAN_INTEREST_MAX_BATCHES = 3;
+const NET_WORTH_BATCH_SIZE = 6;
+const NET_WORTH_MAX_BATCHES = 3;
+
+type TickLockAcquireResult =
+  | { acquired: true; lockId: Id<"tickLock"> }
+  | { acquired: false };
+
 // Acquire distributed lock for tick execution
-async function acquireTickLock(ctx: any, lockSource: string): Promise<boolean> {
+async function acquireTickLock(ctx: any, lockSource: string): Promise<TickLockAcquireResult> {
   const lock = await ctx.db
     .query("tickLock")
     .withIndex("by_lockId", (q: any) => q.eq("lockId", "singleton"))
@@ -42,13 +51,13 @@ async function acquireTickLock(ctx: any, lockSource: string): Promise<boolean> {
   
   if (!lock) {
     // Create the lock for the first time
-    await ctx.db.insert("tickLock", {
+    const lockId = await ctx.db.insert("tickLock", {
       lockId: "singleton",
       isLocked: true,
       lockedAt: now,
       lockedBy: lockSource,
     });
-    return true;
+    return { acquired: true, lockId };
   }
 
   // Check if lock is stale (older than 10 minutes - should never happen)
@@ -59,13 +68,13 @@ async function acquireTickLock(ctx: any, lockSource: string): Promise<boolean> {
       lockedAt: now,
       lockedBy: lockSource,
     });
-    return true;
+    return { acquired: true, lockId: lock._id };
   }
 
   // If already locked, cannot acquire
   if (lock.isLocked) {
     console.log(`[TICK] Lock already held by ${lock.lockedBy}, skipping`);
-    return false;
+    return { acquired: false };
   }
 
   // Acquire the lock
@@ -74,11 +83,20 @@ async function acquireTickLock(ctx: any, lockSource: string): Promise<boolean> {
     lockedAt: now,
     lockedBy: lockSource,
   });
-  return true;
+  return { acquired: true, lockId: lock._id };
 }
 
 // Release distributed lock
-async function releaseTickLock(ctx: any) {
+async function releaseTickLock(ctx: any, lockId?: Id<"tickLock">) {
+  if (lockId) {
+    await ctx.db.patch(lockId, {
+      isLocked: false,
+      lockedAt: undefined,
+      lockedBy: undefined,
+    });
+    return;
+  }
+
   const lock = await ctx.db
     .query("tickLock")
     .withIndex("by_lockId", (q: any) => q.eq("lockId", "singleton"))
@@ -104,11 +122,13 @@ async function executeTickLogic(ctx: any, lockSource: string): Promise<{
   const now = Date.now();
 
   // Try to acquire lock
-  const lockAcquired = await acquireTickLock(ctx, lockSource);
-  if (!lockAcquired) {
+  const lockResult = await acquireTickLock(ctx, lockSource);
+  if (!lockResult.acquired) {
     console.log(`[TICK] Could not acquire lock, another tick is running`);
     throw new Error("Another tick is currently running. Please wait.");
   }
+
+  const lockId = lockResult.lockId;
 
   try {
     // Get last tick number
@@ -154,12 +174,60 @@ async function executeTickLogic(ctx: any, lockSource: string): Promise<{
     );
 
     // Step 4: Apply loan interest (isolated mutation)
-    console.log('[TICK] Step 4: Loan interest...');
-    await ctx.runMutation(internal.tick.applyLoanInterestMutation);
+    console.log('[TICK] Step 4: Loan interest (batched)...');
+    let loanCursor: string | undefined;
+    let loanBatches = 0;
+    let loansProcessed = 0;
+    while (loanBatches < LOAN_INTEREST_MAX_BATCHES) {
+      const loanResult = await ctx.runMutation(
+        internal.tick.applyLoanInterestMutation,
+        {
+          limit: LOAN_INTEREST_BATCH_SIZE,
+          cursor: loanCursor,
+        }
+      );
+
+      if (!loanResult) {
+        break;
+      }
+
+      loansProcessed += loanResult.processed ?? 0;
+      loanCursor = loanResult.cursor ?? undefined;
+      loanBatches += 1;
+
+      if (!loanCursor) {
+        break;
+      }
+    }
+    console.log(`[TICK] Loan interest batches: ${loanBatches}, loans processed: ${loansProcessed}`);
 
     // Step 5: Update player net worth values (isolated mutation)
-    console.log('[TICK] Step 5: Player net worth (batch)...');
-    await ctx.runMutation(internal.tick.updatePlayerNetWorthMutation);
+    console.log('[TICK] Step 5: Player net worth (batched)...');
+    let netWorthCursor: string | undefined;
+    let netWorthBatches = 0;
+    let playersProcessed = 0;
+    while (netWorthBatches < NET_WORTH_MAX_BATCHES) {
+      const netWorthResult = await ctx.runMutation(
+        internal.tick.updatePlayerNetWorthMutation,
+        {
+          limit: NET_WORTH_BATCH_SIZE,
+          cursor: netWorthCursor,
+        }
+      );
+
+      if (!netWorthResult) {
+        break;
+      }
+
+      playersProcessed += netWorthResult.processed ?? 0;
+      netWorthCursor = netWorthResult.cursor ?? undefined;
+      netWorthBatches += 1;
+
+      if (!netWorthCursor) {
+        break;
+      }
+    }
+    console.log(`[TICK] Net worth batches: ${netWorthBatches}, players processed: ${playersProcessed}`);
 
     // Step 6: Record tick history
     const tickId: Id<"tickHistory"> = await ctx.db.insert("tickHistory", {
@@ -183,7 +251,7 @@ async function executeTickLogic(ctx: any, lockSource: string): Promise<{
     };
   } finally {
     // Always release the lock, even if an error occurred
-    await releaseTickLock(ctx);
+    await releaseTickLock(ctx, lockId);
   }
 }
 
@@ -574,20 +642,30 @@ async function deductEmployeeCosts(ctx: any) {
 
 // Update player net worth values for efficient leaderboard queries
 // Optimized to process only a small batch per tick to avoid read limits
-async function updatePlayerNetWorth(ctx: any) {
-  // CRITICAL: Only process 10 players per tick to stay WELL under 32k read limit
-  // 10 players * (5 stocks + 5 crypto + 3 companies + 3 loans) = 160 reads max
-  const BATCH_SIZE = 10;
+async function updatePlayerNetWorth(
+  ctx: any,
+  {
+    limit,
+    cursor,
+  }: {
+    limit: number;
+    cursor?: string;
+  }
+) {
+  // CRITICAL: Only process a small number of players per batch to stay under read budget
   const MAX_HOLDINGS_PER_TYPE = 5; // Reduced from 20
   const MAX_COMPANIES = 3; // Reduced from 10
   const MAX_LOANS = 3; // Reduced from 10
+  const safeLimit = Math.max(1, Math.min(limit, 25));
   
   // Get players with oldest lastNetWorthUpdate (or null) first for round-robin processing
-  const players = await ctx.db
+  const playerPage = await ctx.db
     .query("players")
     .withIndex("by_lastNetWorthUpdate")
     .order("asc")
-    .take(BATCH_SIZE);
+    .paginate({ limit: safeLimit, cursor });
+
+  const players = playerPage.page;
 
   let playersUpdated = 0;
 
@@ -654,22 +732,37 @@ async function updatePlayerNetWorth(ctx: any) {
     playersUpdated++;
   }
 
-  console.log(`Updated net worth for ${playersUpdated} players`);
+  console.log(`Updated net worth for ${playersUpdated} players (batch limit ${safeLimit})`);
+
+  return {
+    processed: playersUpdated,
+    cursor: playerPage.continueCursor ?? undefined,
+  };
 }
 
 // Apply daily loan interest
-async function applyLoanInterest(ctx: any) {
-  // OPTIMIZED: Process 100 loans per tick to avoid read explosion
-  // This ensures all loans get processed in rotation
-  const activeLoans = await ctx.db
+async function applyLoanInterest(
+  ctx: any,
+  {
+    limit,
+    cursor,
+  }: {
+    limit: number;
+    cursor?: string;
+  }
+) {
+  // OPTIMIZED: Process loans in small batches to avoid read explosion
+  const safeLimit = Math.max(1, Math.min(limit, 100));
+  const loanPage = await ctx.db
     .query("loans")
     .withIndex("by_status", (q: any) => q.eq("status", "active"))
     .order("asc") // Order by creation time for rotation
-    .take(100); // Process max 100 loans per tick
+    .paginate({ limit: safeLimit, cursor });
+
+  const activeLoans = loanPage.page;
 
   const now = Date.now();
   const twentyMinutesMs = 20 * 60 * 1000;
-  const oneDayMs = 24 * 60 * 60 * 1000;
 
   let loansProcessed = 0;
 
@@ -707,7 +800,12 @@ async function applyLoanInterest(ctx: any) {
     }
   }
   
-  console.log(`Applied interest to ${loansProcessed} loans`);
+  console.log(`Applied interest to ${loansProcessed} loans (batch limit ${safeLimit})`);
+
+  return {
+    processed: loansProcessed,
+    cursor: loanPage.continueCursor ?? undefined,
+  };
 }
 
 // ============================================================================
@@ -729,16 +827,22 @@ export const deductEmployeeCostsMutation = internalMutation({
 });
 
 export const applyLoanInterestMutation = internalMutation({
-  handler: async (ctx) => {
-    await applyLoanInterest(ctx);
-    return { success: true };
+  args: {
+    limit: v.number(),
+    cursor: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return await applyLoanInterest(ctx, args);
   },
 });
 
 export const updatePlayerNetWorthMutation = internalMutation({
-  handler: async (ctx) => {
-    await updatePlayerNetWorth(ctx);
-    return { success: true };
+  args: {
+    limit: v.number(),
+    cursor: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return await updatePlayerNetWorth(ctx, args);
   },
 });
 
