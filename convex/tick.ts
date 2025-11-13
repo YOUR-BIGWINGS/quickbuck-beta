@@ -9,18 +9,18 @@
  * 5. Apply loan interest (100 loans per tick, rotated)
  * 6. Update player net worth (10 players per tick, rotated)
  * 7. Record tick history
- * 
+ *
  * CRITICAL: Uses a distributed lock to prevent concurrent execution
- * 
+ *
  * OPTIMIZATION: All batch operations use strict limits to stay under
  * Convex's 32,000 document read limit. Operations use rotation so all
  * entities get processed eventually across multiple ticks.
- * 
+ *
  * Read Budget per Tick (estimated):
  * - Bot purchases: ~100 products + 100 company reads = 200
  * - Employee costs: 10 companies * 20 sales = 200
  * - Stock prices: handled separately
- * - Crypto prices: handled separately  
+ * - Crypto prices: handled separately
  * - Loan interest: 100 loans + 100 player reads = 200
  * - Net worth: 10 players * (5+5+3+3) * 2 = 320
  * Total: ~920 reads (safe margin under 32k limit)
@@ -41,14 +41,17 @@ type TickLockAcquireResult =
   | { acquired: false };
 
 // Acquire distributed lock for tick execution
-async function acquireTickLock(ctx: any, lockSource: string): Promise<TickLockAcquireResult> {
+async function acquireTickLock(
+  ctx: any,
+  lockSource: string,
+): Promise<TickLockAcquireResult> {
   const lock = await ctx.db
     .query("tickLock")
     .withIndex("by_lockId", (q: any) => q.eq("lockId", "singleton"))
     .first();
 
   const now = Date.now();
-  
+
   if (!lock) {
     // Create the lock for the first time
     const lockId = await ctx.db.insert("tickLock", {
@@ -61,7 +64,7 @@ async function acquireTickLock(ctx: any, lockSource: string): Promise<TickLockAc
   }
 
   // Check if lock is stale (older than 10 minutes - should never happen)
-  if (lock.isLocked && lock.lockedAt && (now - lock.lockedAt) > 10 * 60 * 1000) {
+  if (lock.isLocked && lock.lockedAt && now - lock.lockedAt > 10 * 60 * 1000) {
     console.log(`[TICK] Stale lock detected, forcing release`);
     await ctx.db.patch(lock._id, {
       isLocked: true,
@@ -112,7 +115,10 @@ async function releaseTickLock(ctx: any, lockId?: Id<"tickLock">) {
 }
 
 // Shared tick execution logic
-async function executeTickLogic(ctx: any, lockSource: string): Promise<{
+async function executeTickLogic(
+  ctx: any,
+  lockSource: string,
+): Promise<{
   tickNumber: number;
   tickId: Id<"tickHistory">;
   botPurchases: number;
@@ -143,52 +149,54 @@ async function executeTickLogic(ctx: any, lockSource: string): Promise<{
     console.log(`Executing tick #${tickNumber}`);
 
     // Step 1: Bot purchases from marketplace (per-company allocation)
-    console.log('[TICK] Step 1: Bot purchases (all companies)...');
+    console.log("[TICK] Step 1: Bot purchases (all companies)...");
     const botPurchases: Array<{
       productId: any;
       companyId: any;
       quantity: number;
       totalPrice: number;
     }> = [];
-    
+
     // Process ALL companies in one batch to ensure complete coverage
     try {
       console.log(`[TICK] Bot purchases: processing all companies...`);
       const allPurchases = await ctx.runMutation(
         internal.tick.executeBotPurchasesMutation,
-        { 
+        {
           companiesLimit: 10000, // Process all companies (no practical limit)
           offset: 0,
-        }
+        },
       );
-      
+
       if (Array.isArray(allPurchases)) {
         botPurchases.push(...allPurchases);
       }
-      console.log(`[TICK] Bot purchases completed: ${allPurchases?.length || 0} total purchases`);
+      console.log(
+        `[TICK] Bot purchases completed: ${allPurchases?.length || 0} total purchases`,
+      );
     } catch (error) {
       console.error(`[TICK] Error in bot purchases:`, error);
       // Continue even if purchases fail
     }
 
     // Step 1.5: Deduct employee costs from company income (isolated mutation)
-    console.log('[TICK] Step 1.5: Employee costs...');
+    console.log("[TICK] Step 1.5: Employee costs...");
     await ctx.runMutation(internal.tick.deductEmployeeCostsMutation);
 
     // Step 2: Update stock prices (isolated mutation)
-    console.log('[TICK] Step 2: Stock prices...');
+    console.log("[TICK] Step 2: Stock prices...");
     const stockPriceUpdates: any = await ctx.runMutation(
-      internal.stocks.updateStockPrices
+      internal.stocks.updateStockPrices,
     );
 
     // Step 3: Update cryptocurrency prices (isolated mutation)
-    console.log('[TICK] Step 3: Crypto prices...');
+    console.log("[TICK] Step 3: Crypto prices...");
     const cryptoPriceUpdates: any = await ctx.runMutation(
-      internal.crypto.updateCryptoPrices
+      internal.crypto.updateCryptoPrices,
     );
 
     // Step 4: Apply loan interest (isolated mutation)
-    console.log('[TICK] Step 4: Loan interest (batched)...');
+    console.log("[TICK] Step 4: Loan interest (batched)...");
     let loanCursor: string | undefined;
     let loanBatches = 0;
     let loansProcessed = 0;
@@ -198,7 +206,7 @@ async function executeTickLogic(ctx: any, lockSource: string): Promise<{
         {
           limit: LOAN_INTEREST_BATCH_SIZE,
           cursor: loanCursor,
-        }
+        },
       );
 
       if (!loanResult) {
@@ -213,10 +221,12 @@ async function executeTickLogic(ctx: any, lockSource: string): Promise<{
         break;
       }
     }
-    console.log(`[TICK] Loan interest batches: ${loanBatches}, loans processed: ${loansProcessed}`);
+    console.log(
+      `[TICK] Loan interest batches: ${loanBatches}, loans processed: ${loansProcessed}`,
+    );
 
     // Step 5: Update player net worth values (isolated mutation)
-    console.log('[TICK] Step 5: Player net worth (batched)...');
+    console.log("[TICK] Step 5: Player net worth (batched)...");
     let netWorthCursor: string | undefined;
     let netWorthBatches = 0;
     let playersProcessed = 0;
@@ -226,7 +236,7 @@ async function executeTickLogic(ctx: any, lockSource: string): Promise<{
         {
           limit: NET_WORTH_BATCH_SIZE,
           cursor: netWorthCursor,
-        }
+        },
       );
 
       if (!netWorthResult) {
@@ -241,7 +251,9 @@ async function executeTickLogic(ctx: any, lockSource: string): Promise<{
         break;
       }
     }
-    console.log(`[TICK] Net worth batches: ${netWorthBatches}, players processed: ${playersProcessed}`);
+    console.log(
+      `[TICK] Net worth batches: ${netWorthBatches}, players processed: ${playersProcessed}`,
+    );
 
     // Step 6: Record tick history
     const tickId: Id<"tickHistory"> = await ctx.db.insert("tickHistory", {
@@ -249,7 +261,7 @@ async function executeTickLogic(ctx: any, lockSource: string): Promise<{
       timestamp: now,
       botPurchases: botPurchases || [],
       cryptoPriceUpdates: cryptoPriceUpdates || [],
-      totalBudgetSpent: Array.isArray(botPurchases) 
+      totalBudgetSpent: Array.isArray(botPurchases)
         ? botPurchases.reduce((sum: number, p: any) => sum + p.totalPrice, 0)
         : 0,
     });
@@ -261,7 +273,9 @@ async function executeTickLogic(ctx: any, lockSource: string): Promise<{
       tickId,
       botPurchases: Array.isArray(botPurchases) ? botPurchases.length : 0,
       stockUpdates: stockPriceUpdates?.updated || 0,
-      cryptoUpdates: Array.isArray(cryptoPriceUpdates) ? cryptoPriceUpdates.length : 0,
+      cryptoUpdates: Array.isArray(cryptoPriceUpdates)
+        ? cryptoPriceUpdates.length
+        : 0,
     };
   } finally {
     // Always release the lock, even if an error occurred
@@ -271,7 +285,9 @@ async function executeTickLogic(ctx: any, lockSource: string): Promise<{
 
 // Main tick mutation - runs every 5 minutes via cron
 export const executeTick = internalMutation({
-  handler: async (ctx): Promise<{
+  handler: async (
+    ctx,
+  ): Promise<{
     tickNumber: number;
     tickId: Id<"tickHistory">;
     botPurchases: number;
@@ -292,7 +308,9 @@ export const executeTick = internalMutation({
 
 // Manual trigger for testing (can be called from admin dashboard)
 export const manualTick = mutation({
-  handler: async (ctx): Promise<{
+  handler: async (
+    ctx,
+  ): Promise<{
     tickNumber: number;
     tickId: Id<"tickHistory">;
     botPurchases: number;
@@ -306,19 +324,19 @@ export const manualTick = mutation({
 
 /**
  * BOT PURCHASE SYSTEM - RANDOM PER-COMPANY BUDGET ALLOCATION
- * 
+ *
  * The bot simulates market demand by purchasing products from each company:
  * - Total budget per tick: $2,500,000 minimum (can exceed if purchases continue)
  * - Each company gets a RANDOM percentage allocation of the total budget
  * - All companies are included in the allocation (no company left out)
  * - Buys based on attractiveness scoring within each company
- * 
+ *
  * Scoring factors:
  * 1. Quality rating (40% weight) - Higher quality = more attractive
  * 2. Price preference (30% weight) - Medium prices preferred (~$1000 sweet spot)
  * 3. Demand score (20% weight) - Products with more sales are more attractive
  * 4. Base attractiveness (10% weight) - Ensures all products get some consideration
- * 
+ *
  * Budget allocation is proportional to attractiveness scores.
  * Expensive items receive a penalty to prevent budget concentration.
  * Max product price: $50,000 (products above this are ignored)
@@ -327,9 +345,11 @@ async function executeBotPurchasesForCompany(
   ctx: any,
   companyId: any,
   companyBudget: number,
-  minSpend: number
+  minSpend: number,
 ) {
-  console.log(`[BOT] Processing company ${companyId} with budget: $${(companyBudget / 100).toFixed(2)}`);
+  console.log(
+    `[BOT] Processing company ${companyId} with budget: $${(companyBudget / 100).toFixed(2)}`,
+  );
 
   const purchases: Array<{
     productId: any;
@@ -350,7 +370,9 @@ async function executeBotPurchasesForCompany(
       return { purchases, totalSpent: 0 };
     }
 
-    console.log(`[BOT] Found ${products.length} total products for company ${companyId}`);
+    console.log(
+      `[BOT] Found ${products.length} total products for company ${companyId}`,
+    );
 
     // Step 2: Filter by max price ($50,000) and valid price only
     const validProducts = products.filter((p: any) => {
@@ -360,11 +382,15 @@ async function executeBotPurchasesForCompany(
     });
 
     if (validProducts.length === 0) {
-      console.log(`[BOT] No products with valid prices (within $50k max) for company ${companyId}`);
+      console.log(
+        `[BOT] No products with valid prices (within $50k max) for company ${companyId}`,
+      );
       return { purchases, totalSpent: 0 };
     }
 
-    console.log(`[BOT] ${validProducts.length} products with valid prices for company ${companyId}`);
+    console.log(
+      `[BOT] ${validProducts.length} products with valid prices for company ${companyId}`,
+    );
 
     // Step 3: Calculate budget allocation across products (equal split per product)
     const budgetPerProduct = Math.floor(companyBudget / validProducts.length);
@@ -387,7 +413,9 @@ async function executeBotPurchasesForCompany(
         // Re-fetch product to get current stock (not cached value)
         const product = await ctx.db.get(cachedProduct._id);
         if (!product) {
-          console.warn(`[BOT] Product ${cachedProduct._id} no longer exists, skipping`);
+          console.warn(
+            `[BOT] Product ${cachedProduct._id} no longer exists, skipping`,
+          );
           continue;
         }
 
@@ -403,9 +431,17 @@ async function executeBotPurchasesForCompany(
         quantity = Math.floor(productAllocation / product.price);
 
         // Apply CURRENT stock constraint (re-fetched above)
-        if (product.stock !== undefined && product.stock !== null && product.stock > 0) {
+        if (
+          product.stock !== undefined &&
+          product.stock !== null &&
+          product.stock > 0
+        ) {
           quantity = Math.min(quantity, product.stock);
-        } else if (product.stock !== undefined && product.stock !== null && product.stock <= 0) {
+        } else if (
+          product.stock !== undefined &&
+          product.stock !== null &&
+          product.stock <= 0
+        ) {
           // Skip if product is out of stock
           continue;
         }
@@ -423,7 +459,12 @@ async function executeBotPurchasesForCompany(
         finalPrice = quantity * product.price;
 
         // Validate final calculations
-        if (!isFinite(finalPrice) || finalPrice <= 0 || !isFinite(quantity) || quantity <= 0) {
+        if (
+          !isFinite(finalPrice) ||
+          finalPrice <= 0 ||
+          !isFinite(quantity) ||
+          quantity <= 0
+        ) {
           console.error(`[BOT] Invalid calculation for product ${product._id}`);
           continue;
         }
@@ -431,7 +472,9 @@ async function executeBotPurchasesForCompany(
         // Step 6: Verify company exists first (before any writes)
         const company = await ctx.db.get(product.companyId);
         if (!company) {
-          console.warn(`[BOT] Company not found for product ${product._id}, skipping`);
+          console.warn(
+            `[BOT] Company not found for product ${product._id}, skipping`,
+          );
           continue;
         }
 
@@ -477,10 +520,13 @@ async function executeBotPurchasesForCompany(
         purchaseCount++;
 
         console.log(
-          `[BOT] Company ${companyId} Purchase #${purchaseCount}: ${quantity}x ${product.name} for $${(finalPrice / 100).toFixed(2)}`
+          `[BOT] Company ${companyId} Purchase #${purchaseCount}: ${quantity}x ${product.name} for $${(finalPrice / 100).toFixed(2)}`,
         );
       } catch (error) {
-        console.error(`[BOT] Error purchasing product ${cachedProduct._id} from company ${companyId}:`, error);
+        console.error(
+          `[BOT] Error purchasing product ${cachedProduct._id} from company ${companyId}:`,
+          error,
+        );
         console.error(`[BOT] Error details:`, {
           message: error instanceof Error ? error.message : String(error),
           productId: cachedProduct._id,
@@ -494,97 +540,119 @@ async function executeBotPurchasesForCompany(
     }
 
     const totalSpent = companyBudget - remainingBudget;
-    
+
     // Check if we met minimum spend requirement
     if (totalSpent < minSpend) {
       console.log(
-        `[BOT] Company ${companyId}: Only spent $${(totalSpent / 100).toFixed(2)} (min: $${(minSpend / 100).toFixed(2)}). Insufficient products.`
+        `[BOT] Company ${companyId}: Only spent $${(totalSpent / 100).toFixed(2)} (min: $${(minSpend / 100).toFixed(2)}). Insufficient products.`,
       );
     } else {
       console.log(
-        `[BOT] Company ${companyId} complete: ${purchases.length} purchases, $${(totalSpent / 100).toFixed(2)} spent`
+        `[BOT] Company ${companyId} complete: ${purchases.length} purchases, $${(totalSpent / 100).toFixed(2)} spent`,
       );
     }
 
     return { purchases, totalSpent };
   } catch (error) {
-    console.error(`[BOT] Fatal error in executeBotPurchasesForCompany for company ${companyId}:`, error);
+    console.error(
+      `[BOT] Fatal error in executeBotPurchasesForCompany for company ${companyId}:`,
+      error,
+    );
     return { purchases, totalSpent: 0 }; // Return what we have so far
   }
 }
 
 // Wrapper function to process all companies with random budget allocation
-async function executeBotPurchasesAllCompanies(ctx: any, companiesLimit: number = 10000, offset: number = 0) {
+async function executeBotPurchasesAllCompanies(
+  ctx: any,
+  companiesLimit: number = 10000,
+  offset: number = 0,
+) {
   console.log(`[BOT] Starting bot purchases with random budget allocation`);
-  
+
   const allPurchases: Array<{
     productId: any;
     companyId: any;
     quantity: number;
     totalPrice: number;
   }> = [];
-  
-  const TOTAL_BUDGET = 250000000; // $2,500,000 in cents (minimum)
-  
+
+  const TOTAL_BUDGET = 2500000000; // $2,500,000 in cents (minimum)
+
   try {
     // Fetch ALL companies
-    const allCompanies = await ctx.db
-      .query("companies")
-      .collect(); // Get ALL companies
-    
+    const allCompanies = await ctx.db.query("companies").collect(); // Get ALL companies
+
     console.log(`[BOT] Total companies in database: ${allCompanies.length}`);
-    
+
     if (!allCompanies || allCompanies.length === 0) {
       console.log(`[BOT] No companies found`);
       return allPurchases;
     }
-    
+
     // Generate random percentage allocations for each company
     // Each company gets a random percentage, and they all add up to 100%
     const randomPercentages = allCompanies.map(() => Math.random());
-    const totalRandomValue = randomPercentages.reduce((sum: number, val: number) => sum + val, 0);
-    const normalizedPercentages = randomPercentages.map((val: number) => val / totalRandomValue);
-    
-    console.log(`[BOT] Generated random budget allocations for ${allCompanies.length} companies`);
-    
+    const totalRandomValue = randomPercentages.reduce(
+      (sum: number, val: number) => sum + val,
+      0,
+    );
+    const normalizedPercentages = randomPercentages.map(
+      (val: number) => val / totalRandomValue,
+    );
+
+    console.log(
+      `[BOT] Generated random budget allocations for ${allCompanies.length} companies`,
+    );
+
     let totalSpentAllCompanies = 0;
     let companiesProcessed = 0;
-    
+
     for (let i = 0; i < allCompanies.length; i++) {
       const company = allCompanies[i];
       const companyBudget = Math.floor(TOTAL_BUDGET * normalizedPercentages[i]);
-      
+
       // Skip companies with minimal budget (less than $100)
       if (companyBudget < 10000) {
         continue;
       }
-      
+
       try {
-        console.log(`[BOT] Processing company: ${company.name} (ID: ${company._id}), budget: $${(companyBudget / 100).toFixed(2)}`);
+        console.log(
+          `[BOT] Processing company: ${company.name} (ID: ${company._id}), budget: $${(companyBudget / 100).toFixed(2)}`,
+        );
         const result = await executeBotPurchasesForCompany(
           ctx,
           company._id,
           companyBudget,
-          0 // No minimum spend requirement per company
+          0, // No minimum spend requirement per company
         );
-        
+
         allPurchases.push(...result.purchases);
         totalSpentAllCompanies += result.totalSpent;
         companiesProcessed++;
-        console.log(`[BOT] Company ${company.name}: ${result.purchases.length} purchases, $${(result.totalSpent / 100).toFixed(2)} spent`);
+        console.log(
+          `[BOT] Company ${company.name}: ${result.purchases.length} purchases, $${(result.totalSpent / 100).toFixed(2)} spent`,
+        );
       } catch (error) {
-        console.error(`[BOT] Error processing company ${company.name} (${company._id}):`, error);
+        console.error(
+          `[BOT] Error processing company ${company.name} (${company._id}):`,
+          error,
+        );
         // Continue with next company
       }
     }
-    
+
     console.log(
-      `[BOT] All companies processed: ${companiesProcessed} companies, ${allPurchases.length} total purchases, $${(totalSpentAllCompanies / 100).toFixed(2)} total spent (minimum: $${(TOTAL_BUDGET / 100).toFixed(2)})`
+      `[BOT] All companies processed: ${companiesProcessed} companies, ${allPurchases.length} total purchases, $${(totalSpentAllCompanies / 100).toFixed(2)} total spent (minimum: $${(TOTAL_BUDGET / 100).toFixed(2)})`,
     );
-    
+
     return allPurchases;
   } catch (error) {
-    console.error("[BOT] Fatal error in executeBotPurchasesAllCompanies:", error);
+    console.error(
+      "[BOT] Fatal error in executeBotPurchasesAllCompanies:",
+      error,
+    );
     return allPurchases;
   }
 }
@@ -597,19 +665,19 @@ async function deductEmployeeCosts(ctx: any) {
   // Even with 10 companies * 20 sales = 200 reads, plus overhead, we stay safe
   const COMPANIES_PER_TICK = 10;
   const SALES_PER_COMPANY = 20;
-  
+
   // Use indexed query by updatedAt to process companies in rotation
   // This ensures all companies get processed eventually
   const allCompanies = await ctx.db
     .query("companies")
     .order("asc") // Order by _creationTime ascending (oldest first)
     .take(COMPANIES_PER_TICK);
-  
+
   let companiesProcessed = 0;
-  
+
   for (const company of allCompanies) {
     const employees = company.employees || [];
-    
+
     if (employees.length === 0) {
       // Update timestamp even if no employees (mark as processed)
       await ctx.db.patch(company._id, {
@@ -633,15 +701,18 @@ async function deductEmployeeCosts(ctx: any) {
 
     // Get recent sales (last tick's income) to calculate employee costs from
     // We'll use sales from the last 20 minutes (one tick cycle)
-    const twentyMinutesAgo = Date.now() - (20 * 60 * 1000);
-    
+    const twentyMinutesAgo = Date.now() - 20 * 60 * 1000;
+
     const recentSales = await ctx.db
       .query("marketplaceSales")
       .withIndex("by_companyId", (q: any) => q.eq("companyId", company._id))
       .filter((q: any) => q.gte(q.field("createdAt"), twentyMinutesAgo))
       .take(SALES_PER_COMPANY); // Reduced to 20 sales per company
 
-    const tickIncome = recentSales.reduce((sum: number, sale: any) => sum + sale.totalPrice, 0);
+    const tickIncome = recentSales.reduce(
+      (sum: number, sale: any) => sum + sale.totalPrice,
+      0,
+    );
 
     if (tickIncome === 0) {
       await ctx.db.patch(company._id, {
@@ -651,7 +722,9 @@ async function deductEmployeeCosts(ctx: any) {
     }
 
     // Calculate employee cost
-    const employeeCost = Math.floor(tickIncome * (totalTickCostPercentage / 100));
+    const employeeCost = Math.floor(
+      tickIncome * (totalTickCostPercentage / 100),
+    );
 
     if (employeeCost > 0 && employeeCost <= company.balance) {
       // Deduct from company balance
@@ -666,7 +739,7 @@ async function deductEmployeeCosts(ctx: any) {
         // This money goes back to owner as it's overhead, not salary to employees
         // The upfront cost was already paid, this is the recurring cost
         // We deduct it from company but don't give it back to player (it's operating cost)
-        
+
         // Record transaction for audit
         await ctx.db.insert("transactions", {
           fromAccountId: company._id,
@@ -687,7 +760,7 @@ async function deductEmployeeCosts(ctx: any) {
       });
     }
   }
-  
+
   console.log(`Processed employee costs for ${companiesProcessed} companies`);
 }
 
@@ -698,39 +771,47 @@ async function updatePlayerNetWorth(
   args: {
     limit?: number;
     cursor?: string;
-  }
+  },
 ) {
-  console.log(`[NET_WORTH] updatePlayerNetWorth called with raw args:`, JSON.stringify(args));
-  
+  console.log(
+    `[NET_WORTH] updatePlayerNetWorth called with raw args:`,
+    JSON.stringify(args),
+  );
+
   // CRITICAL: Only process a small number of players per batch to stay under read budget
   const MAX_HOLDINGS_PER_TYPE = 5; // Reduced from 20
   const MAX_COMPANIES = 3; // Reduced from 10
   const MAX_LOANS = 3; // Reduced from 10
-  
+
   // Add defensive check for undefined limit
   const limit = args.limit;
   const cursor = args.cursor;
   const safeLimitInput = limit ?? 6;
   const safeLimitCalculated = Math.max(1, Math.min(safeLimitInput, 25));
-  
+
   // Triple check that we have a valid finite positive number
-  const safeLimit = (typeof safeLimitCalculated === 'number' && 
-                     isFinite(safeLimitCalculated) && 
-                     safeLimitCalculated > 0) 
-    ? safeLimitCalculated 
-    : 6;
-  
-  console.log(`[NET_WORTH] Processing players with limit=${safeLimit} (input was ${limit}), cursor=${cursor ? 'yes' : 'no'}`);
-  
+  const safeLimit =
+    typeof safeLimitCalculated === "number" &&
+    isFinite(safeLimitCalculated) &&
+    safeLimitCalculated > 0
+      ? safeLimitCalculated
+      : 6;
+
+  console.log(
+    `[NET_WORTH] Processing players with limit=${safeLimit} (input was ${limit}), cursor=${cursor ? "yes" : "no"}`,
+  );
+
   // WORKAROUND: Use .take() instead of .paginate() since paginate is causing issues
-  console.log(`[NET_WORTH] Using .take() instead of .paginate() with limit=${safeLimit}`);
-  
+  console.log(
+    `[NET_WORTH] Using .take() instead of .paginate() with limit=${safeLimit}`,
+  );
+
   const players = await ctx.db
     .query("players")
     .withIndex("by_lastNetWorthUpdate")
     .order("asc")
     .take(safeLimit);
-  
+
   console.log(`[NET_WORTH] Successfully fetched ${players.length} players`);
 
   let playersUpdated = 0;
@@ -794,11 +875,13 @@ async function updatePlayerNetWorth(
       lastNetWorthUpdate: Date.now(),
       updatedAt: Date.now(),
     });
-    
+
     playersUpdated++;
   }
 
-  console.log(`Updated net worth for ${playersUpdated} players (batch limit ${safeLimit})`);
+  console.log(
+    `Updated net worth for ${playersUpdated} players (batch limit ${safeLimit})`,
+  );
 
   return {
     processed: playersUpdated,
@@ -812,43 +895,53 @@ async function applyLoanInterest(
   args: {
     limit?: number;
     cursor?: string;
-  }
+  },
 ) {
-  console.log(`[LOAN] applyLoanInterest called with raw args:`, JSON.stringify(args));
-  
+  console.log(
+    `[LOAN] applyLoanInterest called with raw args:`,
+    JSON.stringify(args),
+  );
+
   // OPTIMIZED: Process loans in small batches to avoid read explosion
   // Add defensive check for undefined limit - EXTREMELY defensive
-  const limit = typeof args.limit === 'number' ? args.limit : 40;
+  const limit = typeof args.limit === "number" ? args.limit : 40;
   const cursor = args.cursor;
   const safeLimitInput = limit;
   const safeLimitCalculated = Math.max(1, Math.min(safeLimitInput, 100));
-  
+
   // Triple check that we have a valid finite positive number
-  const safeLimit = (typeof safeLimitCalculated === 'number' && 
-                     isFinite(safeLimitCalculated) && 
-                     safeLimitCalculated > 0) 
-    ? safeLimitCalculated 
-    : 40;
-  
-  console.log(`[LOAN] Processing loans with limit=${safeLimit} (input was ${limit}), cursor=${cursor ? 'yes' : 'no'}`);
-  
+  const safeLimit =
+    typeof safeLimitCalculated === "number" &&
+    isFinite(safeLimitCalculated) &&
+    safeLimitCalculated > 0
+      ? safeLimitCalculated
+      : 40;
+
+  console.log(
+    `[LOAN] Processing loans with limit=${safeLimit} (input was ${limit}), cursor=${cursor ? "yes" : "no"}`,
+  );
+
   // WORKAROUND: Use .take() instead of .paginate() since paginate is causing issues
   // This means we lose pagination but at least it will work
-  console.log(`[LOAN] Using .take() instead of .paginate() with limit=${safeLimit}`);
-  
+  console.log(
+    `[LOAN] Using .take() instead of .paginate() with limit=${safeLimit}`,
+  );
+
   // CRITICAL: Final validation before .take() - must be a concrete number
   const takeLimitValue = Number(safeLimit);
   if (!isFinite(takeLimitValue) || takeLimitValue <= 0) {
-    console.error(`[LOAN] CRITICAL: Invalid take limit: ${takeLimitValue}, using 40`);
+    console.error(
+      `[LOAN] CRITICAL: Invalid take limit: ${takeLimitValue}, using 40`,
+    );
     throw new Error(`Invalid take limit: ${takeLimitValue}`);
   }
-  
+
   const activeLoans = await ctx.db
     .query("loans")
     .withIndex("by_status", (q: any) => q.eq("status", "active"))
     .order("asc")
     .take(takeLimitValue);
-  
+
   console.log(`[LOAN] Successfully fetched ${activeLoans.length} loans`);
 
   const now = Date.now();
@@ -889,8 +982,10 @@ async function applyLoanInterest(
       }
     }
   }
-  
-  console.log(`Applied interest to ${loansProcessed} loans (batch limit ${safeLimit})`);
+
+  console.log(
+    `Applied interest to ${loansProcessed} loans (batch limit ${safeLimit})`,
+  );
 
   return {
     processed: loansProcessed,
@@ -903,12 +998,16 @@ async function applyLoanInterest(
 // ============================================================================
 
 export const executeBotPurchasesMutation = internalMutation({
-  args: { 
+  args: {
     companiesLimit: v.number(),
     offset: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    return await executeBotPurchasesAllCompanies(ctx, args.companiesLimit, args.offset || 0);
+    return await executeBotPurchasesAllCompanies(
+      ctx,
+      args.companiesLimit,
+      args.offset || 0,
+    );
   },
 });
 
@@ -925,16 +1024,22 @@ export const applyLoanInterestMutation = internalMutation({
     cursor: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    console.log(`[MUTATION] applyLoanInterestMutation called with:`, JSON.stringify(args));
-    
+    console.log(
+      `[MUTATION] applyLoanInterestMutation called with:`,
+      JSON.stringify(args),
+    );
+
     // Defensive: Ensure limit is always a valid number
     const safeArgs = {
       limit: args.limit ?? 40,
       cursor: args.cursor,
     };
-    
-    console.log(`[MUTATION] Calling applyLoanInterest with safeArgs:`, JSON.stringify(safeArgs));
-    
+
+    console.log(
+      `[MUTATION] Calling applyLoanInterest with safeArgs:`,
+      JSON.stringify(safeArgs),
+    );
+
     return await applyLoanInterest(ctx, safeArgs);
   },
 });
@@ -945,16 +1050,22 @@ export const updatePlayerNetWorthMutation = internalMutation({
     cursor: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    console.log(`[MUTATION] updatePlayerNetWorthMutation called with:`, JSON.stringify(args));
-    
+    console.log(
+      `[MUTATION] updatePlayerNetWorthMutation called with:`,
+      JSON.stringify(args),
+    );
+
     // Defensive: Ensure limit is always a valid number
     const safeArgs = {
       limit: args.limit ?? 6,
       cursor: args.cursor,
     };
-    
-    console.log(`[MUTATION] Calling updatePlayerNetWorth with safeArgs:`, JSON.stringify(safeArgs));
-    
+
+    console.log(
+      `[MUTATION] Calling updatePlayerNetWorth with safeArgs:`,
+      JSON.stringify(safeArgs),
+    );
+
     return await updatePlayerNetWorth(ctx, safeArgs);
   },
 });

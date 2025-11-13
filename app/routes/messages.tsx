@@ -1,54 +1,125 @@
-import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+"use client";
+
+import { useState, useMemo, useEffect } from "react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "convex/_generated/api";
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import type { Id } from "convex/_generated/dataModel";
+import { motion } from "motion/react";
+import { useTheme } from "~/contexts/theme-context";
+import { cn } from "~/lib/utils";
+import { formatRelativeTime, formatAbsoluteTime } from "~/lib/date-utils";
+import { PlayerNameWithTag } from "~/components/ui/player-name-with-tag";
+import { toast } from "sonner";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
+import { Badge } from "~/components/ui/badge";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
-import { Badge } from "~/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { ScrollArea } from "~/components/ui/scroll-area";
 import { Skeleton } from "~/components/ui/skeleton";
-import { PlayerNameWithTag } from "~/components/ui/player-name-with-tag";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { Separator } from "~/components/ui/separator";
 import {
-  Inbox,
-  Send,
-  Trash2,
-  Mail,
-  MailOpen,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog";
+import {
   Search,
+  Mail,
+  Send,
+  Reply,
+  Trash2,
+  MailOpen,
+  MailPlus,
+  MessageCircle,
   X,
   ShieldCheck,
-  MessageCircle,
-  Reply,
+  Inbox,
 } from "lucide-react";
-import type { Id } from "convex/_generated/dataModel";
-import { getAuth } from "@clerk/react-router/ssr.server";
-import { redirect } from "react-router";
-import type { Route } from "./+types/messages";
 
-export async function loader(args: Route.LoaderArgs) {
-  const { userId } = await getAuth(args);
-  if (!userId) {
-    return redirect("/sign-in");
-  }
-  return {};
-}
+type PlayerTag = {
+  name: string;
+  color?: string;
+};
 
-export default function MessagesPage() {
-  const [toastMessage, setToastMessage] = useState<string>("");
+type MessageRecord = {
+  _id: Id<"messages">;
+  senderId: Id<"players">;
+  senderName: string;
+  recipientId: Id<"players">;
+  recipientName: string;
+  content: string;
+  sentAt: number;
+  isRead: boolean;
+  isMod: boolean;
+  threadRootId?: Id<"messages">;
+  parentMessageId?: Id<"messages">;
+};
 
-  const showToast = (message: string) => {
-    setToastMessage(message);
-    setTimeout(() => setToastMessage(""), 3000);
-  };
+type PlayerSearchResult = {
+  playerId: Id<"players">;
+  playerName: string;
+  role?: string;
+};
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: { opacity: 1, y: 0 },
+};
+
+function MessagesPage() {
+  const { preset } = useTheme();
+  const [activeListTab, setActiveListTab] = useState<"inbox" | "sent">("inbox");
+  const [listSearch, setListSearch] = useState("");
+  const [playerSearch, setPlayerSearch] = useState("");
+  const [selectedMessage, setSelectedMessage] = useState<MessageRecord | null>(
+    null,
+  );
+  const [viewingThread, setViewingThread] = useState<Id<"messages"> | null>(
+    null,
+  );
+  const [replyingTo, setReplyingTo] = useState<Id<"messages"> | null>(null);
+  const [recipientId, setRecipientId] = useState<Id<"players"> | null>(null);
+  const [recipientName, setRecipientName] = useState("");
+  const [messageContent, setMessageContent] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [showComposeModal, setShowComposeModal] = useState(false);
 
   // Queries
   // @ts-ignore - messages module exists but not yet in generated types
-  const inbox = useQuery(api.messages?.getInbox);
+  const inboxData = useQuery(api.messages?.getInbox);
   // @ts-ignore - messages module exists but not yet in generated types
-  const sentMessages = useQuery(api.messages?.getSentMessages);
+  const sentData = useQuery(api.messages?.getSentMessages);
   // @ts-ignore - messages module exists but not yet in generated types
   const unreadCount = useQuery(api.messages?.getUnreadCount);
+
+  // Search query for players
+  // @ts-ignore - messages module exists but not yet in generated types
+  const searchResults = useQuery(
+    api.messages?.searchPlayers,
+    playerSearch.length > 1 ? { searchQuery: playerSearch } : "skip",
+  );
+
+  // Thread messages
+  // @ts-ignore - messages module exists but not yet in generated types
+  const threadMessages = useQuery(
+    api.messages?.getThreadMessages,
+    viewingThread ? { threadRootId: viewingThread } : "skip",
+  );
 
   // Mutations
   // @ts-ignore - messages module exists but not yet in generated types
@@ -58,684 +129,712 @@ export default function MessagesPage() {
   // @ts-ignore - messages module exists but not yet in generated types
   const deleteMessage = useMutation(api.messages?.deleteMessage);
 
-  // Search query for finding players
-  const [searchQuery, setSearchQuery] = useState("");
-  // @ts-ignore - messages module exists but not yet in generated types
-  const searchResults = useQuery(
-    api.messages?.searchPlayers,
-    searchQuery.length > 1 ? { searchQuery } : "skip"
-  );
+  const inboxMessages = useMemo(() => {
+    if (!Array.isArray(inboxData)) return [] as MessageRecord[];
+    // @ts-ignore - type inference issue with Convex data
+    return [...(inboxData as MessageRecord[])].sort(
+      (a, b) => b.sentAt - a.sentAt,
+    );
+  }, [inboxData]);
 
-  // State
-  const [activeTab, setActiveTab] = useState<"inbox" | "sent" | "compose">(
-    "inbox"
-  );
-  const [selectedMessage, setSelectedMessage] = useState<any>(null);
-  const [recipientId, setRecipientId] = useState<Id<"players"> | null>(null);
-  const [recipientName, setRecipientName] = useState("");
-  const [messageContent, setMessageContent] = useState("");
-  const [isSending, setIsSending] = useState(false);
-  const [viewingThread, setViewingThread] = useState<Id<"messages"> | null>(null);
-  const [replyingTo, setReplyingTo] = useState<Id<"messages"> | null>(null);
+  const sentMessages = useMemo(() => {
+    if (!Array.isArray(sentData)) return [] as MessageRecord[];
+    // @ts-ignore - type inference issue with Convex data
+    return [...(sentData as MessageRecord[])].sort(
+      (a, b) => b.sentAt - a.sentAt,
+    );
+  }, [sentData]);
 
-  // Thread queries
-  // @ts-ignore
-  const threadMessages = useQuery(
-    api.messages?.getThreadMessages,
-    viewingThread ? { threadRootId: viewingThread } : "skip"
-  );
+  const filteredInbox = useMemo(() => {
+    if (!listSearch) return inboxMessages;
+    const query = listSearch.toLowerCase();
+    return inboxMessages.filter((message) =>
+      [message.senderName, message.content]
+        .filter(Boolean)
+        .some((field) => field.toLowerCase().includes(query)),
+    );
+  }, [inboxMessages, listSearch]);
 
-  // Handle message selection and mark as read
-  const handleSelectMessage = async (message: any) => {
+  const filteredSent = useMemo(() => {
+    if (!listSearch) return sentMessages;
+    const query = listSearch.toLowerCase();
+    return sentMessages.filter((message) =>
+      [message.recipientName, message.content]
+        .filter(Boolean)
+        .some((field) => field.toLowerCase().includes(query)),
+    );
+  }, [sentMessages, listSearch]);
+
+  useEffect(() => {
+    const currentList =
+      activeListTab === "inbox" ? filteredInbox : filteredSent;
+
+    if (currentList.length === 0) {
+      if (selectedMessage !== null) {
+        setSelectedMessage(null);
+      }
+      return;
+    }
+
+    if (
+      !selectedMessage ||
+      !currentList.some((message) => message._id === selectedMessage._id)
+    ) {
+      setSelectedMessage(currentList[0] ?? null);
+    }
+  }, [filteredInbox, filteredSent, activeListTab, selectedMessage]);
+
+  useEffect(() => {
+    if (!selectedMessage) {
+      setViewingThread(null);
+      setReplyingTo(null);
+    }
+  }, [selectedMessage]);
+
+  const inboxCount = inboxMessages.length;
+  const sentCount = sentMessages.length;
+  const unreadTotal = unreadCount ?? 0;
+
+  const isInboxLoading = inboxData === undefined;
+  const isSentLoading = sentData === undefined;
+  const isThreadLoading = viewingThread ? threadMessages === undefined : false;
+
+  const handleListTabChange = (value: string) => {
+    const next = value === "sent" ? "sent" : "inbox";
+    setActiveListTab(next);
+    setViewingThread(null);
+    setReplyingTo(null);
+  };
+
+  const handleSelectMessage = async (message: MessageRecord) => {
     setSelectedMessage(message);
-    if (!message.isRead && activeTab === "inbox") {
+    setViewingThread(null);
+
+    if (!message.isRead && activeListTab === "inbox") {
       try {
         await markAsRead({ messageId: message._id });
-      } catch (error: any) {
-        console.error("Failed to mark as read:", error);
+      } catch (error: unknown) {
+        const err = error as { message?: string };
+        toast.error(err?.message ?? "Failed to mark message as read");
       }
     }
   };
 
-  // Handle delete message
   const handleDeleteMessage = async (messageId: Id<"messages">) => {
     try {
       await deleteMessage({ messageId });
+      toast.success("Message deleted");
       setSelectedMessage(null);
-      showToast("✓ Message deleted successfully");
-    } catch (error: any) {
-      showToast("✗ Error: " + error.message);
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      toast.error(err?.message ?? "Unable to delete message");
     }
   };
 
-  // Handle send message
   const handleSendMessage = async () => {
     if (!recipientId) {
-      showToast("✗ Please select a recipient");
+      toast.error("Please choose a recipient before sending");
       return;
     }
 
     if (!messageContent.trim()) {
-      showToast("✗ Please enter a message");
+      toast.error("Message content cannot be empty");
       return;
     }
+
+    const isReply = Boolean(replyingTo);
 
     setIsSending(true);
     try {
       await sendMessage({
         recipientId,
-        content: messageContent,
-        isMod: false, // Regular player message
-        parentMessageId: replyingTo || undefined,
+        content: messageContent.trim(),
+        isMod: false,
+        parentMessageId: replyingTo ?? undefined,
       });
 
-      showToast(`✓ Message sent to ${recipientName}`);
+      toast.success(
+        `Message sent to ${recipientName || "selected player"}${
+          isReply ? "" : "!"
+        }`,
+      );
 
-      // Reset form
       setMessageContent("");
-      setRecipientId(null);
-      setRecipientName("");
-      setSearchQuery("");
-      setReplyingTo(null);
+      setPlayerSearch("");
 
-      // If replying in a thread, go back to the thread view
-      if (viewingThread) {
-        setActiveTab("inbox");
+      if (isReply) {
+        setReplyingTo(null);
       } else {
-        setActiveTab("sent");
+        setRecipientId(null);
+        setRecipientName("");
+        setShowComposeModal(false);
       }
-    } catch (error: any) {
-      showToast("✗ Error: " + error.message);
+
+      if (!viewingThread) {
+        setActiveListTab("sent");
+      }
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      toast.error(err?.message ?? "Failed to send message");
     } finally {
       setIsSending(false);
     }
   };
 
-  // Handle reply to message
-  const handleReply = (message: any) => {
-    const otherPartyId = activeTab === "inbox" ? message.senderId : message.recipientId;
-    const otherPartyName = activeTab === "inbox" ? message.senderName : message.recipientName;
+  const handleReply = (message: MessageRecord) => {
+    const otherPartyId =
+      activeListTab === "inbox" ? message.senderId : message.recipientId;
+    const otherPartyName =
+      activeListTab === "inbox" ? message.senderName : message.recipientName;
 
     setRecipientId(otherPartyId);
     setRecipientName(otherPartyName);
     setReplyingTo(message._id);
-    setActiveTab("compose");
   };
 
-  // Handle view thread
-  const handleViewThread = (message: any) => {
-    const threadRoot = message.threadRootId || message._id;
+  const handleViewThread = (message: MessageRecord) => {
+    const threadRoot = message.threadRootId ?? message._id;
     setViewingThread(threadRoot);
-    setSelectedMessage(message);
   };
 
-  // Handle close thread
-  const handleCloseThread = () => {
-    setViewingThread(null);
-  };
-
-  // Select recipient from search
-  const handleSelectRecipient = (player: any) => {
+  const handleSelectRecipient = (player: PlayerSearchResult) => {
     setRecipientId(player.playerId);
     setRecipientName(player.playerName);
-    setSearchQuery("");
+    setPlayerSearch("");
   };
 
-  const formatDate = (timestamp: number) => {
-    try {
-      const date = new Date(timestamp);
-      const now = Date.now();
-      const diff = now - timestamp;
-      
-      const minutes = Math.floor(diff / 60000);
-      const hours = Math.floor(diff / 3600000);
-      const days = Math.floor(diff / 86400000);
-      
-      if (minutes < 1) return "just now";
-      if (minutes < 60) return `${minutes}m ago`;
-      if (hours < 24) return `${hours}h ago`;
-      if (days < 7) return `${days}d ago`;
-      
-      return date.toLocaleDateString();
-    } catch {
-      return "Unknown date";
-    }
+  const selectedMessageTitle = selectedMessage
+    ? selectedMessage.content.split("\n")[0]?.slice(0, 80) || "Message details"
+    : "Select a message";
+
+  const currentList = activeListTab === "inbox" ? filteredInbox : filteredSent;
+
+  const closeComposeModal = () => {
+    setShowComposeModal(false);
+    setRecipientId(null);
+    setRecipientName("");
+    setMessageContent("");
+    setReplyingTo(null);
+    setPlayerSearch("");
   };
 
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="@container/main flex flex-1 flex-col gap-2">
-        <div className="flex flex-col gap-4 p-4 md:gap-6 md:p-6">
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Messages</h1>
-              <p className="text-muted-foreground">
-                Communicate with other players
-              </p>
+    <div className="flex h-screen flex-col overflow-hidden">
+      {/* Header */}
+      <motion.div
+        variants={itemVariants}
+        className="border-b bg-background p-4"
+      >
+        <div className="mx-auto max-w-full px-2">
+          <div className="flex items-center gap-3">
+            <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary">
+              <Mail className="h-4 w-4" />
+              Messaging
             </div>
-            {unreadCount !== undefined && unreadCount > 0 && (
-              <Badge variant="default" className="text-lg px-3 py-1">
-                {unreadCount} unread
-              </Badge>
-            )}
+            <h1 className="text-2xl font-bold tracking-tight">Messages</h1>
+            <div className="ml-auto flex items-center gap-2">
+              <Badge variant="secondary">{unreadTotal} unread</Badge>
+              <Button
+                onClick={() => setShowComposeModal(true)}
+                size="sm"
+                className="gap-2"
+              >
+                <MailPlus className="h-4 w-4" />
+                New message
+              </Button>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Main Content - Two column layout */}
+      <motion.div
+        variants={itemVariants}
+        className="flex flex-1 overflow-hidden gap-0"
+      >
+        {/* Left Sidebar - Message List */}
+        <div className="w-80 border-r bg-background flex flex-col overflow-hidden">
+          {/* Search */}
+          <div className="border-b p-4 space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={listSearch}
+                onChange={(event) => setListSearch(event.target.value)}
+                placeholder="Search messages..."
+                className="pl-9 h-9"
+              />
+            </div>
+
+            <Tabs
+              value={activeListTab}
+              onValueChange={handleListTabChange}
+              className="w-full"
+            >
+              <TabsList className="grid w-full grid-cols-2 h-8">
+                <TabsTrigger value="inbox" className="gap-1 text-xs">
+                  <Inbox className="h-3.5 w-3.5" />
+                  Inbox
+                  {unreadTotal > 0 && (
+                    <Badge
+                      variant="secondary"
+                      className="ml-1 text-[10px] h-5 px-1"
+                    >
+                      {unreadTotal}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="sent" className="gap-1 text-xs">
+                  <Send className="h-3.5 w-3.5" />
+                  Sent
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
 
-          {/* Main Content */}
-          <div className="grid gap-6 lg:grid-cols-3">
-            {/* Message List */}
-            <div className="lg:col-span-1">
-              <Card>
-                <CardHeader>
-                  <Tabs
-                    value={activeTab}
-                    onValueChange={(v) =>
-                      setActiveTab(v as "inbox" | "sent" | "compose")
-                    }
+          {/* Message List */}
+          <ScrollArea className="flex-1">
+            <div className="space-y-1 p-2">
+              {isInboxLoading && activeListTab === "inbox" ? (
+                <div className="space-y-2">
+                  {[1, 2, 3, 4, 5].map((item) => (
+                    <Skeleton key={item} className="h-16 w-full" />
+                  ))}
+                </div>
+              ) : isSentLoading && activeListTab === "sent" ? (
+                <div className="space-y-2">
+                  {[1, 2, 3, 4, 5].map((item) => (
+                    <Skeleton key={item} className="h-16 w-full" />
+                  ))}
+                </div>
+              ) : currentList.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-8 px-4 text-center">
+                  <Mail className="h-8 w-8 text-muted-foreground opacity-50" />
+                  <p className="text-sm font-medium text-muted-foreground">
+                    {activeListTab === "inbox"
+                      ? "No messages"
+                      : "Nothing sent yet"}
+                  </p>
+                </div>
+              ) : (
+                currentList.map((message) => (
+                  <button
+                    key={message._id}
+                    type="button"
+                    onClick={() => handleSelectMessage(message)}
+                    className={cn(
+                      "w-full rounded-md p-3 text-left transition-colors border border-transparent",
+                      selectedMessage?._id === message._id
+                        ? "bg-primary/10 border-primary/30 shadow-sm"
+                        : "hover:bg-muted",
+                    )}
                   >
-                    <TabsList className="grid w-full grid-cols-3">
-                      <TabsTrigger value="inbox" className="gap-2">
-                        <Inbox className="h-4 w-4" />
-                        Inbox
-                      </TabsTrigger>
-                      <TabsTrigger value="sent" className="gap-2">
-                        <Send className="h-4 w-4" />
-                        Sent
-                      </TabsTrigger>
-                      <TabsTrigger value="compose" className="gap-2">
-                        <Mail className="h-4 w-4" />
-                        Compose
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                </CardHeader>
-                <CardContent className="p-0">
-                  {activeTab === "inbox" && (
-                    <div className="max-h-[600px] overflow-y-auto">
-                      {inbox === undefined ? (
-                        <div className="space-y-2 p-4">
-                          {[1, 2, 3].map((i) => (
-                            <Skeleton key={i} className="h-20 w-full" />
-                          ))}
-                        </div>
-                      ) : inbox.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center p-8 text-center">
-                          <Inbox className="h-12 w-12 text-muted-foreground mb-2" />
-                          <p className="text-muted-foreground">
-                            No messages in inbox
+                    <div className="space-y-1.5">
+                      <div className="flex items-start gap-2">
+                        {!message.isRead && (
+                          <div className="mt-1 h-2 w-2 rounded-full bg-primary shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {activeListTab === "inbox"
+                              ? message.senderName
+                              : message.recipientName}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {message.content.split("\n")[0]}
                           </p>
                         </div>
-                      ) : (
-                        <div className="divide-y">
-                          {inbox.map((message: any) => (
-                            <button
-                              key={message._id}
-                              onClick={() => handleSelectMessage(message)}
-                              className={`w-full text-left p-4 hover:bg-accent transition-colors ${
-                                selectedMessage?._id === message._id
-                                  ? "bg-accent"
-                                  : ""
-                              } ${!message.isRead ? "font-semibold" : ""}`}
-                            >
-                              <div className="flex items-start justify-between mb-1">
-                                <div className="flex items-center gap-2">
-                                  {message.isRead ? (
-                                    <MailOpen className="h-4 w-4 text-muted-foreground" />
-                                  ) : (
-                                    <Mail className="h-4 w-4 text-primary" />
-                                  )}
-                                  {message.senderTag ? (
-                                    <span className="inline-flex items-center gap-2">
-                                      <span
-                                        style={{
-                                          color: message.senderTag.usernameColor || "inherit",
-                                        }}
-                                        className="text-sm font-medium"
-                                      >
-                                        {message.senderName}
-                                      </span>
-                                      <span
-                                        style={{
-                                          color: message.senderTag.tagColor,
-                                          borderColor: message.senderTag.tagColor,
-                                        }}
-                                        className="px-2 py-0.5 rounded border text-xs font-medium"
-                                      >
-                                        {message.senderTag.tagText}
-                                      </span>
-                                    </span>
-                                  ) : (
-                                    <span className="text-sm">
-                                      {message.senderName}
-                                    </span>
-                                  )}
-                                  {message.isMod && (
-                                    <Badge
-                                      variant="secondary"
-                                      className="text-xs"
-                                    >
-                                      <ShieldCheck className="h-3 w-3 mr-1" />
-                                      MOD
-                                    </Badge>
-                                  )}
-                                </div>
-                                <span className="text-xs text-muted-foreground">
-                                  {formatDate(message.sentAt)}
-                                </span>
-                              </div>
-                              <p className="text-sm text-muted-foreground line-clamp-2">
-                                {message.content}
-                              </p>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {activeTab === "sent" && (
-                    <div className="max-h-[600px] overflow-y-auto">
-                      {sentMessages === undefined ? (
-                        <div className="space-y-2 p-4">
-                          {[1, 2, 3].map((i) => (
-                            <Skeleton key={i} className="h-20 w-full" />
-                          ))}
-                        </div>
-                      ) : sentMessages.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center p-8 text-center">
-                          <Send className="h-12 w-12 text-muted-foreground mb-2" />
-                          <p className="text-muted-foreground">
-                            No sent messages
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="divide-y">
-                          {sentMessages.map((message: any) => (
-                            <button
-                              key={message._id}
-                              onClick={() => setSelectedMessage(message)}
-                              className={`w-full text-left p-4 hover:bg-accent transition-colors ${
-                                selectedMessage?._id === message._id
-                                  ? "bg-accent"
-                                  : ""
-                              }`}
-                            >
-                              <div className="flex items-start justify-between mb-1">
-                                <div className="flex items-center gap-2">
-                                  <Send className="h-4 w-4 text-muted-foreground" />
-                                  <span className="text-sm">To: </span>
-                                  {message.recipientTag ? (
-                                    <span className="inline-flex items-center gap-2">
-                                      <span
-                                        style={{
-                                          color: message.recipientTag.usernameColor || "inherit",
-                                        }}
-                                        className="text-sm font-medium"
-                                      >
-                                        {message.recipientName}
-                                      </span>
-                                      <span
-                                        style={{
-                                          color: message.recipientTag.tagColor,
-                                          borderColor: message.recipientTag.tagColor,
-                                        }}
-                                        className="px-2 py-0.5 rounded border text-xs font-medium"
-                                      >
-                                        {message.recipientTag.tagText}
-                                      </span>
-                                    </span>
-                                  ) : (
-                                    <span className="text-sm">
-                                      {message.recipientName}
-                                    </span>
-                                  )}
-                                </div>
-                                <span className="text-xs text-muted-foreground">
-                                  {formatDate(message.sentAt)}
-                                </span>
-                              </div>
-                              <p className="text-sm text-muted-foreground line-clamp-2">
-                                {message.content}
-                              </p>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {activeTab === "compose" && (
-                    <div className="p-4 space-y-4">
-                      {replyingTo && (
-                        <div className="p-3 bg-accent/50 rounded-md border border-accent">
-                          <div className="flex items-center gap-2 text-sm">
-                            <Reply className="h-4 w-4" />
-                            <span className="font-medium">Replying to a message</span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setReplyingTo(null)}
-                              className="ml-auto"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                      <div>
-                        <label className="text-sm font-medium mb-2 block">
-                          To:
-                        </label>
-                        {recipientId ? (
-                          <div className="flex items-center gap-2 p-2 bg-accent rounded-md">
-                            <span className="text-sm flex-1">
-                              {recipientName}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setRecipientId(null);
-                                setRecipientName("");
-                              }}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <>
-                            <div className="relative">
-                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                              <Input
-                                placeholder="Search for players..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-9"
-                              />
-                            </div>
-                            {searchQuery.length > 1 && (
-                              <div className="mt-2 border rounded-md max-h-48 overflow-y-auto">
-                                {searchResults === undefined ? (
-                                  <div className="p-4 text-sm text-muted-foreground">
-                                    Searching...
-                                  </div>
-                                ) : searchResults.length === 0 ? (
-                                  <div className="p-4 text-sm text-muted-foreground">
-                                    No players found
-                                  </div>
-                                ) : (
-                                  <div className="divide-y">
-                                    {searchResults.map((player: any) => (
-                                      <button
-                                        key={player.playerId}
-                                        onClick={() =>
-                                          handleSelectRecipient(player)
-                                        }
-                                        className="w-full text-left p-3 hover:bg-accent transition-colors"
-                                      >
-                                        <div className="flex items-center justify-between">
-                                          <div className="flex items-center gap-2">
-                                            <PlayerNameWithTag
-                                              playerId={player.playerId}
-                                              playerName={player.playerName}
-                                              className="text-sm"
-                                            />
-                                          </div>
-                                          <Badge
-                                            variant="outline"
-                                            className="text-xs"
-                                          >
-                                            {player.role}
-                                          </Badge>
-                                        </div>
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 px-4">
+                        <span className="text-xs text-muted-foreground">
+                          {formatRelativeTime(message.sentAt)}
+                        </span>
+                        {message.isMod && (
+                          <ShieldCheck className="h-3 w-3 text-orange-500 shrink-0" />
                         )}
                       </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+        </div>
 
-                      <div>
-                        <label className="text-sm font-medium mb-2 block">
-                          Message:
-                        </label>
-                        <Textarea
-                          placeholder="Type your message..."
-                          value={messageContent}
-                          onChange={(e) => setMessageContent(e.target.value)}
-                          rows={10}
-                          maxLength={2000}
-                        />
-                        <div className="text-xs text-muted-foreground mt-1 text-right">
-                          {messageContent.length} / 2000
-                        </div>
+        {/* Right Panel - Message Content */}
+        <div className="flex-1 flex flex-col overflow-hidden bg-background">
+          {selectedMessage ? (
+            <>
+              {/* Message Header */}
+              <div className="border-b p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <h2 className="text-lg font-semibold line-clamp-2">
+                      {selectedMessageTitle}
+                    </h2>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {activeListTab === "inbox" ? "From" : "To"}{" "}
+                      <PlayerNameWithTag
+                        playerId={
+                          activeListTab === "inbox"
+                            ? selectedMessage.senderId
+                            : selectedMessage.recipientId
+                        }
+                        playerName={
+                          activeListTab === "inbox"
+                            ? selectedMessage.senderName
+                            : selectedMessage.recipientName
+                        }
+                        className="text-sm"
+                      />
+                      {selectedMessage.isMod && (
+                        <Badge variant="secondary" className="ml-2 text-[10px]">
+                          <ShieldCheck className="h-2.5 w-2.5 mr-1" />
+                          Moderator
+                        </Badge>
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      {formatAbsoluteTime(selectedMessage.sentAt)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Message Body + Thread */}
+              <ScrollArea className="flex-1">
+                <div className="space-y-4 p-4">
+                  {/* Main Message */}
+                  <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+                    <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                      {selectedMessage.content}
+                    </div>
+                    <Separator />
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        onClick={() => handleReply(selectedMessage)}
+                        size="sm"
+                        className="gap-2"
+                      >
+                        <Reply className="h-4 w-4" />
+                        Reply
+                      </Button>
+                      {(selectedMessage.threadRootId ||
+                        selectedMessage.parentMessageId) && (
+                        <Button
+                          onClick={() => handleViewThread(selectedMessage)}
+                          size="sm"
+                          variant={viewingThread ? "secondary" : "outline"}
+                          className="gap-2"
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                          Thread
+                        </Button>
+                      )}
+                      {activeListTab === "inbox" && (
+                        <Button
+                          onClick={() =>
+                            handleDeleteMessage(selectedMessage._id)
+                          }
+                          size="sm"
+                          variant="destructive"
+                          className="gap-2 ml-auto"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Thread View */}
+                  {viewingThread && (
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center gap-2">
+                        <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                        <h3 className="text-sm font-semibold">
+                          Conversation thread
+                        </h3>
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] ml-auto"
+                        >
+                          {Array.isArray(threadMessages)
+                            ? threadMessages.length
+                            : 0}{" "}
+                          messages
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0 shrink-0"
+                          onClick={() => setViewingThread(null)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
                       </div>
 
+                      {isThreadLoading ? (
+                        <div className="space-y-2">
+                          {[1, 2].map((item) => (
+                            <Skeleton
+                              key={item}
+                              className="h-16 w-full rounded-lg"
+                            />
+                          ))}
+                        </div>
+                      ) : Array.isArray(threadMessages) &&
+                        threadMessages.length > 0 ? (
+                        <div className="space-y-2 rounded-lg border bg-muted/10 p-3">
+                          {threadMessages.map((message) => (
+                            <div
+                              key={message._id}
+                              className="rounded border bg-background p-3"
+                            >
+                              <div className="flex items-start justify-between gap-2 mb-1.5">
+                                <PlayerNameWithTag
+                                  playerId={message.senderId}
+                                  playerName={message.senderName}
+                                  className="text-xs"
+                                />
+                                <span className="text-xs text-muted-foreground shrink-0">
+                                  {formatRelativeTime(message.sentAt)}
+                                </span>
+                              </div>
+                              <p className="text-xs leading-relaxed whitespace-pre-wrap">
+                                {message.content}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">
+                          No other messages in this thread.
+                        </p>
+                      )}
+
                       <Button
-                        onClick={handleSendMessage}
-                        disabled={!recipientId || !messageContent.trim() || isSending}
-                        className="w-full"
+                        onClick={() => handleReply(selectedMessage)}
+                        size="sm"
+                        className="w-full gap-2"
                       >
-                        <Send className="h-4 w-4 mr-2" />
-                        {isSending ? "Sending..." : "Send Message"}
+                        <Reply className="h-4 w-4" />
+                        Reply to thread
                       </Button>
                     </div>
                   )}
-                </CardContent>
-              </Card>
-            </div>
+                </div>
+              </ScrollArea>
 
-            {/* Message Details */}
-            <div className="lg:col-span-2">
-              <Card className="h-full">
-                <CardHeader>
-                  <CardTitle>
-                    {selectedMessage
-                      ? activeTab === "inbox"
-                        ? "Message Details"
-                        : "Sent Message"
-                      : "Select a message"}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {selectedMessage ? (
-                    viewingThread && threadMessages ? (
-                      // Thread view
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between pb-4 border-b">
-                          <div className="flex items-center gap-2">
-                            <MessageCircle className="h-5 w-5" />
-                            <h3 className="font-semibold">Thread ({threadMessages.length} messages)</h3>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleCloseThread}
-                          >
-                            <X className="h-4 w-4 mr-2" />
-                            Close Thread
-                          </Button>
-                        </div>
-                        <div className="space-y-4 max-h-[500px] overflow-y-auto">
-                          {threadMessages.map((msg: any, index: number) => (
-                            <div
-                              key={msg._id}
-                              className={`p-4 rounded-lg border ${
-                                index === 0 ? "bg-accent/50" : "bg-background"
-                              }`}
-                            >
-                              <div className="flex items-start justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium text-sm">
-                                    {msg.senderName}
-                                  </span>
-                                  {msg.isMod && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      <ShieldCheck className="h-3 w-3 mr-1" />
-                                      MOD
-                                    </Badge>
-                                  )}
-                                  {index === 0 && (
-                                    <Badge variant="outline" className="text-xs">
-                                      Original
-                                    </Badge>
-                                  )}
-                                </div>
-                                <span className="text-xs text-muted-foreground">
-                                  {formatDate(msg.sentAt)}
-                                </span>
-                              </div>
-                              <p className="text-sm whitespace-pre-wrap">
-                                {msg.content}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="pt-4 border-t">
-                          <Button
-                            onClick={() => handleReply(selectedMessage)}
-                            className="w-full"
-                          >
-                            <Reply className="h-4 w-4 mr-2" />
-                            Reply to Thread
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      // Single message view
-                      <div className="space-y-4">
-                        <div className="flex items-start justify-between pb-4 border-b">
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold">
-                                {activeTab === "inbox" ? "From:" : "To:"}
-                              </span>
-                              {activeTab === "inbox" ? (
-                                selectedMessage.senderTag ? (
-                                  <span className="inline-flex items-center gap-2">
-                                    <span
-                                      style={{
-                                        color: selectedMessage.senderTag.usernameColor || "inherit",
-                                      }}
-                                      className="font-medium"
-                                    >
-                                      {selectedMessage.senderName}
-                                    </span>
-                                    <span
-                                      style={{
-                                        color: selectedMessage.senderTag.tagColor,
-                                        borderColor: selectedMessage.senderTag.tagColor,
-                                      }}
-                                      className="px-2 py-0.5 rounded border text-xs font-medium"
-                                    >
-                                      {selectedMessage.senderTag.tagText}
-                                    </span>
-                                  </span>
-                                ) : (
-                                  <span>{selectedMessage.senderName}</span>
-                                )
-                              ) : (
-                                selectedMessage.recipientTag ? (
-                                  <span className="inline-flex items-center gap-2">
-                                    <span
-                                      style={{
-                                        color: selectedMessage.recipientTag.usernameColor || "inherit",
-                                      }}
-                                      className="font-medium"
-                                    >
-                                      {selectedMessage.recipientName}
-                                    </span>
-                                    <span
-                                      style={{
-                                        color: selectedMessage.recipientTag.tagColor,
-                                        borderColor: selectedMessage.recipientTag.tagColor,
-                                      }}
-                                      className="px-2 py-0.5 rounded border text-xs font-medium"
-                                    >
-                                      {selectedMessage.recipientTag.tagText}
-                                    </span>
-                                  </span>
-                                ) : (
-                                  <span>{selectedMessage.recipientName}</span>
-                                )
-                              )}
-                              {selectedMessage.isMod && (
-                                <Badge variant="secondary">
-                                  <ShieldCheck className="h-3 w-3 mr-1" />
-                                  MODERATOR
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              {formatDate(selectedMessage.sentAt)}
-                            </div>
-                          </div>
-                          {activeTab === "inbox" && (
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() =>
-                                handleDeleteMessage(selectedMessage._id)
-                              }
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </Button>
-                          )}
-                        </div>
-                        <div className="prose dark:prose-invert max-w-none">
-                          <p className="whitespace-pre-wrap">
-                            {selectedMessage.content}
-                          </p>
-                        </div>
-                        <div className="flex gap-2 pt-4 border-t">
-                          <Button
-                            onClick={() => handleReply(selectedMessage)}
-                            variant="default"
-                            className="flex-1"
-                          >
-                            <Reply className="h-4 w-4 mr-2" />
-                            Reply
-                          </Button>
-                          {(selectedMessage.threadRootId || selectedMessage.parentMessageId) && (
-                            <Button
-                              onClick={() => handleViewThread(selectedMessage)}
-                              variant="outline"
-                              className="flex-1"
-                            >
-                              <MessageCircle className="h-4 w-4 mr-2" />
-                              View Thread
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                      <Mail className="h-16 w-16 text-muted-foreground mb-4" />
-                      <p className="text-muted-foreground">
-                        {activeTab === "compose"
-                          ? "Compose a new message"
-                          : "Select a message to view its contents"}
-                      </p>
+              {/* Compose Reply */}
+              {replyingTo && (
+                <div className="border-t bg-background p-4 space-y-3">
+                  <div className="flex items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-xs">
+                    <MessageCircle className="h-3 w-3 text-primary shrink-0" />
+                    <span>Replying in thread</span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="ml-auto h-5 px-1"
+                      onClick={() => setReplyingTo(null)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+
+                  <Textarea
+                    value={messageContent}
+                    onChange={(event) => setMessageContent(event.target.value)}
+                    rows={3}
+                    maxLength={2000}
+                    placeholder="Write your reply..."
+                    className="resize-none"
+                  />
+
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      {messageContent.length} / 2000
+                    </span>
+                    <Button
+                      onClick={handleSendMessage}
+                      disabled={!messageContent.trim() || isSending}
+                      size="sm"
+                      className="gap-2"
+                    >
+                      <Send className="h-4 w-4" />
+                      {isSending ? "Sending..." : "Send"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
+              <Mail className="h-12 w-12 text-muted-foreground opacity-40" />
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  No message selected
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Choose a message from the left sidebar to read it
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </motion.div>
+
+      {/* Compose Modal */}
+      <Dialog open={showComposeModal} onOpenChange={setShowComposeModal}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>New Message</DialogTitle>
+            <DialogDescription>
+              Start a new conversation with another player
+            </DialogDescription>
+          </DialogHeader>
+
+          <ScrollArea className="flex-1 pr-4">
+            <div className="space-y-4">
+              {/* Recipient Selection */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">To</label>
+                {recipientId ? (
+                  <div className="flex items-center gap-2 rounded-lg border bg-muted/20 p-3">
+                    <div className="flex-1 min-w-0">
+                      <PlayerNameWithTag
+                        playerId={recipientId}
+                        playerName={recipientName}
+                        className="text-sm"
+                      />
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </div>
-      </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 w-6 p-0 shrink-0"
+                      onClick={() => {
+                        setRecipientId(null);
+                        setRecipientName("");
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={playerSearch}
+                        onChange={(event) =>
+                          setPlayerSearch(event.target.value)
+                        }
+                        placeholder="Search players..."
+                        className="pl-9"
+                      />
+                    </div>
+                    {playerSearch.length > 1 && (
+                      <div className="rounded-lg border bg-muted/20 max-h-40 overflow-hidden">
+                        {searchResults === undefined ? (
+                          <div className="p-3 text-sm text-muted-foreground text-center">
+                            Searching...
+                          </div>
+                        ) : Array.isArray(searchResults) &&
+                          searchResults.length > 0 ? (
+                          <div className="space-y-1 p-2">
+                            {(searchResults as PlayerSearchResult[]).map(
+                              (player) => (
+                                <button
+                                  key={player.playerId}
+                                  type="button"
+                                  onClick={() => handleSelectRecipient(player)}
+                                  className="flex w-full items-center justify-between gap-2 rounded-md p-2 text-left text-sm transition-colors hover:bg-background"
+                                >
+                                  <PlayerNameWithTag
+                                    playerId={player.playerId}
+                                    playerName={player.playerName}
+                                    className="text-sm"
+                                  />
+                                  {player.role && (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px]"
+                                    >
+                                      {player.role}
+                                    </Badge>
+                                  )}
+                                </button>
+                              ),
+                            )}
+                          </div>
+                        ) : (
+                          <div className="p-3 text-sm text-muted-foreground text-center">
+                            No players found
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
 
-      {/* Toast notification */}
-      {toastMessage && (
-        <div className="fixed bottom-4 right-4 z-50 bg-background border rounded-lg shadow-lg p-4 min-w-[300px]">
-          {toastMessage}
-        </div>
-      )}
+              {recipientId && (
+                <>
+                  <Separator />
+
+                  {/* Message Content */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Message</label>
+                    <Textarea
+                      value={messageContent}
+                      onChange={(event) =>
+                        setMessageContent(event.target.value)
+                      }
+                      rows={8}
+                      maxLength={2000}
+                      placeholder="Write your message..."
+                      className="resize-none"
+                    />
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>
+                        {messageContent.length > 0
+                          ? "Your message is ready to send"
+                          : "Write your message"}
+                      </span>
+                      <span>{messageContent.length} / 2000</span>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </ScrollArea>
+
+          {recipientId && (
+            <div className="flex items-center gap-2 pt-4 border-t">
+              <Button
+                onClick={closeComposeModal}
+                variant="outline"
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSendMessage}
+                disabled={!messageContent.trim() || isSending}
+                className="flex-1 gap-2"
+              >
+                <Send className="h-4 w-4" />
+                {isSending ? "Sending..." : "Send"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
+export default MessagesPage;
