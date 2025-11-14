@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo, memo } from "react";
 import { createChart, ColorType, LineSeries } from "lightweight-charts";
 import { formatCurrency } from "~/lib/game-utils";
 import {
@@ -18,7 +18,7 @@ interface PriceChartProps {
   stockId?: Id<"stocks"> | null;
 }
 
-export function PriceChart({
+export const PriceChart = memo(function PriceChart({
   currentPrice,
   symbol,
   height = 320,
@@ -27,53 +27,76 @@ export function PriceChart({
   stockId,
 }: PriceChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartInstanceRef = useRef<any>(null);
 
-  // Fetch real price history from database (fetches all history)
-  const realHistory = useStockPriceHistory(stockId);
+  // Fetch real price history from database with limit for performance
+  const realHistory = useStockPriceHistory(stockId, showStats ? undefined : 50);
 
-  // Use real data if available, otherwise fall back to generated data
-  let data;
-  if (realHistory && realHistory.length > 0) {
-    // Real data is already in cents, use as-is
-    data = realHistory;
-  } else {
+  // Memoize data processing to avoid recalculation on every render
+  const data = useMemo(() => {
+    if (realHistory && realHistory.length > 0) {
+      // Real data is already in cents, use as-is
+      return realHistory;
+    }
     // Fallback: generate mock data while real data loads
-    data = smoothPriceHistory(generatePriceHistory(currentPrice, days, symbol));
-  }
+    return smoothPriceHistory(generatePriceHistory(currentPrice, days, symbol));
+  }, [realHistory, currentPrice, days, symbol]);
 
-  const stats = calculatePriceStats(
-    data.map((d) => ({
-      timestamp: d.timestamp ?? 0,
-      price: d.price,
-      displayTime: d.displayTime ?? "",
-      formattedPrice: d.formattedPrice ?? "",
-    }))
-  );
+  // Memoize stats calculation
+  const stats = useMemo(() => {
+    return calculatePriceStats(
+      data.map((d) => ({
+        timestamp: d.timestamp ?? 0,
+        price: d.price,
+        displayTime: d.displayTime ?? "",
+        formattedPrice: d.formattedPrice ?? "",
+      }))
+    );
+  }, [data]);
 
   const isPositive = stats.change >= 0;
+
+  // Memoize chart data transformation
+  const chartData = useMemo(() => {
+    return data.map((d) => ({
+      time: Math.floor((d.timestamp ?? Date.now()) / 1000) as any,
+      value: d.price,
+    }));
+  }, [data]);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    const chart = createChart(chartContainerRef.current, {
-      layout: {
-        background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "#9ca3af",
-        attributionLogo: false,
-      },
-      width: chartContainerRef.current.clientWidth,
-      height: height,
-      grid: {
-        vertLines: { color: "#e5e7eb" },
-        horzLines: { color: "#e5e7eb" },
-      },
-      rightPriceScale: {
-        borderColor: "#e5e7eb",
-      },
-      timeScale: {
-        borderColor: "#e5e7eb",
-      },
-    });
+    // Reuse chart instance if it exists
+    if (!chartInstanceRef.current) {
+      chartInstanceRef.current = createChart(chartContainerRef.current, {
+        layout: {
+          background: { type: ColorType.Solid, color: "transparent" },
+          textColor: "#9ca3af",
+          attributionLogo: false,
+        },
+        width: chartContainerRef.current.clientWidth,
+        height: height,
+        grid: {
+          vertLines: { color: "#e5e7eb" },
+          horzLines: { color: "#e5e7eb" },
+        },
+        rightPriceScale: {
+          borderColor: "#e5e7eb",
+        },
+        timeScale: {
+          borderColor: "#e5e7eb",
+        },
+      });
+    }
+
+    const chart = chartInstanceRef.current;
+
+    // Remove existing series if any
+    const existingSeries = chart.getSeries?.();
+    if (existingSeries) {
+      existingSeries.forEach((series: any) => chart.removeSeries(series));
+    }
 
     const lineSeries = chart.addSeries(LineSeries, {
       color: isPositive ? "#10b981" : "#ef4444",
@@ -84,18 +107,12 @@ export function PriceChart({
       },
     });
 
-    // Transform data for TradingView (time-based horizontal scale using timestamps)
-    const chartData = data.map((d) => ({
-      time: Math.floor((d.timestamp ?? Date.now()) / 1000) as any, // Convert to Unix timestamp in seconds
-      value: d.price,
-    }));
-
     lineSeries.setData(chartData);
     chart.timeScale().fitContent();
 
     const handleResize = () => {
-      if (chartContainerRef.current) {
-        chart.applyOptions({
+      if (chartContainerRef.current && chartInstanceRef.current) {
+        chartInstanceRef.current.applyOptions({
           width: chartContainerRef.current.clientWidth,
         });
       }
@@ -105,9 +122,19 @@ export function PriceChart({
 
     return () => {
       window.removeEventListener("resize", handleResize);
-      chart.remove();
+      // Don't remove chart on every update, only on unmount
     };
-  }, [data, height, isPositive]);
+  }, [chartData, height, isPositive]);
+
+  // Cleanup chart instance only on unmount
+  useEffect(() => {
+    return () => {
+      if (chartInstanceRef.current) {
+        chartInstanceRef.current.remove();
+        chartInstanceRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <div className="w-full space-y-3">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, memo, useCallback } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "convex/_generated/api";
 import { Link } from "react-router";
@@ -364,91 +364,9 @@ export default function CryptoPage() {
                     ))}
                   </>
                 ) : (
-                  filteredCryptos.map((crypto) => {
-                    const priceChange = crypto.lastPriceChange * 100;
-                    const isPositive = priceChange >= 0;
-
-                    return (
-                      <Link
-                        key={crypto._id}
-                        to={`/crypto/${crypto.symbol}`}
-                        className="group"
-                      >
-                        <Card className="hover:shadow-lg transition-all hover:scale-[1.02] h-full">
-                          <CardHeader className="pb-3">
-                            <div className="flex flex-col items-center gap-2">
-                              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                                {crypto.imageUrl ? (
-                                  <img
-                                    src={crypto.imageUrl}
-                                    alt={crypto.symbol}
-                                    className="h-16 w-16 rounded-full object-cover"
-                                  />
-                                ) : (
-                                  <Coins className="h-8 w-8 text-primary" />
-                                )}
-                              </div>
-                              <div className="text-center">
-                                <CardTitle className="text-lg">
-                                  {crypto.symbol}
-                                </CardTitle>
-                                <p className="text-sm text-muted-foreground">
-                                  {crypto.name}
-                                </p>
-                              </div>
-                              {priceChange !== 0 && (
-                                <Badge
-                                  variant={
-                                    isPositive ? "default" : "destructive"
-                                  }
-                                  className="text-xs"
-                                >
-                                  {isPositive ? (
-                                    <TrendingUp className="mr-1 h-3 w-3" />
-                                  ) : (
-                                    <TrendingDown className="mr-1 h-3 w-3" />
-                                  )}
-                                  {isPositive ? "+" : ""}
-                                  {priceChange.toFixed(2)}%
-                                </Badge>
-                              )}
-                            </div>
-                          </CardHeader>
-                          <CardContent className="space-y-3">
-                            {/* Mini 7-day chart */}
-                            <div className="h-20 rounded-md overflow-hidden">
-                              <CryptoPriceChart
-                                cryptoId={crypto._id}
-                                currentPrice={crypto.currentPrice}
-                                symbol={crypto.symbol}
-                                height={80}
-                                showStats={false}
-                              />
-                            </div>
-
-                            <div className="space-y-1">
-                              <div className="flex items-center justify-between text-sm">
-                                <span className="text-muted-foreground">
-                                  Market Cap
-                                </span>
-                                <span className="font-medium">
-                                  {formatCurrency(crypto.marketCap)}
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm text-muted-foreground">
-                                  Price
-                                </span>
-                                <span className="text-lg font-bold">
-                                  {formatCurrency(crypto.currentPrice)}
-                                </span>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </Link>
-                    );
-                  })
+                  filteredCryptos.map((crypto) => (
+                    <CryptoCard key={crypto._id} crypto={crypto} />
+                  ))
                 )}
               </div>
 
@@ -662,3 +580,88 @@ export default function CryptoPage() {
     </div>
   );
 }
+
+const CryptoCard = memo(function CryptoCard({ crypto }: { crypto: any }) {
+  const priceChange = crypto.lastPriceChange * 100;
+  const isPositive = priceChange >= 0;
+
+  return (
+    <Link
+      to={`/crypto/${crypto.symbol}`}
+      className="group"
+    >
+      <Card className="hover:shadow-lg transition-all hover:scale-[1.02] h-full">
+        <CardHeader className="pb-3">
+          <div className="flex flex-col items-center gap-2">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+              {crypto.imageUrl ? (
+                <img
+                  src={crypto.imageUrl}
+                  alt={crypto.symbol}
+                  className="h-16 w-16 rounded-full object-cover"
+                />
+              ) : (
+                <Coins className="h-8 w-8 text-primary" />
+              )}
+            </div>
+            <div className="text-center">
+              <CardTitle className="text-lg">
+                {crypto.symbol}
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {crypto.name}
+              </p>
+            </div>
+            {priceChange !== 0 && (
+              <Badge
+                variant={
+                  isPositive ? "default" : "destructive"
+                }
+                className="text-xs"
+              >
+                {isPositive ? (
+                  <TrendingUp className="mr-1 h-3 w-3" />
+                ) : (
+                  <TrendingDown className="mr-1 h-3 w-3" />
+                )}
+                {isPositive ? "+" : ""}
+                {priceChange.toFixed(2)}%
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Mini 7-day chart */}
+          <div className="h-20 rounded-md overflow-hidden">
+            <CryptoPriceChart
+              cryptoId={crypto._id}
+              currentPrice={crypto.currentPrice}
+              symbol={crypto.symbol}
+              height={80}
+              showStats={false}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">
+                Market Cap
+              </span>
+              <span className="font-medium">
+                {formatCurrency(crypto.marketCap)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">
+                Price
+              </span>
+              <span className="text-lg font-bold">
+                {formatCurrency(crypto.currentPrice)}
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+});
