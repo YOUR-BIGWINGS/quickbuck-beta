@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo, memo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "convex/_generated/api";
 import { createChart, ColorType, LineSeries } from "lightweight-charts";
@@ -19,7 +19,7 @@ interface ChartDataPoint {
   displayTime: string;
 }
 
-export function CryptoPriceChart({
+export const CryptoPriceChart = memo(function CryptoPriceChart({
   cryptoId,
   currentPrice,
   symbol,
@@ -27,79 +27,107 @@ export function CryptoPriceChart({
   showStats = true,
 }: CryptoPriceChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartInstanceRef = useRef<any>(null);
 
-  // Fetch actual price history from database
+  // Fetch actual price history from database - reduce data for mini charts
   const priceHistoryRaw = useQuery(api.crypto.getPriceHistory, {
     cryptoId,
-    limit: 168, // ~7 days of hourly data
+    limit: showStats ? 168 : 50, // ~7 days for full, ~2 days for mini charts
   });
 
-  // Transform database data to chart format
-  const data: ChartDataPoint[] = [];
-  if (priceHistoryRaw && priceHistoryRaw.length > 0) {
-    // Sort by timestamp ascending (oldest first)
-    const sorted = [...priceHistoryRaw].reverse();
+  // Memoize data transformation to avoid recalculation on every render
+  const data: ChartDataPoint[] = useMemo(() => {
+    const result: ChartDataPoint[] = [];
 
-    sorted.forEach((item) => {
-      const date = new Date(item.timestamp);
-      data.push({
-        timestamp: item.timestamp,
-        price: item.close ?? item.open ?? currentPrice, // Use close if available, fall back to open
-        displayTime: date.toLocaleDateString("en-US", {
+    if (priceHistoryRaw && priceHistoryRaw.length > 0) {
+      // Sort by timestamp ascending (oldest first)
+      const sorted = [...priceHistoryRaw].reverse();
+
+      sorted.forEach((item) => {
+        const date = new Date(item.timestamp);
+        result.push({
+          timestamp: item.timestamp,
+          price: item.close ?? item.open ?? currentPrice,
+          displayTime: date.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        });
+      });
+    }
+
+    // If no data, show current price as a single point
+    if (result.length === 0) {
+      const now = new Date();
+      result.push({
+        timestamp: Date.now(),
+        price: currentPrice,
+        displayTime: now.toLocaleDateString("en-US", {
           month: "short",
           day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
         }),
       });
-    });
-  }
+    }
 
-  // If no data, show current price as a single point
-  if (data.length === 0) {
-    const now = new Date();
-    data.push({
-      timestamp: Date.now(),
-      price: currentPrice,
-      displayTime: now.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      }),
-    });
-  }
+    return result;
+  }, [priceHistoryRaw, currentPrice]);
 
-  // Calculate statistics
-  const prices = data.map((d) => d.price);
-  const high = Math.max(...prices);
-  const low = Math.min(...prices);
-  const average = prices.reduce((a, b) => a + b, 0) / prices.length;
-  const change = prices[prices.length - 1] - prices[0];
-  const changePercent = (change / prices[0]) * 100;
+  // Memoize statistics calculation
+  const { high, low, average, change, changePercent, isPositive } = useMemo(() => {
+    const prices = data.map((d) => d.price);
+    const high = Math.max(...prices);
+    const low = Math.min(...prices);
+    const average = prices.reduce((a, b) => a + b, 0) / prices.length;
+    const change = prices[prices.length - 1] - prices[0];
+    const changePercent = (change / prices[0]) * 100;
+    const isPositive = change >= 0;
 
-  const isPositive = change >= 0;
+    return { high, low, average, change, changePercent, isPositive };
+  }, [data]);
+
+  // Memoize chart data transformation
+  const chartData = useMemo(() => {
+    return data.map((d) => ({
+      time: Math.floor(d.timestamp / 1000) as any,
+      value: d.price,
+    }));
+  }, [data]);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    const chart = createChart(chartContainerRef.current, {
-      layout: {
-        background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "#9ca3af",
-        attributionLogo: false,
-      },
-      width: chartContainerRef.current.clientWidth,
-      height: height,
-      grid: {
-        vertLines: { color: "#e5e7eb" },
-        horzLines: { color: "#e5e7eb" },
-      },
-      rightPriceScale: {
-        borderColor: "#e5e7eb",
-      },
-      timeScale: {
-        borderColor: "#e5e7eb",
-      },
-    });
+    // Reuse chart instance if it exists
+    if (!chartInstanceRef.current) {
+      chartInstanceRef.current = createChart(chartContainerRef.current, {
+        layout: {
+          background: { type: ColorType.Solid, color: "transparent" },
+          textColor: "#9ca3af",
+          attributionLogo: false,
+        },
+        width: chartContainerRef.current.clientWidth,
+        height: height,
+        grid: {
+          vertLines: { color: "#e5e7eb" },
+          horzLines: { color: "#e5e7eb" },
+        },
+        rightPriceScale: {
+          borderColor: "#e5e7eb",
+        },
+        timeScale: {
+          borderColor: "#e5e7eb",
+        },
+      });
+    }
+
+    const chart = chartInstanceRef.current;
+
+    // Remove existing series if any
+    const existingSeries = chart.getSeries?.();
+    if (existingSeries) {
+      existingSeries.forEach((series: any) => chart.removeSeries(series));
+    }
 
     const lineSeries = chart.addSeries(LineSeries, {
       color: isPositive ? "#10b981" : "#ef4444",
@@ -110,18 +138,12 @@ export function CryptoPriceChart({
       },
     });
 
-    // Transform data for TradingView (time-based horizontal scale using timestamps)
-    const chartData = data.map((d) => ({
-      time: Math.floor(d.timestamp / 1000) as any, // Convert to Unix timestamp in seconds
-      value: d.price,
-    }));
-
     lineSeries.setData(chartData);
     chart.timeScale().fitContent();
 
     const handleResize = () => {
-      if (chartContainerRef.current) {
-        chart.applyOptions({
+      if (chartContainerRef.current && chartInstanceRef.current) {
+        chartInstanceRef.current.applyOptions({
           width: chartContainerRef.current.clientWidth,
         });
       }
@@ -131,9 +153,19 @@ export function CryptoPriceChart({
 
     return () => {
       window.removeEventListener("resize", handleResize);
-      chart.remove();
+      // Don't remove chart on every update, only on unmount
     };
-  }, [data, height, isPositive]);
+  }, [chartData, height, isPositive]);
+
+  // Cleanup chart instance only on unmount
+  useEffect(() => {
+    return () => {
+      if (chartInstanceRef.current) {
+        chartInstanceRef.current.remove();
+        chartInstanceRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <div className="w-full space-y-3">

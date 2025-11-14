@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, memo } from "react";
 import { cn } from "~/lib/utils";
 
 type AnimatedNumberProps = {
@@ -14,7 +14,7 @@ type AnimatedNumberProps = {
 };
 
 // Uses number-flow web component to animate numbers with trend 0
-export function AnimatedNumber({
+export const AnimatedNumber = memo(function AnimatedNumber({
   value,
   className,
   compact = true,
@@ -100,4 +100,4 @@ export function AnimatedNumber({
     className: cn("inline-block", className),
     suppressHydrationWarning: true,
   } as any);
-}
+});
