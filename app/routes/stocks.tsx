@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, memo, useCallback } from "react";
 import { getAuth } from "@clerk/react-router/ssr.server";
 import { redirect, Link } from "react-router";
 import { useQuery } from "convex/react";
@@ -270,12 +270,7 @@ export default function StocksPage() {
             </Card>
           </motion.div>
 
-          <motion.div
-            className={CARD_GRID_CLASSES}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-          >
+          <div className={CARD_GRID_CLASSES}>
             {!allStocks ? (
               Array.from({ length: 8 }).map((_, index) => (
                 <Card key={`skeleton-${index}`} className="border-dashed">
@@ -308,102 +303,11 @@ export default function StocksPage() {
                 </CardContent>
               </Card>
             ) : (
-              filteredStocks.map((stock) => {
-                const price = stock.currentPrice ?? 0;
-                const marketCap = stock.marketCap ?? 0;
-                const changePercent = toPercent(stock.lastPriceChange);
-                const changePositive = changePercent >= 0;
-
-                return (
-                  <Link
-                    key={stock._id}
-                    to={`/stocks/${stock.symbol}`}
-                    className="group"
-                  >
-                    <Card className="h-full border-transparent bg-card/60 shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl">
-                      <CardContent className="flex h-full flex-col space-y-4 p-6">
-                        <div className="flex items-start gap-3">
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                            {stock.companyLogo ? (
-                              <img
-                                src={stock.companyLogo}
-                                alt={stock.symbol ?? "Company"}
-                                className="h-full w-full rounded-full object-cover"
-                              />
-                            ) : (
-                              <Building2 className="h-6 w-6 text-primary" />
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <h3 className="truncate text-lg font-semibold">
-                                {stock.symbol}
-                              </h3>
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  "text-[10px]",
-                                  getSectorColor(stock.sector ?? "other"),
-                                )}
-                              >
-                                {(stock.sector ?? "other").toUpperCase()}
-                              </Badge>
-                            </div>
-                            <p className="truncate text-sm text-muted-foreground">
-                              {stock.name}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="h-24 overflow-hidden rounded-xl border bg-muted/40">
-                          <PriceChart
-                            currentPrice={price}
-                            symbol={stock.symbol || "STOCK"}
-                            height={96}
-                            days={7}
-                            showStats={false}
-                            stockId={stock._id}
-                          />
-                        </div>
-
-                        <div className="space-y-1">
-                          <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                            Market cap
-                          </span>
-                          <div className="text-lg font-semibold">
-                            <AnimatedNumber value={marketCap} compact />
-                          </div>
-                        </div>
-
-                        <div className="flex items-end justify-between">
-                          <div>
-                            <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                              Share price
-                            </span>
-                            <div className="text-2xl font-bold">
-                              {formatCurrency(price)}
-                            </div>
-                          </div>
-                          <Badge
-                            variant={changePositive ? "default" : "destructive"}
-                            className="flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold"
-                          >
-                            {changePositive ? (
-                              <TrendingUp className="h-3.5 w-3.5" />
-                            ) : (
-                              <TrendingDown className="h-3.5 w-3.5" />
-                            )}
-                            {changePercent >= 0 ? "+" : ""}
-                            {changePercent.toFixed(2)}%
-                          </Badge>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                );
-              })
+              filteredStocks.map((stock) => (
+                <StockCard key={stock._id} stock={stock} />
+              ))
             )}
-          </motion.div>
+          </div>
         </div>
       </motion.div>
     </div>
@@ -592,6 +496,100 @@ function InsightRow({
     </div>
   );
 }
+
+const StockCard = memo(function StockCard({ stock }: { stock: any }) {
+  const price = stock.currentPrice ?? 0;
+  const marketCap = stock.marketCap ?? 0;
+  const changePercent = toPercent(stock.lastPriceChange);
+  const changePositive = changePercent >= 0;
+
+  return (
+    <Link
+      to={`/stocks/${stock.symbol}`}
+      className="group"
+    >
+      <Card className="h-full border-transparent bg-card/60 shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl">
+        <CardContent className="flex h-full flex-col space-y-4 p-6">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10">
+              {stock.companyLogo ? (
+                <img
+                  src={stock.companyLogo}
+                  alt={stock.symbol ?? "Company"}
+                  className="h-full w-full rounded-full object-cover"
+                />
+              ) : (
+                <Building2 className="h-6 w-6 text-primary" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="truncate text-lg font-semibold">
+                  {stock.symbol}
+                </h3>
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "text-[10px]",
+                    getSectorColor(stock.sector ?? "other"),
+                  )}
+                >
+                  {(stock.sector ?? "other").toUpperCase()}
+                </Badge>
+              </div>
+              <p className="truncate text-sm text-muted-foreground">
+                {stock.name}
+              </p>
+            </div>
+          </div>
+
+          <div className="h-24 overflow-hidden rounded-xl border bg-muted/40">
+            <PriceChart
+              currentPrice={price}
+              symbol={stock.symbol || "STOCK"}
+              height={96}
+              days={7}
+              showStats={false}
+              stockId={stock._id}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <span className="text-xs uppercase tracking-wide text-muted-foreground">
+              Market cap
+            </span>
+            <div className="text-lg font-semibold">
+              <AnimatedNumber value={marketCap} compact />
+            </div>
+          </div>
+
+          <div className="flex items-end justify-between">
+            <div>
+              <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                Share price
+              </span>
+              <div className="text-2xl font-bold">
+                {formatCurrency(price)}
+              </div>
+            </div>
+            <Badge
+              variant={changePositive ? "default" : "destructive"}
+              className="flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold"
+            >
+              {changePositive ? (
+                <TrendingUp className="h-3.5 w-3.5" />
+              ) : (
+                <TrendingDown className="h-3.5 w-3.5" />
+              )}
+              {changePercent >= 0 ? "+" : ""}
+              {changePercent.toFixed(2)}%
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+});
 
 function TopMovers({
   title,
