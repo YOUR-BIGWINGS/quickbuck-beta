@@ -352,6 +352,14 @@ async function syncCompanyMarketCap(
     return;
   }
 
+  // Verify the company exists before trying to update it
+  const company = await ctx.db.get(companyId);
+  if (!company) {
+    // Company doesn't exist (may have been deleted), skip update
+    console.warn(`[syncCompanyMarketCap] Company ${companyId} not found, skipping market cap sync`);
+    return;
+  }
+
   // Update the company's market cap to match the stock's market cap
   await ctx.db.patch(companyId, {
     marketCap: newMarketCap,
