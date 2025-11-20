@@ -35,6 +35,8 @@ const LOAN_INTEREST_BATCH_SIZE = 40;
 const LOAN_INTEREST_MAX_BATCHES = 3;
 const NET_WORTH_BATCH_SIZE = 6;
 const NET_WORTH_MAX_BATCHES = 3;
+const COMPANIES_PER_BATCH = 20; // Process 20 companies at a time for bot purchases
+const MAX_COMPANY_BATCHES = 10; // Max 10 batches = 200 companies per tick
 
 type TickLockAcquireResult =
   | { acquired: true; lockId: Id<"tickLock"> }
@@ -148,8 +150,8 @@ async function executeTickLogic(
 
     console.log(`Executing tick #${tickNumber}`);
 
-    // Step 1: Bot purchases from marketplace ($500k per company)
-    console.log("[TICK] Step 1: Bot purchases (ALL companies @ $500k each)...");
+    // Step 1: Bot purchases from marketplace ($500k per company) - IN BATCHES
+    console.log("[TICK] Step 1: Bot purchases (batched companies @ $500k each)...");
     const botPurchases: Array<{
       productId: any;
       companyId: any;
@@ -157,27 +159,45 @@ async function executeTickLogic(
       totalPrice: number;
     }> = [];
 
-    // Process ALL companies - all purchases batched at end
-    try {
-      console.log(`[TICK] Bot purchases: processing ALL companies...`);
-      const allPurchases = await ctx.runMutation(
-        internal.tick.executeBotPurchasesMutation,
-        {
-          companiesLimit: 999999, // Process ALL companies
-          offset: 0,
-        },
-      );
+    // Process companies in batches to avoid overload
+    let companyBatch = 0;
+    let totalCompaniesProcessed = 0;
+    
+    while (companyBatch < MAX_COMPANY_BATCHES) {
+      try {
+        const offset = companyBatch * COMPANIES_PER_BATCH;
+        console.log(`[TICK] Bot purchases batch ${companyBatch + 1}: processing ${COMPANIES_PER_BATCH} companies (offset: ${offset})...`);
+        
+        const batchPurchases = await ctx.runMutation(
+          internal.tick.executeBotPurchasesMutation,
+          {
+            companiesLimit: COMPANIES_PER_BATCH,
+            offset: offset,
+          },
+        );
 
-      if (Array.isArray(allPurchases)) {
-        botPurchases.push(...allPurchases);
+        if (Array.isArray(batchPurchases) && batchPurchases.length > 0) {
+          botPurchases.push(...batchPurchases);
+          totalCompaniesProcessed += COMPANIES_PER_BATCH;
+          companyBatch++;
+          console.log(
+            `[TICK] Batch ${companyBatch} completed: ${batchPurchases.length} purchases`,
+          );
+        } else {
+          // No more companies to process
+          console.log(`[TICK] No more companies found, stopping at batch ${companyBatch + 1}`);
+          break;
+        }
+      } catch (error) {
+        console.error(`[TICK] Error in bot purchases batch ${companyBatch + 1}:`, error);
+        // Continue to next batch even if this one fails
+        companyBatch++;
       }
-      console.log(
-        `[TICK] Bot purchases completed: ${allPurchases?.length || 0} total purchases`,
-      );
-    } catch (error) {
-      console.error(`[TICK] Error in bot purchases:`, error);
-      // Continue even if purchases fail
     }
+    
+    console.log(
+      `[TICK] All bot purchase batches completed: ${botPurchases.length} total purchases across ${companyBatch} batches`,
+    );
 
     // Step 1.5: Deduct employee costs from company income (isolated mutation)
     console.log("[TICK] Step 1.5: Employee costs...");
@@ -443,24 +463,27 @@ async function calculatePurchasesForCompany(
 // Phase 2: Execute all purchases in batches
 async function executeBotPurchasesAllCompanies(
   ctx: any,
-  companiesLimit: number = 10000,
+  companiesLimit: number = 20,
   offset: number = 0,
 ) {
-  console.log(`[BOT] Starting bot purchases - $500,000 per company`);
+  console.log(`[BOT] Starting bot purchases - $500,000 per company (batch: ${companiesLimit} companies, offset: ${offset})`);
 
   const BUDGET_PER_COMPANY = 50000000; // $500,000 in cents
   const BATCH_SIZE = 25; // Write 25 purchases at a time to avoid overload
 
   try {
-    // Fetch ALL companies (no limit)
+    // Fetch LIMITED companies for this batch using rotation
     const allCompanies = await ctx.db
       .query("companies")
-      .collect(); // Get all companies
+      .withIndex("by_ownerId") // Use existing index for consistent ordering
+      .order("asc")
+      .take(companiesLimit + offset) // Take enough to skip offset
+      .then((companies: any) => companies.slice(offset, offset + companiesLimit)); // Apply offset manually
 
-    console.log(`[BOT] Total companies fetched: ${allCompanies.length}`);
+    console.log(`[BOT] Total companies fetched for this batch: ${allCompanies.length}`);
 
     if (!allCompanies || allCompanies.length === 0) {
-      console.log(`[BOT] No companies found`);
+      console.log(`[BOT] No companies found in this batch`);
       return [];
     }
 
@@ -814,16 +837,22 @@ async function updatePlayerNetWorth(
       .withIndex("by_ownerId", (q: any) => q.eq("ownerId", player._id))
       .take(MAX_COMPANIES || 3);
 
-    // Fetch all stocks once to avoid multiple queries (only if there are public companies)
+    // Fetch stocks for this player's public companies only
     const hasPublicCompanies = companies.some((c: Doc<"companies">) => c.isPublic);
     let stocksByCompanyId = new Map<Id<"companies">, Doc<"stocks">>();
     if (hasPublicCompanies) {
-      const allStocks = await ctx.db.query("stocks").collect();
-      stocksByCompanyId = new Map<Id<"companies">, Doc<"stocks">>(
-        allStocks
-          .filter((s: Doc<"stocks">) => s.companyId !== undefined)
-          .map((s: Doc<"stocks">) => [s.companyId!, s])
-      );
+      // Query stocks for each public company individually to avoid .collect() overload
+      for (const company of companies) {
+        if (company.isPublic) {
+          const stock = await ctx.db
+            .query("stocks")
+            .withIndex("by_companyId", (q: any) => q.eq("companyId", company._id))
+            .first();
+          if (stock) {
+            stocksByCompanyId.set(company._id, stock);
+          }
+        }
+      }
     }
 
     for (const company of companies) {
