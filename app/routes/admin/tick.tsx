@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { api } from "convex/_generated/api";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
@@ -11,7 +11,7 @@ export default function AdminTickPage() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState("");
 
-  const manualTick = useMutation(api.tick.manualTick);
+  const manualTick = useAction(api.tick.manualTick);
   const tickHistory = useQuery(api.tick.getTickHistory, {});
 
   const handleTick = async () => {

@@ -37,7 +37,7 @@ async function main() {
 
     // Execute a manual tick
     console.log("⚡ Executing manual tick...");
-    const result = await client.mutation("tick:manualTick");
+    const result = await client.action("tick:manualTick");
 
     console.log("\n✅ Tick completed successfully!");
     console.log(`Tick Number: #${result.tickNumber}`);

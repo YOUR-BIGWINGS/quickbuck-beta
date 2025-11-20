@@ -27,7 +27,7 @@
  */
 
 import { v } from "convex/values";
-import { mutation, internalMutation, query } from "./_generated/server";
+import { mutation, internalMutation, query, action } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id, Doc } from "./_generated/dataModel";
 
@@ -307,7 +307,7 @@ export const executeTick = internalMutation({
 });
 
 // Manual trigger for testing (can be called from admin dashboard)
-export const manualTick = mutation({
+export const manualTick = action({
   handler: async (
     ctx,
   ): Promise<{
@@ -318,7 +318,9 @@ export const manualTick = mutation({
     cryptoUpdates: number;
   }> => {
     console.log("[TICK] Manual tick triggered");
-    return await executeTickLogic(ctx, "manual");
+    // Call the internal mutation instead of executing directly
+    const result = await ctx.runMutation(internal.tick.executeTick);
+    return result;
   },
 });
 
