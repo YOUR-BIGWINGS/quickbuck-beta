@@ -672,31 +672,47 @@ async function deductEmployeeCosts(ctx: any) {
     );
 
     if (employeeCost > 0 && employeeCost <= company.balance) {
+      // Verify owner exists and is valid before processing
+      if (!company.ownerId) {
+        console.error(`[TICK] Company ${company._id} has no ownerId, skipping employee cost deduction`);
+        await ctx.db.patch(company._id, {
+          updatedAt: Date.now(),
+        });
+        continue;
+      }
+
+      const owner = await ctx.db.get(company.ownerId);
+      if (!owner) {
+        console.error(`[TICK] Company ${company._id} owner ${company.ownerId} not found, skipping employee cost deduction`);
+        await ctx.db.patch(company._id, {
+          updatedAt: Date.now(),
+        });
+        continue;
+      }
+
       // Deduct from company balance
       await ctx.db.patch(company._id, {
         balance: company.balance - employeeCost,
         updatedAt: Date.now(),
       });
 
-      // Transfer to company owner
-      const owner = await ctx.db.get(company.ownerId);
-      if (owner) {
-        // This money goes back to owner as it's overhead, not salary to employees
-        // The upfront cost was already paid, this is the recurring cost
-        // We deduct it from company but don't give it back to player (it's operating cost)
-
-        // Record transaction for audit
+      // Record transaction for audit
+      // Note: We deduct from company but this is operating cost (not transferred to player)
+      try {
         await ctx.db.insert("transactions", {
           fromAccountId: company._id,
-          fromAccountType: "company",
+          fromAccountType: "company" as const,
           toAccountId: company.ownerId,
-          toAccountType: "player",
+          toAccountType: "player" as const,
           amount: employeeCost,
-          assetType: "cash",
+          assetType: "cash" as const,
           description: `Employee costs for tick (${totalTickCostPercentage}% of income)`,
           createdAt: Date.now(),
         });
+      } catch (error) {
+        console.error(`[TICK] Failed to record transaction for company ${company._id}:`, error);
       }
+
       companiesProcessed++;
     } else {
       // Still update timestamp
