@@ -169,4 +169,4 @@ export const PriceChart = memo(function PriceChart({
       <div ref={chartContainerRef} />
     </div>
   );
-}
+});

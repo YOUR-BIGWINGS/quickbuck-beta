@@ -200,4 +200,4 @@ export const CryptoPriceChart = memo(function CryptoPriceChart({
       <div ref={chartContainerRef} />
     </div>
   );
-}
+});

@@ -1,11 +1,17 @@
 import { Button } from "~/components/ui/button";
 import { Separator } from "~/components/ui/separator";
 import { SidebarTrigger } from "~/components/ui/sidebar";
-import { Github, BookOpen, Newspaper } from "lucide-react";
+import { Github, BookOpen, Newspaper, Bug } from "lucide-react";
 import DiscordIcon from "~/components/icons/discord-icon";
 import { useQuery } from "convex/react";
 import { api } from "convex/_generated/api";
 import { Link } from "react-router";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
 
 export function SiteHeader() {
   const currentPlayer = useQuery(api.moderation.getCurrentPlayer);
@@ -36,6 +42,33 @@ export function SiteHeader() {
               RULES
             </Link>
           </Button>
+
+          {currentPlayer?.role === "admin" && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="Debug Tools"
+                  aria-label="Debug Tools"
+                >
+                  <Bug className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link to="/admin/tick" className="cursor-pointer">
+                    Manual Tick
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/admin/maintenance" className="cursor-pointer">
+                    Maintenance
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
 
           <Button
             variant="ghost"
