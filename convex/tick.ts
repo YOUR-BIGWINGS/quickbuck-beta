@@ -369,6 +369,29 @@ export const executeTick = internalMutation({
   },
 });
 
+// Internal mutation wrapper for manual tick execution
+export const executeManualTickMutation = internalMutation({
+  handler: async (
+    ctx,
+  ): Promise<{
+    tickNumber: number;
+    tickId: Id<"tickHistory">;
+    botPurchases: number;
+    stockUpdates: number;
+    cryptoUpdates: number;
+  }> => {
+    console.log("[TICK] Executing manual tick via mutation...");
+    try {
+      const result = await executeTickLogic(ctx, "manual");
+      console.log("[TICK] ✅ Manual tick completed successfully", result);
+      return result;
+    } catch (error) {
+      console.error("[TICK] ❌ Manual tick failed", error);
+      throw error;
+    }
+  },
+});
+
 // Manual trigger for testing (can be called from admin dashboard)
 export const manualTick = action({
   handler: async (
@@ -382,7 +405,7 @@ export const manualTick = action({
   }> => {
     console.log("[TICK] Manual tick triggered from client");
     try {
-      const result = await executeTickLogic(ctx, "manual");
+      const result = await ctx.runMutation(internal.tick.executeManualTickMutation);
       console.log("[TICK] ✅ Manual tick completed successfully", result);
       return result;
     } catch (error) {
