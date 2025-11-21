@@ -88,7 +88,7 @@ async function verifyBotPurchases() {
     console.log("\n🔧 Step 4: Testing manual tick trigger...");
     console.log("   Triggering manual tick...");
     
-    const result = await client.mutation("tick:manualTick");
+    const result = await client.action("tick:manualTick");
     
     console.log(`   ✅ Tick #${result.tickNumber} completed!`);
     console.log(`   Bot purchases: ${result.botPurchases}`);

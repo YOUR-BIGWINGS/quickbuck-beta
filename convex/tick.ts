@@ -370,7 +370,7 @@ export const executeTick = internalMutation({
 });
 
 // Manual trigger for testing (can be called from admin dashboard)
-export const manualTick = mutation({
+export const manualTick = action({
   handler: async (
     ctx,
   ): Promise<{
