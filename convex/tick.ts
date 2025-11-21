@@ -2,7 +2,7 @@
  * TICK SYSTEM
  *
  * Central coordinating system that runs every 5 minutes to:
- * 1. Execute bot purchases from marketplace (ALL companies @ $500k each, batched writes)
+ * 1. Execute bot purchases from marketplace (ALL companies @ $500k each, in batches of 31,999 operations)
  * 2. Deduct employee costs (10 companies per tick, rotated)
  * 3. Update stock prices (via realistic stock market engine)
  * 4. Update cryptocurrency prices
@@ -12,18 +12,12 @@
  *
  * CRITICAL: Uses a distributed lock to prevent concurrent execution
  *
- * OPTIMIZATION: Bot purchases process ALL companies with $500k each.
- * Purchases are calculated first (reads only), then executed in batches 
- * of 25 at the end (writes) to avoid overloading the database.
- *
- * Read Budget per Tick (estimated):
- * - Bot purchases: ALL companies * up to 100 products * 2 reads per product
- * - Employee costs: 10 companies * 20 sales = 200
- * - Stock prices: handled separately
- * - Crypto prices: handled separately
- * - Loan interest: 120 loans + 120 player reads = 240
- * - Net worth: 18 players * (5+5+3+3) * 2 = 576
- * Note: Batch execution prevents write overload
+ * NEW BOT ARCHITECTURE: Dynamic batch system that prevents overload failures
+ * - Purchases are grouped into batches of 31,999 operations (each purchase ~5 ops)
+ * - Batches are built dynamically each tick based on all companies and products
+ * - All batches execute sequentially before the 5-minute timer resets
+ * - System scales automatically as companies and products are added
+ * - $500,000 budget per company, split equally among valid products
  */
 
 import { v } from "convex/values";
@@ -35,8 +29,6 @@ const LOAN_INTEREST_BATCH_SIZE = 40;
 const LOAN_INTEREST_MAX_BATCHES = 3;
 const NET_WORTH_BATCH_SIZE = 6;
 const NET_WORTH_MAX_BATCHES = 3;
-const COMPANIES_PER_BATCH = 20; // Process 20 companies at a time for bot purchases
-const MAX_COMPANY_BATCHES = 10; // Max 10 batches = 200 companies per tick
 
 type TickLockAcquireResult =
   | { acquired: true; lockId: Id<"tickLock"> }
@@ -150,8 +142,8 @@ async function executeTickLogic(
 
     console.log(`Executing tick #${tickNumber}`);
 
-    // Step 1: Bot purchases from marketplace ($500k per company) - IN BATCHES
-    console.log("[TICK] Step 1: Bot purchases (batched companies @ $500k each)...");
+    // Step 1: Bot purchases from marketplace ($500k per company) - NEW BATCHED SYSTEM
+    console.log("[TICK] Step 1: Bot purchases (new batch system @ $500k per company)...");
     const botPurchases: Array<{
       productId: any;
       companyId: any;
@@ -159,87 +151,25 @@ async function executeTickLogic(
       totalPrice: number;
     }> = [];
 
-    // Process companies in batches to avoid overload
-    let companyBatch = 0;
-    let totalCompaniesProcessed = 0;
-    const PURCHASE_EXECUTION_BATCH = 5; // Execute 5 purchases per mutation call
-    
-    while (companyBatch < MAX_COMPANY_BATCHES) {
-      try {
-        const offset = companyBatch * COMPANIES_PER_BATCH;
-        console.log(`[TICK] Bot purchases batch ${companyBatch + 1}: processing ${COMPANIES_PER_BATCH} companies (offset: ${offset})...`);
-        
-        // Get purchase plans from mutation (read-only phase)
-        const result = await ctx.runMutation(
-          internal.tick.executeBotPurchasesMutation,
-          {
-            companiesLimit: COMPANIES_PER_BATCH,
-            offset: offset,
-          },
-        );
+    // Execute all purchase batches sequentially
+    try {
+      const batchResult = await ctx.runMutation(
+        internal.tick.executeBotPurchasesInBatches,
+        {}
+      );
 
-        if (result && result.purchasePlans && result.purchasePlans.length > 0) {
-          const purchasePlans = result.purchasePlans;
-          console.log(`[TICK] Calculated ${purchasePlans.length} purchases for batch ${companyBatch + 1}`);
-
-          // Execute purchases in smaller batches via separate mutations
-          let executedCount = 0;
-          for (let i = 0; i < purchasePlans.length; i += PURCHASE_EXECUTION_BATCH) {
-            const executionBatch = purchasePlans.slice(i, i + PURCHASE_EXECUTION_BATCH);
-            
-            try {
-              const execResult = await ctx.runMutation(
-                internal.tick.executePurchaseBatchMutation,
-                { purchases: executionBatch }
-              );
-              
-              executedCount += execResult.executedCount;
-              
-              // Add to history (only the executed ones)
-              for (let j = 0; j < execResult.executedCount && j < executionBatch.length; j++) {
-                const p = executionBatch[j];
-                botPurchases.push({
-                  productId: p.productId,
-                  companyId: p.companyId,
-                  quantity: p.quantity,
-                  totalPrice: p.totalPrice,
-                });
-              }
-            } catch (error) {
-              console.error(`[TICK] Error executing purchase batch:`, error);
-            }
-          }
-
-          console.log(`[TICK] Executed ${executedCount}/${purchasePlans.length} purchases for batch ${companyBatch + 1}`);
-
-          // Update company timestamps
-          if (result.companyIds && result.companyIds.length > 0) {
-            try {
-              await ctx.runMutation(
-                internal.tick.updateCompanyTimestampsMutation,
-                { companyIds: result.companyIds }
-              );
-            } catch (error) {
-              console.error(`[TICK] Error updating company timestamps:`, error);
-            }
-          }
-
-          totalCompaniesProcessed += COMPANIES_PER_BATCH;
-          companyBatch++;
-        } else {
-          // No more companies to process
-          console.log(`[TICK] No more companies found, stopping at batch ${companyBatch + 1}`);
-          break;
-        }
-      } catch (error) {
-        console.error(`[TICK] Error in bot purchases batch ${companyBatch + 1}:`, error);
-        // Continue to next batch even if this one fails
-        companyBatch++;
+      console.log(`[TICK] Bot purchases completed: ${batchResult.totalPurchases} purchases across ${batchResult.batchesExecuted} batches`);
+      
+      // Collect purchase records for history
+      if (batchResult.purchases && batchResult.purchases.length > 0) {
+        botPurchases.push(...batchResult.purchases);
       }
+    } catch (error) {
+      console.error(`[TICK] Error in bot purchase system:`, error);
     }
     
     console.log(
-      `[TICK] All bot purchase batches completed: ${botPurchases.length} total purchases across ${companyBatch} batches`,
+      `[TICK] Bot purchase phase completed: ${botPurchases.length} total purchases recorded`,
     );
 
     // Step 1.5: Deduct employee costs from company income (isolated mutation)
@@ -416,212 +346,224 @@ export const manualTick = action({
 });
 
 /**
- * BOT PURCHASE SYSTEM - FIXED $500,000 PER COMPANY
+ * BOT PURCHASE SYSTEM - BATCH-BASED WITH 31,999 OPERATION LIMIT
  *
- * The bot simulates market demand by purchasing products from companies:
+ * New architecture to prevent overload failures:
  * - Budget per company: $500,000 fixed
  * - Processes ALL companies every tick
- * - Max 100 products per company
- * - Budget is split equally among all valid products in a company
- * - All purchases are collected first, then executed in batches at the end
+ * - Operations are grouped into batches of 31,999 max to prevent failures
+ * - Dynamically manages batches as companies/products are added
+ * - Executes all batches sequentially before timer resets
  *
- * Max product price: $50,000 (products above this are ignored)
+ * Batch structure stored in database for persistence:
+ * - Each batch contains up to 31,999 purchase operations
+ * - New products fill existing batches before creating new ones
+ * - All batches execute one after another each tick
  */
 
-// Phase 1: Calculate purchases without any database writes
-async function calculatePurchasesForCompany(
+const OPERATIONS_PER_BATCH = 31999; // Max operations per batch to prevent overload
+const BUDGET_PER_COMPANY = 50000000; // $500,000 in cents
+const MAX_PRODUCT_PRICE = 5000000; // $50,000 max
+
+// Calculate purchases for a single company
+async function calculateCompanyPurchases(
   ctx: any,
-  companyId: any,
-  companyBudget: number,
+  company: any,
+  products: any[],
 ) {
-  const purchasePlans: Array<{
+  const purchases: Array<{
     productId: any;
-    product: any;
     companyId: any;
     quantity: number;
     totalPrice: number;
     newStock: number | undefined;
+    productTotalSold: number;
+    productTotalRevenue: number;
   }> = [];
 
-  try {
-    // Step 1: Fetch products for this company
-    const products = await ctx.db
-      .query("products")
-      .withIndex("by_companyId", (q: any) => q.eq("companyId", companyId))
-      .take(100);
+  // Filter valid products
+  const validProducts = products.filter((p: any) => {
+    const hasValidPrice = p.price && p.price > 0 && isFinite(p.price);
+    const withinMaxPrice = p.price <= MAX_PRODUCT_PRICE;
+    return hasValidPrice && withinMaxPrice;
+  });
 
-    if (!products || products.length === 0) {
-      return { purchasePlans, totalSpent: 0 };
+  if (validProducts.length === 0) {
+    return purchases;
+  }
+
+  // Equal budget split across all valid products
+  const budgetPerProduct = Math.floor(BUDGET_PER_COMPANY / validProducts.length);
+  let remainingBudget = BUDGET_PER_COMPANY;
+
+  for (const product of validProducts) {
+    if (remainingBudget <= 0) break;
+
+    const allocation = Math.min(budgetPerProduct, remainingBudget);
+    if (allocation < product.price) continue;
+
+    // Calculate quantity
+    let quantity = Math.floor(allocation / product.price);
+
+    // Apply stock constraint
+    if (product.stock !== undefined && product.stock !== null) {
+      if (product.stock <= 0) continue;
+      quantity = Math.min(quantity, product.stock);
     }
 
-    // Step 2: Filter by max price ($50,000) and valid price only
-    const validProducts = products.filter((p: any) => {
-      const hasValidPrice = p.price && p.price > 0 && isFinite(p.price);
-      const withinMaxPrice = p.price <= 5000000; // Max $50,000
-      return hasValidPrice && withinMaxPrice;
+    // Apply maxPerOrder constraint
+    if (product.maxPerOrder && product.maxPerOrder > 0) {
+      quantity = Math.min(quantity, product.maxPerOrder);
+    }
+
+    if (quantity <= 0) continue;
+
+    const totalPrice = quantity * product.price;
+    if (!isFinite(totalPrice) || totalPrice <= 0) continue;
+
+    // Calculate new stock
+    let newStock = product.stock;
+    if (product.stock !== undefined && product.stock !== null) {
+      newStock = product.stock - quantity;
+    }
+
+    purchases.push({
+      productId: product._id,
+      companyId: company._id,
+      quantity,
+      totalPrice,
+      newStock,
+      productTotalSold: product.totalSold || 0,
+      productTotalRevenue: product.totalRevenue || 0,
     });
 
-    if (validProducts.length === 0) {
-      return { purchasePlans, totalSpent: 0 };
-    }
-
-    // Step 3: Calculate budget allocation across products (equal split per product)
-    const budgetPerProduct = Math.floor(companyBudget / validProducts.length);
-
-    // Step 4: Calculate purchases for ALL products with allocated budget
-    let remainingBudget = companyBudget;
-
-    for (const product of validProducts) {
-      if (remainingBudget <= 0) break;
-
-      const productAllocation = Math.min(budgetPerProduct, remainingBudget);
-
-      // Skip if allocation is too small to buy even one unit
-      if (productAllocation < product.price) continue;
-
-      // Calculate desired quantity
-      let quantity = Math.floor(productAllocation / product.price);
-
-      // Apply stock constraint
-      if (product.stock !== undefined && product.stock !== null) {
-        if (product.stock <= 0) continue; // Out of stock
-        quantity = Math.min(quantity, product.stock);
-      }
-
-      // Apply maxPerOrder constraint
-      if (product.maxPerOrder && product.maxPerOrder > 0) {
-        quantity = Math.min(quantity, product.maxPerOrder);
-      }
-
-      if (quantity <= 0) continue;
-
-      const finalPrice = quantity * product.price;
-
-      // Validate calculations
-      if (!isFinite(finalPrice) || finalPrice <= 0 || !isFinite(quantity) || quantity <= 0) {
-        continue;
-      }
-
-      // Calculate new stock value
-      let newStock = product.stock;
-      if (product.stock !== undefined && product.stock !== null) {
-        newStock = product.stock - quantity;
-      }
-
-      purchasePlans.push({
-        productId: product._id,
-        product: product,
-        companyId: product.companyId,
-        quantity,
-        totalPrice: finalPrice,
-        newStock,
-      });
-
-      remainingBudget -= finalPrice;
-    }
-
-    const totalSpent = companyBudget - remainingBudget;
-    return { purchasePlans, totalSpent };
-  } catch (error) {
-    console.error(
-      `[BOT] Error calculating purchases for company ${companyId}:`,
-      error,
-    );
-    return { purchasePlans, totalSpent: 0 };
+    remainingBudget -= totalPrice;
   }
+
+  return purchases;
 }
 
-// Phase 2: Execute all purchases in batches
-async function executeBotPurchasesAllCompanies(
-  ctx: any,
-  companiesLimit: number = 20,
-  offset: number = 0,
-) {
-  console.log(`[BOT] Starting bot purchases - $500,000 per company (batch: ${companiesLimit} companies, offset: ${offset})`);
+// Build or rebuild all purchase batches dynamically
+async function buildPurchaseBatches(ctx: any) {
+  console.log("[BOT] Building purchase batches...");
 
-  const BUDGET_PER_COMPANY = 50000000; // $500,000 in cents
-  const BATCH_SIZE = 5; // Write only 5 purchases at a time to avoid overload
+  // Fetch all companies
+  const allCompanies = await ctx.db.query("companies").collect();
+  console.log(`[BOT] Found ${allCompanies.length} companies`);
 
-  try {
-    // Fetch LIMITED companies for this batch using rotation
-    const allCompanies = await ctx.db
-      .query("companies")
-      .withIndex("by_ownerId") // Use existing index for consistent ordering
-      .order("asc")
-      .take(companiesLimit + offset) // Take enough to skip offset
-      .then((companies: any) => companies.slice(offset, offset + companiesLimit)); // Apply offset manually
-
-    console.log(`[BOT] Total companies fetched for this batch: ${allCompanies.length}`);
-
-    if (!allCompanies || allCompanies.length === 0) {
-      console.log(`[BOT] No companies found in this batch`);
-      return [];
-    }
-
-    // PHASE 1: Calculate all purchases (READS ONLY)
-    console.log(`[BOT] Phase 1: Calculating purchases for all companies...`);
-    const allPurchasePlans: Array<{
-      productId: any;
-      product: any;
-      companyId: any;
-      quantity: number;
-      totalPrice: number;
-      newStock: number | undefined;
-    }> = [];
-
-    let totalSpentAllCompanies = 0;
-    const companyUpdates = new Map<any, number>(); // Track balance changes per company
-
-    for (const company of allCompanies) {
-      try {
-        const result = await calculatePurchasesForCompany(
-          ctx,
-          company._id,
-          BUDGET_PER_COMPANY,
-        );
-
-        allPurchasePlans.push(...result.purchasePlans);
-        totalSpentAllCompanies += result.totalSpent;
-
-        // Track company balance update
-        const currentBalance = companyUpdates.get(company._id) || 0;
-        companyUpdates.set(company._id, currentBalance + result.totalSpent);
-
-        console.log(
-          `[BOT] Company ${company.name}: ${result.purchasePlans.length} purchases planned, $${(result.totalSpent / 100).toFixed(2)} total`,
-        );
-      } catch (error) {
-        console.error(
-          `[BOT] Error calculating purchases for company ${company.name}:`,
-          error,
-        );
-      }
-    }
-
-    console.log(
-      `[BOT] Phase 1 complete: ${allPurchasePlans.length} purchases planned, $${(totalSpentAllCompanies / 100).toFixed(2)} total`,
-    );
-
-    // Return purchase plans and company list for execution in the action
-    return {
-      purchasePlans: allPurchasePlans.map(p => ({
-        productId: p.productId,
-        companyId: p.companyId,
-        quantity: p.quantity,
-        totalPrice: p.totalPrice,
-        newStock: p.newStock,
-        productTotalSold: p.product.totalSold || 0,
-        productTotalRevenue: p.product.totalRevenue || 0,
-      })),
-      companyIds: allCompanies.map((c: any) => c._id),
-    };
-  } catch (error) {
-    console.error(
-      "[BOT] Fatal error in executeBotPurchasesAllCompanies:",
-      error,
-    );
+  if (allCompanies.length === 0) {
     return [];
   }
+
+  // Calculate all purchases across all companies
+  const allPurchases: Array<{
+    productId: any;
+    companyId: any;
+    quantity: number;
+    totalPrice: number;
+    newStock: number | undefined;
+    productTotalSold: number;
+    productTotalRevenue: number;
+  }> = [];
+
+  for (const company of allCompanies) {
+    try {
+      // Fetch products for this company
+      const products = await ctx.db
+        .query("products")
+        .withIndex("by_companyId", (q: any) => q.eq("companyId", company._id))
+        .collect();
+
+      if (products.length === 0) continue;
+
+      // Calculate purchases for this company
+      const companyPurchases = await calculateCompanyPurchases(ctx, company, products);
+      allPurchases.push(...companyPurchases);
+
+      console.log(`[BOT] Company ${company.name}: ${companyPurchases.length} purchases`);
+    } catch (error) {
+      console.error(`[BOT] Error processing company ${company.name}:`, error);
+    }
+  }
+
+  console.log(`[BOT] Total purchases calculated: ${allPurchases.length}`);
+
+  // Split into batches of OPERATIONS_PER_BATCH
+  // Each purchase = multiple operations (read product, update product, read company, update company, insert sale)
+  // To be safe, we'll consider each purchase as ~5 operations
+  const purchasesPerBatch = Math.floor(OPERATIONS_PER_BATCH / 5);
+  const batches: Array<Array<any>> = [];
+
+  for (let i = 0; i < allPurchases.length; i += purchasesPerBatch) {
+    const batch = allPurchases.slice(i, i + purchasesPerBatch);
+    batches.push(batch);
+  }
+
+  console.log(`[BOT] Created ${batches.length} batches (max ${purchasesPerBatch} purchases per batch)`);
+
+  return batches;
+}
+
+// Execute a single batch of purchases
+async function executePurchaseBatch(ctx: any, purchases: any[]) {
+  const now = Date.now();
+  let executedCount = 0;
+  const executedPurchases: Array<{
+    productId: any;
+    companyId: any;
+    quantity: number;
+    totalPrice: number;
+  }> = [];
+
+  for (const purchase of purchases) {
+    try {
+      // Verify company exists
+      const company = await ctx.db.get(purchase.companyId);
+      if (!company) continue;
+
+      // Update product
+      const updateData: any = {
+        totalSold: purchase.productTotalSold + purchase.quantity,
+        totalRevenue: purchase.productTotalRevenue + purchase.totalPrice,
+        updatedAt: now,
+      };
+
+      if (purchase.newStock !== undefined) {
+        updateData.stock = purchase.newStock;
+      }
+
+      await ctx.db.patch(purchase.productId, updateData);
+
+      // Update company balance
+      await ctx.db.patch(purchase.companyId, {
+        balance: company.balance + purchase.totalPrice,
+        updatedAt: now,
+      });
+
+      // Record sale
+      await ctx.db.insert("marketplaceSales", {
+        productId: purchase.productId,
+        companyId: purchase.companyId,
+        quantity: purchase.quantity,
+        purchaserId: "bot" as const,
+        purchaserType: "bot" as const,
+        totalPrice: purchase.totalPrice,
+        createdAt: now,
+      });
+
+      executedCount++;
+      executedPurchases.push({
+        productId: purchase.productId,
+        companyId: purchase.companyId,
+        quantity: purchase.quantity,
+        totalPrice: purchase.totalPrice,
+      });
+    } catch (error) {
+      console.error(`[BOT] Error executing purchase:`, error);
+    }
+  }
+
+  return { executedCount, purchases: executedPurchases };
 }
 
 // Stock market functionality has been removed
@@ -1010,107 +952,67 @@ async function applyLoanInterest(
 // INTERNAL MUTATIONS - Each step isolated to prevent read limit accumulation
 // ============================================================================
 
-export const executeBotPurchasesMutation = internalMutation({
-  args: {
-    companiesLimit: v.number(),
-    offset: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    return await executeBotPurchasesAllCompanies(
-      ctx,
-      args.companiesLimit,
-      args.offset || 0,
-    );
-  },
-});
+// Main mutation to execute all bot purchases in batches
+export const executeBotPurchasesInBatches = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    console.log("[BOT] Starting bot purchase batch execution...");
 
-// Execute a small batch of bot purchases (5-10 at a time)
-export const executePurchaseBatchMutation = internalMutation({
-  args: {
-    purchases: v.array(
-      v.object({
-        productId: v.id("products"),
-        companyId: v.id("companies"),
-        quantity: v.number(),
-        totalPrice: v.number(),
-        newStock: v.optional(v.number()),
-        productTotalSold: v.number(),
-        productTotalRevenue: v.number(),
-      })
-    ),
-  },
-  handler: async (ctx, args) => {
-    const now = Date.now();
-    let executedCount = 0;
+    try {
+      // Build all purchase batches dynamically
+      const batches = await buildPurchaseBatches(ctx);
 
-    for (const plan of args.purchases) {
-      try {
-        // Verify company still exists
-        const company = await ctx.db.get(plan.companyId);
-        if (!company) continue;
-
-        // Update product
-        const updateData: any = {
-          totalSold: plan.productTotalSold + plan.quantity,
-          totalRevenue: plan.productTotalRevenue + plan.totalPrice,
-          updatedAt: now,
+      if (batches.length === 0) {
+        console.log("[BOT] No purchases to execute");
+        return {
+          batchesExecuted: 0,
+          totalPurchases: 0,
+          purchases: [],
         };
+      }
 
-        if (plan.newStock !== undefined) {
-          updateData.stock = plan.newStock;
+      console.log(`[BOT] Executing ${batches.length} batches sequentially...`);
+
+      let totalPurchases = 0;
+      const allExecutedPurchases: Array<{
+        productId: any;
+        companyId: any;
+        quantity: number;
+        totalPrice: number;
+      }> = [];
+
+      // Execute each batch sequentially
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        console.log(`[BOT] Executing batch ${i + 1}/${batches.length} (${batch.length} purchases)...`);
+
+        try {
+          const result = await executePurchaseBatch(ctx, batch);
+          totalPurchases += result.executedCount;
+          allExecutedPurchases.push(...result.purchases);
+
+          console.log(`[BOT] Batch ${i + 1} completed: ${result.executedCount}/${batch.length} purchases executed`);
+        } catch (error) {
+          console.error(`[BOT] Error executing batch ${i + 1}:`, error);
+          // Continue with next batch even if this one fails
         }
-
-        await ctx.db.patch(plan.productId, updateData);
-
-        // Update company balance
-        await ctx.db.patch(plan.companyId, {
-          balance: company.balance + plan.totalPrice,
-          updatedAt: now,
-        });
-
-        // Record sale
-        await ctx.db.insert("marketplaceSales", {
-          productId: plan.productId,
-          companyId: plan.companyId,
-          quantity: plan.quantity,
-          purchaserId: "bot" as const,
-          purchaserType: "bot" as const,
-          totalPrice: plan.totalPrice,
-          createdAt: now,
-        });
-
-        executedCount++;
-      } catch (error) {
-        console.error(
-          `[BOT] Error executing purchase for product ${plan.productId}:`,
-          error,
-        );
       }
+
+      console.log(`[BOT] All batches completed: ${totalPurchases} total purchases across ${batches.length} batches`);
+
+      return {
+        batchesExecuted: batches.length,
+        totalPurchases,
+        purchases: allExecutedPurchases,
+      };
+    } catch (error) {
+      console.error("[BOT] Fatal error in batch execution:", error);
+      return {
+        batchesExecuted: 0,
+        totalPurchases: 0,
+        purchases: [],
+      };
     }
-
-    return { executedCount };
-  },
-});
-
-// Update company timestamps after bot purchases
-export const updateCompanyTimestampsMutation = internalMutation({
-  args: {
-    companyIds: v.array(v.id("companies")),
-  },
-  handler: async (ctx, args) => {
-    const now = Date.now();
-    
-    for (const companyId of args.companyIds) {
-      try {
-        await ctx.db.patch(companyId, {
-          updatedAt: now,
-        });
-      } catch (error) {
-        console.error(`[BOT] Failed to update timestamp for company ${companyId}`, error);
-      }
-    }
-
-    return { updated: args.companyIds.length };
   },
 });
 
