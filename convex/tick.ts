@@ -162,13 +162,15 @@ async function executeTickLogic(
     // Process companies in batches to avoid overload
     let companyBatch = 0;
     let totalCompaniesProcessed = 0;
+    const PURCHASE_EXECUTION_BATCH = 5; // Execute 5 purchases per mutation call
     
     while (companyBatch < MAX_COMPANY_BATCHES) {
       try {
         const offset = companyBatch * COMPANIES_PER_BATCH;
         console.log(`[TICK] Bot purchases batch ${companyBatch + 1}: processing ${COMPANIES_PER_BATCH} companies (offset: ${offset})...`);
         
-        const batchPurchases = await ctx.runMutation(
+        // Get purchase plans from mutation (read-only phase)
+        const result = await ctx.runMutation(
           internal.tick.executeBotPurchasesMutation,
           {
             companiesLimit: COMPANIES_PER_BATCH,
@@ -176,13 +178,54 @@ async function executeTickLogic(
           },
         );
 
-        if (Array.isArray(batchPurchases) && batchPurchases.length > 0) {
-          botPurchases.push(...batchPurchases);
+        if (result && result.purchasePlans && result.purchasePlans.length > 0) {
+          const purchasePlans = result.purchasePlans;
+          console.log(`[TICK] Calculated ${purchasePlans.length} purchases for batch ${companyBatch + 1}`);
+
+          // Execute purchases in smaller batches via separate mutations
+          let executedCount = 0;
+          for (let i = 0; i < purchasePlans.length; i += PURCHASE_EXECUTION_BATCH) {
+            const executionBatch = purchasePlans.slice(i, i + PURCHASE_EXECUTION_BATCH);
+            
+            try {
+              const execResult = await ctx.runMutation(
+                internal.tick.executePurchaseBatchMutation,
+                { purchases: executionBatch }
+              );
+              
+              executedCount += execResult.executedCount;
+              
+              // Add to history (only the executed ones)
+              for (let j = 0; j < execResult.executedCount && j < executionBatch.length; j++) {
+                const p = executionBatch[j];
+                botPurchases.push({
+                  productId: p.productId,
+                  companyId: p.companyId,
+                  quantity: p.quantity,
+                  totalPrice: p.totalPrice,
+                });
+              }
+            } catch (error) {
+              console.error(`[TICK] Error executing purchase batch:`, error);
+            }
+          }
+
+          console.log(`[TICK] Executed ${executedCount}/${purchasePlans.length} purchases for batch ${companyBatch + 1}`);
+
+          // Update company timestamps
+          if (result.companyIds && result.companyIds.length > 0) {
+            try {
+              await ctx.runMutation(
+                internal.tick.updateCompanyTimestampsMutation,
+                { companyIds: result.companyIds }
+              );
+            } catch (error) {
+              console.error(`[TICK] Error updating company timestamps:`, error);
+            }
+          }
+
           totalCompaniesProcessed += COMPANIES_PER_BATCH;
           companyBatch++;
-          console.log(
-            `[TICK] Batch ${companyBatch} completed: ${batchPurchases.length} purchases`,
-          );
         } else {
           // No more companies to process
           console.log(`[TICK] No more companies found, stopping at batch ${companyBatch + 1}`);
@@ -474,7 +517,7 @@ async function executeBotPurchasesAllCompanies(
   console.log(`[BOT] Starting bot purchases - $500,000 per company (batch: ${companiesLimit} companies, offset: ${offset})`);
 
   const BUDGET_PER_COMPANY = 50000000; // $500,000 in cents
-  const BATCH_SIZE = 25; // Write 25 purchases at a time to avoid overload
+  const BATCH_SIZE = 5; // Write only 5 purchases at a time to avoid overload
 
   try {
     // Fetch LIMITED companies for this batch using rotation
@@ -536,93 +579,19 @@ async function executeBotPurchasesAllCompanies(
       `[BOT] Phase 1 complete: ${allPurchasePlans.length} purchases planned, $${(totalSpentAllCompanies / 100).toFixed(2)} total`,
     );
 
-    // PHASE 2: Execute all purchases in batches (WRITES)
-    console.log(`[BOT] Phase 2: Executing purchases in batches of ${BATCH_SIZE}...`);
-    const now = Date.now();
-    let executedCount = 0;
-
-    // Process purchases in batches
-    for (let i = 0; i < allPurchasePlans.length; i += BATCH_SIZE) {
-      const batch = allPurchasePlans.slice(i, i + BATCH_SIZE);
-      
-      try {
-        // Execute batch in parallel
-        await Promise.all(
-          batch.map(async (plan) => {
-            try {
-              // Verify company still exists
-              const company = await ctx.db.get(plan.companyId);
-              if (!company) return;
-
-              // Update product
-              const updateData: any = {
-                totalSold: (plan.product.totalSold || 0) + plan.quantity,
-                totalRevenue: (plan.product.totalRevenue || 0) + plan.totalPrice,
-                updatedAt: now,
-              };
-
-              if (plan.newStock !== undefined) {
-                updateData.stock = plan.newStock;
-              }
-
-              await ctx.db.patch(plan.productId, updateData);
-
-              // Update company balance
-              await ctx.db.patch(plan.companyId, {
-                balance: company.balance + plan.totalPrice,
-                updatedAt: now,
-              });
-
-              // Record sale
-              await ctx.db.insert("marketplaceSales", {
-                productId: plan.productId,
-                companyId: plan.companyId,
-                quantity: plan.quantity,
-                purchaserId: "bot" as const,
-                purchaserType: "bot" as const,
-                totalPrice: plan.totalPrice,
-                createdAt: now,
-              });
-
-              executedCount++;
-            } catch (error) {
-              console.error(
-                `[BOT] Error executing purchase for product ${plan.productId}:`,
-                error,
-              );
-            }
-          })
-        );
-
-        console.log(`[BOT] Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${executedCount}/${allPurchasePlans.length} purchases executed`);
-      } catch (error) {
-        console.error(`[BOT] Error executing batch:`, error);
-      }
-    }
-
-    // PHASE 3: Update company timestamps for rotation
-    console.log(`[BOT] Phase 3: Updating company timestamps...`);
-    for (const company of allCompanies) {
-      try {
-        await ctx.db.patch(company._id, {
-          updatedAt: now,
-        });
-      } catch (error) {
-        console.error(`[BOT] Failed to update timestamp for company ${company._id}`, error);
-      }
-    }
-
-    console.log(
-      `[BOT] All purchases complete: ${executedCount}/${allPurchasePlans.length} executed, $${(totalSpentAllCompanies / 100).toFixed(2)} total spent`,
-    );
-
-    // Return summary for tick history
-    return allPurchasePlans.slice(0, executedCount).map(p => ({
-      productId: p.productId,
-      companyId: p.companyId,
-      quantity: p.quantity,
-      totalPrice: p.totalPrice,
-    }));
+    // Return purchase plans and company list for execution in the action
+    return {
+      purchasePlans: allPurchasePlans.map(p => ({
+        productId: p.productId,
+        companyId: p.companyId,
+        quantity: p.quantity,
+        totalPrice: p.totalPrice,
+        newStock: p.newStock,
+        productTotalSold: p.product.totalSold || 0,
+        productTotalRevenue: p.product.totalRevenue || 0,
+      })),
+      companyIds: allCompanies.map((c: any) => c._id),
+    };
   } catch (error) {
     console.error(
       "[BOT] Fatal error in executeBotPurchasesAllCompanies:",
@@ -1029,6 +998,96 @@ export const executeBotPurchasesMutation = internalMutation({
       args.companiesLimit,
       args.offset || 0,
     );
+  },
+});
+
+// Execute a small batch of bot purchases (5-10 at a time)
+export const executePurchaseBatchMutation = internalMutation({
+  args: {
+    purchases: v.array(
+      v.object({
+        productId: v.id("products"),
+        companyId: v.id("companies"),
+        quantity: v.number(),
+        totalPrice: v.number(),
+        newStock: v.optional(v.number()),
+        productTotalSold: v.number(),
+        productTotalRevenue: v.number(),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    let executedCount = 0;
+
+    for (const plan of args.purchases) {
+      try {
+        // Verify company still exists
+        const company = await ctx.db.get(plan.companyId);
+        if (!company) continue;
+
+        // Update product
+        const updateData: any = {
+          totalSold: plan.productTotalSold + plan.quantity,
+          totalRevenue: plan.productTotalRevenue + plan.totalPrice,
+          updatedAt: now,
+        };
+
+        if (plan.newStock !== undefined) {
+          updateData.stock = plan.newStock;
+        }
+
+        await ctx.db.patch(plan.productId, updateData);
+
+        // Update company balance
+        await ctx.db.patch(plan.companyId, {
+          balance: company.balance + plan.totalPrice,
+          updatedAt: now,
+        });
+
+        // Record sale
+        await ctx.db.insert("marketplaceSales", {
+          productId: plan.productId,
+          companyId: plan.companyId,
+          quantity: plan.quantity,
+          purchaserId: "bot" as const,
+          purchaserType: "bot" as const,
+          totalPrice: plan.totalPrice,
+          createdAt: now,
+        });
+
+        executedCount++;
+      } catch (error) {
+        console.error(
+          `[BOT] Error executing purchase for product ${plan.productId}:`,
+          error,
+        );
+      }
+    }
+
+    return { executedCount };
+  },
+});
+
+// Update company timestamps after bot purchases
+export const updateCompanyTimestampsMutation = internalMutation({
+  args: {
+    companyIds: v.array(v.id("companies")),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    
+    for (const companyId of args.companyIds) {
+      try {
+        await ctx.db.patch(companyId, {
+          updatedAt: now,
+        });
+      } catch (error) {
+        console.error(`[BOT] Failed to update timestamp for company ${companyId}`, error);
+      }
+    }
+
+    return { updated: args.companyIds.length };
   },
 });
 
