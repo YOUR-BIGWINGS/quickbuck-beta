@@ -636,6 +636,39 @@ export const sellCrypto = mutation({
     if (!wallet || wallet.balance < args.amount) {
       throw new Error("Insufficient cryptocurrency balance");
     }
+    
+    // Check for coins locked by recent purchases (within last hour)
+    const now = Date.now();
+    const oneHourAgo = now - (60 * 60 * 1000); // 1 hour in milliseconds
+    
+    // Get all buy transactions for this crypto in the last hour
+    const recentBuys = await ctx.db
+      .query("cryptoTransactions")
+      .withIndex("by_player_crypto_time", (q) =>
+        q.eq("playerId", player._id).eq("cryptoId", args.cryptoId)
+      )
+      .filter((q) => q.and(
+        q.eq(q.field("type"), "buy"),
+        q.gte(q.field("timestamp"), oneHourAgo)
+      ))
+      .collect();
+    
+    // Calculate total locked coins from recent purchases
+    const lockedCoins = recentBuys.reduce((sum, tx) => sum + tx.amount, 0);
+    const availableCoins = wallet.balance - lockedCoins;
+    
+    if (availableCoins < args.amount) {
+      if (availableCoins <= 0) {
+        // Find the earliest purchase that will unlock
+        const earliestBuy = recentBuys.sort((a, b) => a.timestamp - b.timestamp)[0];
+        if (earliestBuy) {
+          const minutesRemaining = Math.ceil((earliestBuy.timestamp + (60 * 60 * 1000) - now) / (60 * 1000));
+          throw new Error(`All ${wallet.balance.toLocaleString()} coins are locked. You can sell in ${minutesRemaining} minute${minutesRemaining === 1 ? '' : 's'} (1 hour after purchase).`);
+        }
+      } else {
+        throw new Error(`You can only sell ${availableCoins.toLocaleString()} coin${availableCoins === 1 ? '' : 's'} right now. ${lockedCoins.toLocaleString()} coin${lockedCoins === 1 ? '' : 's'} ${lockedCoins === 1 ? 'is' : 'are'} locked for 1 hour after purchase.`);
+      }
+    }
 
     // Validate current price
     if (!isFinite(crypto.currentPrice) || crypto.currentPrice < 1) {

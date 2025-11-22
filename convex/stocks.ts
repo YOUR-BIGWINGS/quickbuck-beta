@@ -830,6 +830,39 @@ export const sellStock = mutation({
       throw new Error(`Insufficient shares. You own ${portfolio.shares} shares`);
     }
     
+    // Check for shares locked by recent purchases (within last hour)
+    const now = Date.now();
+    const oneHourAgo = now - (60 * 60 * 1000); // 1 hour in milliseconds
+    
+    // Get all buy transactions for this stock in the last hour
+    const recentBuys = await ctx.db
+      .query("stockTransactions")
+      .withIndex("by_player_stock_time", (q) =>
+        q.eq("playerId", player._id).eq("stockId", args.stockId)
+      )
+      .filter((q) => q.and(
+        q.eq(q.field("type"), "buy"),
+        q.gte(q.field("timestamp"), oneHourAgo)
+      ))
+      .collect();
+    
+    // Calculate total locked shares from recent purchases
+    const lockedShares = recentBuys.reduce((sum, tx) => sum + tx.shares, 0);
+    const availableShares = portfolio.shares - lockedShares;
+    
+    if (availableShares < args.shares) {
+      if (availableShares <= 0) {
+        // Find the earliest purchase that will unlock
+        const earliestBuy = recentBuys.sort((a, b) => a.timestamp - b.timestamp)[0];
+        if (earliestBuy) {
+          const minutesRemaining = Math.ceil((earliestBuy.timestamp + (60 * 60 * 1000) - now) / (60 * 1000));
+          throw new Error(`All ${portfolio.shares} shares are locked. You can sell in ${minutesRemaining} minute${minutesRemaining === 1 ? '' : 's'} (1 hour after purchase).`);
+        }
+      } else {
+        throw new Error(`You can only sell ${availableShares} share${availableShares === 1 ? '' : 's'} right now. ${lockedShares} share${lockedShares === 1 ? '' : 's'} ${lockedShares === 1 ? 'is' : 'are'} locked for 1 hour after purchase.`);
+      }
+    }
+    
     // Calculate bid price (sell at slightly lower price)
     const currentPrice = stock.currentPrice ?? 10000;
     const bidPrice = Math.max(1, Math.round(currentPrice * (1 - BID_ASK_SPREAD)));
@@ -846,8 +879,6 @@ export const sellStock = mutation({
     const liquidity = stock.liquidity ?? 1000000;
     const impact = calculatePriceImpact(args.shares, liquidity, -1);
     const newPrice = Math.max(1, Math.round(currentPrice * (1 + impact)));
-    
-    const now = Date.now();
     
     // Update stock price and market cap
     const newMarketCap = newPrice * (stock.outstandingShares ?? 1000000);
@@ -1198,6 +1229,39 @@ export const sellStockForCompany = mutation({
       throw new Error(`Insufficient shares. Company owns ${portfolio.shares} shares`);
     }
     
+    // Check for shares locked by recent purchases (within last hour)
+    const now = Date.now();
+    const oneHourAgo = now - (60 * 60 * 1000); // 1 hour in milliseconds
+    
+    // Get all buy transactions for this stock in the last hour
+    const recentBuys = await ctx.db
+      .query("companyStockTransactions")
+      .withIndex("by_company_stock_time", (q) =>
+        q.eq("companyId", args.companyId).eq("stockId", args.stockId)
+      )
+      .filter((q) => q.and(
+        q.eq(q.field("type"), "buy"),
+        q.gte(q.field("timestamp"), oneHourAgo)
+      ))
+      .collect();
+    
+    // Calculate total locked shares from recent purchases
+    const lockedShares = recentBuys.reduce((sum, tx) => sum + tx.shares, 0);
+    const availableShares = portfolio.shares - lockedShares;
+    
+    if (availableShares < args.shares) {
+      if (availableShares <= 0) {
+        // Find the earliest purchase that will unlock
+        const earliestBuy = recentBuys.sort((a, b) => a.timestamp - b.timestamp)[0];
+        if (earliestBuy) {
+          const minutesRemaining = Math.ceil((earliestBuy.timestamp + (60 * 60 * 1000) - now) / (60 * 1000));
+          throw new Error(`All ${portfolio.shares} shares are locked. You can sell in ${minutesRemaining} minute${minutesRemaining === 1 ? '' : 's'} (1 hour after purchase).`);
+        }
+      } else {
+        throw new Error(`You can only sell ${availableShares} share${availableShares === 1 ? '' : 's'} right now. ${lockedShares} share${lockedShares === 1 ? '' : 's'} ${lockedShares === 1 ? 'is' : 'are'} locked for 1 hour after purchase.`);
+      }
+    }
+    
     // Calculate bid price (sell at slightly lower price)
     const currentPrice = stock.currentPrice ?? 10000;
     const bidPrice = Math.max(1, Math.round(currentPrice * (1 - BID_ASK_SPREAD)));
@@ -1214,8 +1278,6 @@ export const sellStockForCompany = mutation({
     const liquidity = stock.liquidity ?? 1000000;
     const impact = calculatePriceImpact(args.shares, liquidity, -1);
     const newPrice = Math.max(1, Math.round(currentPrice * (1 + impact)));
-    
-    const now = Date.now();
     
     // Update stock price and market cap
     const newMarketCap = newPrice * (stock.outstandingShares ?? 1000000);
