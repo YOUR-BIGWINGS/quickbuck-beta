@@ -508,7 +508,7 @@ async function buildPurchaseBatches(ctx: any) {
         .collect();
 
       // Calculate purchases for this company
-      const { purchases, newAccumulator } = await calculateCompanyPurchases(ctx, company, products);
+      const { purchases, newAccumulator } = await calculateCompanyPurchases(ctx, company, products, Date.now());
       
       if (purchases.length > 0) {
         allOperations.push(...purchases);
