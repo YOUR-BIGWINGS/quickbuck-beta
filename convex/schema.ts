@@ -58,6 +58,7 @@ export default defineSchema({
     isPublic: v.boolean(),
     reputationScore: v.number(), // 0-1
     flaggedStatus: v.boolean(),
+    botPurchaseAccumulator: v.optional(v.number()), // Accumulated value for bot purchases
     createdAt: v.number(),
     updatedAt: v.number(),
     // Legacy fields - to be removed via migration
@@ -480,7 +481,8 @@ export default defineSchema({
   })
     .index("by_symbol", ["symbol"])
     .index("by_sector", ["sector"])
-    .index("by_lastUpdated", ["lastUpdated"]),
+    .index("by_lastUpdated", ["lastUpdated"])
+    .index("by_companyId", ["companyId"]), // Index for looking up stock by company
 
   stockPriceHistory: defineTable({
     stockId: v.id("stocks"),

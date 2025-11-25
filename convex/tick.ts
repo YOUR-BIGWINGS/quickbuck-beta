@@ -21,7 +21,7 @@
  */
 
 import { v } from "convex/values";
-import { mutation, internalMutation, query, action } from "./_generated/server";
+import { mutation, internalMutation, query, internalAction, internalQuery, action } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id, Doc } from "./_generated/dataModel";
 
@@ -108,236 +108,260 @@ async function releaseTickLock(ctx: any, lockId?: Id<"tickLock">) {
   }
 }
 
-// Shared tick execution logic
-async function executeTickLogic(
-  ctx: any,
-  lockSource: string,
-): Promise<{
-  tickNumber: number;
-  tickId: Id<"tickHistory">;
-  botPurchases: number;
-  stockUpdates: number;
-  cryptoUpdates: number;
-}> {
-  const now = Date.now();
+// Shared tick execution logic - DEPRECATED
+// Replaced by executeTick Action
+// async function executeTickLogic(...) { ... }
 
-  // Try to acquire lock
-  const lockResult = await acquireTickLock(ctx, lockSource);
-  if (!lockResult.acquired) {
-    console.log(`[TICK] Could not acquire lock, another tick is running`);
-    throw new Error("Another tick is currently running. Please wait.");
-  }
+// ============================================================================
+// HELPER MUTATIONS FOR ACTION-BASED TICK
+// ============================================================================
 
-  const lockId = lockResult.lockId;
+export const acquireTickLockMutation = internalMutation({
+  args: { lockSource: v.string() },
+  handler: async (ctx, args) => {
+    return await acquireTickLock(ctx, args.lockSource);
+  },
+});
 
-  try {
-    // Get last tick number
+export const releaseTickLockMutation = internalMutation({
+  args: { lockId: v.optional(v.id("tickLock")) },
+  handler: async (ctx, args) => {
+    await releaseTickLock(ctx, args.lockId);
+  },
+});
+
+export const recordTickHistoryMutation = internalMutation({
+  args: {
+    tickNumber: v.number(),
+    botPurchases: v.any(), // Array or number
+    cryptoPriceUpdates: v.any(), // Array or number
+    totalBudgetSpent: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const tickId = await ctx.db.insert("tickHistory", {
+      tickNumber: args.tickNumber,
+      timestamp: now,
+      botPurchases: args.botPurchases,
+      cryptoPriceUpdates: args.cryptoPriceUpdates,
+      totalBudgetSpent: args.totalBudgetSpent,
+    });
+    return tickId;
+  },
+});
+
+export const getNextTickNumber = internalQuery({
+  handler: async (ctx) => {
     const lastTick = await ctx.db
       .query("tickHistory")
       .withIndex("by_tickNumber")
       .order("desc")
       .first();
+    return (lastTick?.tickNumber || 0) + 1;
+  },
+});
 
-    const tickNumber = (lastTick?.tickNumber || 0) + 1;
+// ============================================================================
+// BOT LOGIC - ACTION BASED
+// ============================================================================
 
-    console.log(`Executing tick #${tickNumber}`);
+export const planBotPurchases = internalQuery({
+  handler: async (ctx) => {
+    console.log("[BOT] Planning purchase batches...");
 
-    // Step 1: Bot purchases from marketplace ($500k per company) - NEW BATCHED SYSTEM
-    console.log("[TICK] Step 1: Bot purchases (new batch system @ $500k per company)...");
-    const botPurchases: Array<{
-      productId: any;
-      companyId: any;
-      quantity: number;
-      totalPrice: number;
-    }> = [];
+    // Fetch all companies
+    const allCompanies = await ctx.db.query("companies").collect();
+    console.log(`[BOT] Found ${allCompanies.length} companies`);
 
-    // Execute all purchase batches sequentially
-    try {
-      const batchResult = await ctx.runMutation(
-        internal.tick.executeBotPurchasesInBatches,
-        {}
-      );
-
-      console.log(`[TICK] Bot purchases completed: ${batchResult.totalPurchases} purchases across ${batchResult.batchesExecuted} batches`);
-      
-      // Collect purchase records for history
-      if (batchResult.purchases && batchResult.purchases.length > 0) {
-        botPurchases.push(...batchResult.purchases);
-      }
-    } catch (error) {
-      console.error(`[TICK] Error in bot purchase system:`, error);
+    if (allCompanies.length === 0) {
+      return [];
     }
+
+    // Calculate all operations across all companies
+    const allOperations: Array<any> = [];
+
+    for (const company of allCompanies) {
+      try {
+        // Fetch products for this company
+        const products = await ctx.db
+          .query("products")
+          .withIndex("by_companyId", (q: any) => q.eq("companyId", company._id))
+          .collect();
+
+        // Calculate purchases for this company
+        const { purchases, newAccumulator } = await calculateCompanyPurchases(ctx, company, products);
+        
+        if (purchases.length > 0) {
+          allOperations.push(...purchases);
+        }
+        
+        // Add accumulator update operation
+        if (newAccumulator !== (company.botPurchaseAccumulator || 0)) {
+            allOperations.push({
+                type: "accumulator",
+                companyId: company._id,
+                newAccumulator
+            });
+        }
+      } catch (error) {
+        console.error(`[BOT] Error processing company ${company.name}:`, error);
+      }
+    }
+
+    console.log(`[BOT] Total operations calculated: ${allOperations.length}`);
+    return allOperations;
+  },
+});
+
+export const executePurchaseBatchMutation = internalMutation({
+  args: { operations: v.any() },
+  handler: async (ctx, args) => {
+    return await executePurchaseBatch(ctx, args.operations);
+  },
+});
+
+export const runBotPurchasesAction = internalAction({
+  handler: async (ctx) => {
+    console.log("[BOT] Starting bot purchase action...");
     
-    console.log(
-      `[TICK] Bot purchase phase completed: ${botPurchases.length} total purchases recorded`,
-    );
+    // 1. Plan purchases (Query)
+    const allOperations = await ctx.runQuery(internal.tick.planBotPurchases);
+    
+    if (!allOperations || allOperations.length === 0) {
+      console.log("[BOT] No operations to execute");
+      return { batchesExecuted: 0, totalPurchases: 0, purchases: [] };
+    }
 
-    // Step 1.5: Deduct employee costs from company income (isolated mutation)
-    console.log("[TICK] Step 1.5: Employee costs...");
-    await ctx.runMutation(internal.tick.deductEmployeeCostsMutation);
+    // 2. Split into batches
+    const batches: Array<Array<any>> = [];
+    for (let i = 0; i < allOperations.length; i += OPERATIONS_PER_BATCH) {
+      const batch = allOperations.slice(i, i + OPERATIONS_PER_BATCH);
+      batches.push(batch);
+    }
 
-    // Step 2: Update stock prices (isolated mutation)
-    console.log("[TICK] Step 2: Stock prices...");
-    const stockPriceUpdates: any = await ctx.runMutation(
-      internal.stocks.updateStockPrices,
-    );
+    console.log(`[BOT] Created ${batches.length} batches (max ${OPERATIONS_PER_BATCH} operations per batch)`);
 
-    // Step 3: Update cryptocurrency prices (isolated mutation)
-    console.log("[TICK] Step 3: Crypto prices...");
-    const cryptoPriceUpdates: any = await ctx.runMutation(
-      internal.crypto.updateCryptoPrices,
-    );
+    // 3. Execute batches sequentially (Mutations)
+    let totalPurchases = 0;
+    const allExecutedPurchases: Array<any> = [];
 
-    // Step 4: Apply loan interest (isolated mutation)
-    console.log("[TICK] Step 4: Loan interest (batched)...");
-    let loanCursor: string | undefined;
-    let loanBatches = 0;
-    let loansProcessed = 0;
-    while (loanBatches < LOAN_INTEREST_MAX_BATCHES) {
-      const loanResult = await ctx.runMutation(
-        internal.tick.applyLoanInterestMutation,
-        {
-          limit: LOAN_INTEREST_BATCH_SIZE,
-          cursor: loanCursor,
-        },
-      );
+    for (let i = 0; i < batches.length; i++) {
+      const batch = batches[i];
+      console.log(`[BOT] Executing batch ${i + 1}/${batches.length} (${batch.length} operations)...`);
 
-      if (!loanResult) {
-        break;
-      }
+      try {
+        const result: any = await ctx.runMutation(internal.tick.executePurchaseBatchMutation, {
+          operations: batch,
+        });
+        
+        totalPurchases += result.executedCount;
+        allExecutedPurchases.push(...result.purchases);
 
-      loansProcessed += loanResult.processed ?? 0;
-      loanCursor = loanResult.cursor ?? undefined;
-      loanBatches += 1;
-
-      if (!loanCursor) {
-        break;
+        console.log(`[BOT] Batch ${i + 1} completed: ${result.executedCount} purchases executed`);
+      } catch (error) {
+        console.error(`[BOT] Error executing batch ${i + 1}:`, error);
       }
     }
-    console.log(
-      `[TICK] Loan interest batches: ${loanBatches}, loans processed: ${loansProcessed}`,
-    );
-
-    // Step 5: Update player net worth values (isolated mutation)
-    console.log("[TICK] Step 5: Player net worth (batched)...");
-    let netWorthCursor: string | undefined;
-    let netWorthBatches = 0;
-    let playersProcessed = 0;
-    while (netWorthBatches < NET_WORTH_MAX_BATCHES) {
-      const netWorthResult = await ctx.runMutation(
-        internal.tick.updatePlayerNetWorthMutation,
-        {
-          limit: NET_WORTH_BATCH_SIZE,
-          cursor: netWorthCursor,
-        },
-      );
-
-      if (!netWorthResult) {
-        break;
-      }
-
-      playersProcessed += netWorthResult.processed ?? 0;
-      netWorthCursor = netWorthResult.cursor ?? undefined;
-      netWorthBatches += 1;
-
-      if (!netWorthCursor) {
-        break;
-      }
-    }
-    console.log(
-      `[TICK] Net worth batches: ${netWorthBatches}, players processed: ${playersProcessed}`,
-    );
-
-    // Step 6: Record tick history
-    const tickId: Id<"tickHistory"> = await ctx.db.insert("tickHistory", {
-      tickNumber,
-      timestamp: now,
-      botPurchases: botPurchases || [],
-      cryptoPriceUpdates: cryptoPriceUpdates || [],
-      totalBudgetSpent: Array.isArray(botPurchases)
-        ? botPurchases.reduce((sum: number, p: any) => sum + p.totalPrice, 0)
-        : 0,
-    });
-
-    console.log(`Tick #${tickNumber} completed`);
 
     return {
-      tickNumber,
-      tickId,
-      botPurchases: Array.isArray(botPurchases) ? botPurchases.length : 0,
-      stockUpdates: stockPriceUpdates?.updated || 0,
-      cryptoUpdates: Array.isArray(cryptoPriceUpdates)
-        ? cryptoPriceUpdates.length
-        : 0,
+      batchesExecuted: batches.length,
+      totalPurchases,
+      purchases: allExecutedPurchases,
     };
-  } finally {
-    // Always release the lock, even if an error occurred
-    await releaseTickLock(ctx, lockId);
-  }
-}
+  },
+});
 
-// Main tick mutation - runs every 5 minutes via cron
-export const executeTick = internalMutation({
-  handler: async (
-    ctx,
-  ): Promise<{
-    tickNumber: number;
-    tickId: Id<"tickHistory">;
-    botPurchases: number;
-    stockUpdates: number;
-    cryptoUpdates: number;
-  }> => {
-    console.log("[TICK] Executing tick via CRON...");
+// Main tick action - runs every 5 minutes via cron
+export const executeTick = internalAction({
+  handler: async (ctx): Promise<void> => {
+    console.log("[TICK] Executing tick via CRON (Action)...");
+    
+    // Try to acquire lock
+    const lockResult = await ctx.runMutation(internal.tick.acquireTickLockMutation, { lockSource: "cron" });
+    if (!lockResult.acquired) {
+      console.log(`[TICK] Could not acquire lock, another tick is running`);
+      return; // Exit silently
+    }
+
+    const lockId = lockResult.lockId;
+
     try {
-      const result = await executeTickLogic(ctx, "cron");
-      console.log("[TICK] ✅ Tick completed successfully", result);
-      return result;
+      // Get tick number
+      const tickNumber = await ctx.runQuery(internal.tick.getNextTickNumber);
+      console.log(`Executing tick #${tickNumber}`);
+
+      // Step 1: Bot purchases
+      console.log("[TICK] Step 1: Bot purchases...");
+      const botResult = await ctx.runAction(internal.tick.runBotPurchasesAction);
+      const botPurchases = botResult.purchases || [];
+
+      // Step 1.5: Deduct employee costs
+      console.log("[TICK] Step 1.5: Employee costs...");
+      await ctx.runMutation(internal.tick.deductEmployeeCostsMutation);
+
+      // Step 2: Stock prices
+      console.log("[TICK] Step 2: Stock prices...");
+      const stockPriceUpdates: any = await ctx.runMutation(internal.stocks.updateStockPrices);
+
+      // Step 3: Crypto prices
+      console.log("[TICK] Step 3: Crypto prices...");
+      const cryptoPriceUpdates: any = await ctx.runMutation(internal.crypto.updateCryptoPrices);
+
+      // Step 4: Loan interest
+      console.log("[TICK] Step 4: Loan interest...");
+      let loanCursor: string | undefined;
+      for (let i = 0; i < LOAN_INTEREST_MAX_BATCHES; i++) {
+        const result: any = await ctx.runMutation(internal.tick.applyLoanInterestMutation, {
+          limit: LOAN_INTEREST_BATCH_SIZE,
+          cursor: loanCursor,
+        });
+        if (!result || !result.cursor) break;
+        loanCursor = result.cursor;
+      }
+
+      // Step 5: Net worth
+      console.log("[TICK] Step 5: Net worth...");
+      let netWorthCursor: string | undefined;
+      for (let i = 0; i < NET_WORTH_MAX_BATCHES; i++) {
+        const result: any = await ctx.runMutation(internal.tick.updatePlayerNetWorthMutation, {
+          limit: NET_WORTH_BATCH_SIZE,
+          cursor: netWorthCursor,
+        });
+        if (!result || !result.cursor) break;
+        netWorthCursor = result.cursor;
+      }
+
+      // Step 6: Record history
+      await ctx.runMutation(internal.tick.recordTickHistoryMutation, {
+        tickNumber,
+        botPurchases: botPurchases,
+        cryptoPriceUpdates: cryptoPriceUpdates || [],
+        totalBudgetSpent: botPurchases.reduce((sum: any, p: any) => sum + p.totalPrice, 0),
+      });
+
+      console.log(`[TICK] Tick #${tickNumber} completed successfully`);
+
     } catch (error) {
       console.error("[TICK] ❌ Tick failed", error);
-      throw error;
+    } finally {
+      // Always release lock
+      await ctx.runMutation(internal.tick.releaseTickLockMutation, { lockId });
     }
   },
 });
 
-// Internal mutation wrapper for manual tick execution
-export const executeManualTickMutation = internalMutation({
-  handler: async (
-    ctx,
-  ): Promise<{
-    tickNumber: number;
-    tickId: Id<"tickHistory">;
-    botPurchases: number;
-    stockUpdates: number;
-    cryptoUpdates: number;
-  }> => {
-    console.log("[TICK] Executing manual tick via mutation...");
-    try {
-      const result = await executeTickLogic(ctx, "manual");
-      console.log("[TICK] ✅ Manual tick completed successfully", result);
-      return result;
-    } catch (error) {
-      console.error("[TICK] ❌ Manual tick failed", error);
-      throw error;
-    }
-  },
-});
+// Legacy mutation - kept for reference but replaced by action
+// export const executeTickLegacy = internalMutation({ ... });
+
 
 // Manual trigger for testing (can be called from admin dashboard)
 export const manualTick = action({
-  handler: async (
-    ctx,
-  ): Promise<{
-    tickNumber: number;
-    tickId: Id<"tickHistory">;
-    botPurchases: number;
-    stockUpdates: number;
-    cryptoUpdates: number;
-  }> => {
+  handler: async (ctx) => {
     console.log("[TICK] Manual tick triggered from client");
     try {
-      const result = await ctx.runMutation(internal.tick.executeManualTickMutation);
-      console.log("[TICK] ✅ Manual tick completed successfully", result);
-      return result;
+      await ctx.runAction(internal.tick.executeTick);
+      console.log("[TICK] ✅ Manual tick completed successfully");
+      return { success: true };
     } catch (error) {
       console.error("[TICK] ❌ Manual tick failed", error);
       throw error;
@@ -361,7 +385,7 @@ export const manualTick = action({
  * - All batches execute one after another each tick
  */
 
-const OPERATIONS_PER_BATCH = 31999; // Max operations per batch to prevent overload
+const OPERATIONS_PER_BATCH = 32000; // Max operations per batch to prevent overload
 const BUDGET_PER_COMPANY = 50000000; // $500,000 in cents
 const MAX_PRODUCT_PRICE = 5000000; // $50,000 max
 
@@ -372,6 +396,7 @@ async function calculateCompanyPurchases(
   products: any[],
 ) {
   const purchases: Array<{
+    type: "purchase";
     productId: any;
     companyId: any;
     quantity: number;
@@ -384,26 +409,27 @@ async function calculateCompanyPurchases(
   // Filter valid products
   const validProducts = products.filter((p: any) => {
     const hasValidPrice = p.price && p.price > 0 && isFinite(p.price);
-    const withinMaxPrice = p.price <= MAX_PRODUCT_PRICE;
-    return hasValidPrice && withinMaxPrice;
+    // const withinMaxPrice = p.price <= MAX_PRODUCT_PRICE;
+    return hasValidPrice; // && withinMaxPrice;
   });
 
+  // Calculate budget: (balance / 5) + accumulated value
+  const balance = company.balance || 0;
+  const accumulator = company.botPurchaseAccumulator || 0;
+  const budget = Math.floor(balance / 5) + accumulator;
+
   if (validProducts.length === 0) {
-    return purchases;
+    return { purchases, newAccumulator: budget };
   }
 
-  // Equal budget split across all valid products
-  const budgetPerProduct = Math.floor(BUDGET_PER_COMPANY / validProducts.length);
-  let remainingBudget = BUDGET_PER_COMPANY;
+  let remainingBudget = budget;
 
+  // Try to buy products with the available budget
   for (const product of validProducts) {
-    if (remainingBudget <= 0) break;
+    if (remainingBudget < product.price) continue;
 
-    const allocation = Math.min(budgetPerProduct, remainingBudget);
-    if (allocation < product.price) continue;
-
-    // Calculate quantity
-    let quantity = Math.floor(allocation / product.price);
+    // Calculate max quantity we can afford
+    let quantity = Math.floor(remainingBudget / product.price);
 
     // Apply stock constraint
     if (product.stock !== undefined && product.stock !== null) {
@@ -428,6 +454,7 @@ async function calculateCompanyPurchases(
     }
 
     purchases.push({
+      type: "purchase",
       productId: product._id,
       companyId: company._id,
       quantity,
@@ -440,7 +467,7 @@ async function calculateCompanyPurchases(
     remainingBudget -= totalPrice;
   }
 
-  return purchases;
+  return { purchases, newAccumulator: remainingBudget };
 }
 
 // Build or rebuild all purchase batches dynamically
@@ -455,16 +482,8 @@ async function buildPurchaseBatches(ctx: any) {
     return [];
   }
 
-  // Calculate all purchases across all companies
-  const allPurchases: Array<{
-    productId: any;
-    companyId: any;
-    quantity: number;
-    totalPrice: number;
-    newStock: number | undefined;
-    productTotalSold: number;
-    productTotalRevenue: number;
-  }> = [];
+  // Calculate all operations across all companies
+  const allOperations: Array<any> = [];
 
   for (const company of allCompanies) {
     try {
@@ -474,38 +493,45 @@ async function buildPurchaseBatches(ctx: any) {
         .withIndex("by_companyId", (q: any) => q.eq("companyId", company._id))
         .collect();
 
-      if (products.length === 0) continue;
-
       // Calculate purchases for this company
-      const companyPurchases = await calculateCompanyPurchases(ctx, company, products);
-      allPurchases.push(...companyPurchases);
+      const { purchases, newAccumulator } = await calculateCompanyPurchases(ctx, company, products);
+      
+      if (purchases.length > 0) {
+        allOperations.push(...purchases);
+      }
+      
+      // Add accumulator update operation
+      if (newAccumulator !== (company.botPurchaseAccumulator || 0)) {
+          allOperations.push({
+              type: "accumulator",
+              companyId: company._id,
+              newAccumulator
+          });
+      }
 
-      console.log(`[BOT] Company ${company.name}: ${companyPurchases.length} purchases`);
+      console.log(`[BOT] Company ${company.name}: ${purchases.length} purchases, accumulator: ${newAccumulator}`);
     } catch (error) {
       console.error(`[BOT] Error processing company ${company.name}:`, error);
     }
   }
 
-  console.log(`[BOT] Total purchases calculated: ${allPurchases.length}`);
+  console.log(`[BOT] Total operations calculated: ${allOperations.length}`);
 
   // Split into batches of OPERATIONS_PER_BATCH
-  // Each purchase = multiple operations (read product, update product, read company, update company, insert sale)
-  // To be safe, we'll consider each purchase as ~5 operations
-  const purchasesPerBatch = Math.floor(OPERATIONS_PER_BATCH / 5);
   const batches: Array<Array<any>> = [];
 
-  for (let i = 0; i < allPurchases.length; i += purchasesPerBatch) {
-    const batch = allPurchases.slice(i, i + purchasesPerBatch);
+  for (let i = 0; i < allOperations.length; i += OPERATIONS_PER_BATCH) {
+    const batch = allOperations.slice(i, i + OPERATIONS_PER_BATCH);
     batches.push(batch);
   }
 
-  console.log(`[BOT] Created ${batches.length} batches (max ${purchasesPerBatch} purchases per batch)`);
+  console.log(`[BOT] Created ${batches.length} batches (max ${OPERATIONS_PER_BATCH} operations per batch)`);
 
   return batches;
 }
 
-// Execute a single batch of purchases
-async function executePurchaseBatch(ctx: any, purchases: any[]) {
+// Execute a single batch of operations
+async function executePurchaseBatch(ctx: any, operations: any[]) {
   const now = Date.now();
   let executedCount = 0;
   const executedPurchases: Array<{
@@ -515,8 +541,19 @@ async function executePurchaseBatch(ctx: any, purchases: any[]) {
     totalPrice: number;
   }> = [];
 
-  for (const purchase of purchases) {
+  for (const op of operations) {
     try {
+      if (op.type === "accumulator") {
+        await ctx.db.patch(op.companyId, {
+          botPurchaseAccumulator: op.newAccumulator,
+          updatedAt: now,
+        });
+        continue;
+      }
+
+      // Handle purchase operation
+      const purchase = op;
+
       // Verify company exists
       const company = await ctx.db.get(purchase.companyId);
       if (!company) continue;
@@ -559,7 +596,7 @@ async function executePurchaseBatch(ctx: any, purchases: any[]) {
         totalPrice: purchase.totalPrice,
       });
     } catch (error) {
-      console.error(`[BOT] Error executing purchase:`, error);
+      console.error(`[BOT] Error executing operation:`, error);
     }
   }
 
@@ -952,69 +989,9 @@ async function applyLoanInterest(
 // INTERNAL MUTATIONS - Each step isolated to prevent read limit accumulation
 // ============================================================================
 
-// Main mutation to execute all bot purchases in batches
-export const executeBotPurchasesInBatches = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    console.log("[BOT] Starting bot purchase batch execution...");
-
-    try {
-      // Build all purchase batches dynamically
-      const batches = await buildPurchaseBatches(ctx);
-
-      if (batches.length === 0) {
-        console.log("[BOT] No purchases to execute");
-        return {
-          batchesExecuted: 0,
-          totalPurchases: 0,
-          purchases: [],
-        };
-      }
-
-      console.log(`[BOT] Executing ${batches.length} batches sequentially...`);
-
-      let totalPurchases = 0;
-      const allExecutedPurchases: Array<{
-        productId: any;
-        companyId: any;
-        quantity: number;
-        totalPrice: number;
-      }> = [];
-
-      // Execute each batch sequentially
-      for (let i = 0; i < batches.length; i++) {
-        const batch = batches[i];
-        console.log(`[BOT] Executing batch ${i + 1}/${batches.length} (${batch.length} purchases)...`);
-
-        try {
-          const result = await executePurchaseBatch(ctx, batch);
-          totalPurchases += result.executedCount;
-          allExecutedPurchases.push(...result.purchases);
-
-          console.log(`[BOT] Batch ${i + 1} completed: ${result.executedCount}/${batch.length} purchases executed`);
-        } catch (error) {
-          console.error(`[BOT] Error executing batch ${i + 1}:`, error);
-          // Continue with next batch even if this one fails
-        }
-      }
-
-      console.log(`[BOT] All batches completed: ${totalPurchases} total purchases across ${batches.length} batches`);
-
-      return {
-        batchesExecuted: batches.length,
-        totalPurchases,
-        purchases: allExecutedPurchases,
-      };
-    } catch (error) {
-      console.error("[BOT] Fatal error in batch execution:", error);
-      return {
-        batchesExecuted: 0,
-        totalPurchases: 0,
-        purchases: [],
-      };
-    }
-  },
-});
+// Main mutation to execute all bot purchases in batches - DEPRECATED
+// Replaced by runBotPurchasesAction
+// export const executeBotPurchasesInBatches = ...
 
 export const deductEmployeeCostsMutation = internalMutation({
   handler: async (ctx) => {
