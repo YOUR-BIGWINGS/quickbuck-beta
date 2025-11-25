@@ -23,7 +23,7 @@
 import { v } from "convex/values";
 import { mutation, internalMutation, query, internalAction, internalQuery, action } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { Id, Doc } from "./_generated/dataModel";
+import { type Id, type Doc } from "./_generated/dataModel";
 
 const LOAN_INTEREST_BATCH_SIZE = 40;
 const LOAN_INTEREST_MAX_BATCHES = 3;

@@ -100,8 +100,8 @@ http.route({
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     try {
-      // Call the internal tick mutation
-      const result = await ctx.runMutation(internal.tick.executeTick);
+      // Call the internal tick action
+      const result = await ctx.runAction(internal.tick.executeTick);
       
       return new Response(JSON.stringify({
         success: true,
