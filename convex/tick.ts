@@ -166,7 +166,8 @@ export const getNextTickNumber = internalQuery({
 // ============================================================================
 
 export const planBotPurchases = internalQuery({
-  handler: async (ctx) => {
+  args: { seed: v.number() },
+  handler: async (ctx, args) => {
     console.log("[BOT] Planning purchase batches...");
 
     // Fetch all companies
@@ -189,7 +190,7 @@ export const planBotPurchases = internalQuery({
           .collect();
 
         // Calculate purchases for this company
-        const { purchases, newAccumulator } = await calculateCompanyPurchases(ctx, company, products);
+        const { purchases, newAccumulator } = await calculateCompanyPurchases(ctx, company, products, args.seed);
         
         if (purchases.length > 0) {
           allOperations.push(...purchases);
@@ -224,8 +225,9 @@ export const runBotPurchasesAction = internalAction({
   handler: async (ctx) => {
     console.log("[BOT] Starting bot purchase action...");
     
+    const seed = Math.random();
     // 1. Plan purchases (Query)
-    const allOperations = await ctx.runQuery(internal.tick.planBotPurchases);
+    const allOperations = await ctx.runQuery(internal.tick.planBotPurchases, { seed });
     
     if (!allOperations || allOperations.length === 0) {
       console.log("[BOT] No operations to execute");
@@ -394,6 +396,7 @@ async function calculateCompanyPurchases(
   ctx: any,
   company: any,
   products: any[],
+  seed: number,
 ) {
   const purchases: Array<{
     type: "purchase";
@@ -413,10 +416,21 @@ async function calculateCompanyPurchases(
     return hasValidPrice; // && withinMaxPrice;
   });
 
-  // Calculate budget: (balance / 5) + accumulated value
+  // Calculate budget: (balance / ratio) + accumulated value
+  // Generate pseudo-random ratio between 15 and 30 using seed and company ID
+  const str = seed.toString() + company._id;
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  const randomVal = Math.abs(hash) / 2147483647;
+  const ratio = Math.floor(randomVal * (30 - 15 + 1)) + 15;
+
   const balance = company.balance || 0;
   const accumulator = company.botPurchaseAccumulator || 0;
-  const budget = Math.floor(balance / 5) + accumulator;
+  const budget = Math.floor(balance / ratio) + accumulator;
 
   if (validProducts.length === 0) {
     return { purchases, newAccumulator: budget };
