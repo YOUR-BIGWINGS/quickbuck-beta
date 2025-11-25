@@ -161,6 +161,27 @@ export const getNextTickNumber = internalQuery({
   },
 });
 
+// Helper queries for authentication in manualTick action
+export const getUserByToken = internalQuery({
+  args: { tokenIdentifier: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", args.tokenIdentifier))
+      .unique();
+  },
+});
+
+export const getPlayerByUserId = internalQuery({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .unique();
+  },
+});
+
 // ============================================================================
 // BOT LOGIC - ACTION BASED
 // ============================================================================
@@ -357,9 +378,40 @@ export const executeTick = internalAction({
 
 
 // Manual trigger for testing (can be called from admin dashboard)
+// SECURITY: Only admins can trigger manual ticks
 export const manualTick = action({
   handler: async (ctx) => {
     console.log("[TICK] Manual tick triggered from client");
+    
+    // Security check: Verify user is authenticated and is admin
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    // Get user and player
+    const user = await ctx.runQuery(internal.tick.getUserByToken, {
+      tokenIdentifier: identity.subject,
+    });
+    
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const player = await ctx.runQuery(internal.tick.getPlayerByUserId, {
+      userId: user._id,
+    });
+
+    if (!player) {
+      throw new Error("Player not found");
+    }
+
+    // Check if player has admin role
+    if (player.role !== "admin") {
+      console.error(`[TICK] ❌ Unauthorized access attempt by player ${player._id} with role ${player.role}`);
+      throw new Error("Unauthorized: Admin access required");
+    }
+
     try {
       await ctx.runAction(internal.tick.executeTick);
       console.log("[TICK] ✅ Manual tick completed successfully");

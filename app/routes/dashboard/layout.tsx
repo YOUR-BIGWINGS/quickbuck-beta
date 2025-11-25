@@ -14,7 +14,6 @@ import {
   WarningModal,
   ModeratorMessageModal,
 } from "~/components/account-status";
-import { MaintenanceCheck } from "~/components/maintenance-check";
 import { useState } from "react";
 import { useMutation } from "convex/react";
 import type { Id } from "convex/_generated/dataModel";
@@ -87,9 +86,6 @@ export default function DashboardLayout() {
         } as React.CSSProperties
       }
     >
-      {/* Check if maintenance mode is enabled and redirect if necessary */}
-      <MaintenanceCheck />
-
       {/* Show moderator messages modal if player has unread messages */}
       {hasUnreadMessages && (
         <ModeratorMessageModal

@@ -5,6 +5,7 @@ import { api } from "convex/_generated/api";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { AlertCircle } from "lucide-react";
 
 export default function AdminTickPage() {
   const [isRunning, setIsRunning] = useState(false);
@@ -13,8 +14,18 @@ export default function AdminTickPage() {
 
   const manualTick = useAction(api.tick.manualTick);
   const tickHistory = useQuery(api.tick.getTickHistory, {});
+  const moderationAccess = useQuery(api.moderation.checkModerationAccess);
+  const currentPlayer = useQuery(api.moderation.getCurrentPlayer);
+
+  const isAdmin = moderationAccess?.role === "admin";
+  const isLoading = moderationAccess === undefined || currentPlayer === undefined;
 
   const handleTick = async () => {
+    if (!isAdmin) {
+      setError("Unauthorized: Admin access required");
+      return;
+    }
+
     try {
       setIsRunning(true);
       setError("");
@@ -31,6 +42,20 @@ export default function AdminTickPage() {
     <div className="flex flex-1 flex-col p-6">
       <h1 className="text-3xl font-bold mb-6">Admin - Manual Tick Trigger</h1>
 
+      {!isLoading && !isAdmin && (
+        <Card className="mb-6 border-yellow-400 bg-yellow-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-yellow-800">
+              <AlertCircle className="h-5 w-5" />
+              <p className="font-semibold">Unauthorized Access</p>
+            </div>
+            <p className="text-sm text-yellow-700 mt-2">
+              You do not have permission to trigger manual ticks. This feature is restricted to administrators only.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-6">
         {/* Tick Trigger Card */}
         <Card>
@@ -40,11 +65,11 @@ export default function AdminTickPage() {
           <CardContent className="space-y-4">
             <Button
               onClick={handleTick}
-              disabled={isRunning}
+              disabled={isRunning || !isAdmin || isLoading}
               size="lg"
               className="w-full"
             >
-              {isRunning ? "Running..." : "Execute Tick"}
+              {isRunning ? "Running..." : isLoading ? "Loading..." : !isAdmin ? "Unauthorized" : "Execute Tick"}
             </Button>
 
             {error && (

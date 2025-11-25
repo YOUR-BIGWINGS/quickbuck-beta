@@ -22,6 +22,7 @@ import { useEffect } from "react";
 import { Toaster } from "sonner";
 import "number-flow";
 import { ThemeProvider } from "./contexts/theme-context";
+import { MaintenanceCheck } from "./components/maintenance-check";
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
 
@@ -135,6 +136,7 @@ function AppContent({ loaderData }: Route.ComponentProps) {
     >
       <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
         <ThemeProvider>
+          <MaintenanceCheck />
           <GlobalAlertBanner />
           <CompanyOfferNotifications />
           <Toaster />
