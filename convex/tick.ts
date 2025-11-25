@@ -468,7 +468,18 @@ async function calculateCompanyPurchases(
     return hasValidPrice; // && withinMaxPrice;
   });
 
-  // Calculate budget: (balance / ratio) + accumulated value
+  // Calculate total inventory value for the company
+  // Inventory value = sum of (stock * productionCost) for all products
+  const inventoryValue = products.reduce((sum: number, p: any) => {
+    if ((p.stock ?? 0) > 0 && p.price && p.price > 0) {
+      const productionCost = Math.floor(p.price * (p.productionCostPercentage ?? 0.35));
+      return sum + (p.stock * productionCost);
+    }
+    return sum;
+  }, 0);
+
+  // Calculate budget: ((balance + inventoryValue) / ratio) + accumulated value
+  // This accounts for both cash and inventory assets when determining purchasing power
   // Generate pseudo-random ratio between 15 and 30 using seed and company ID
   const str = seed.toString() + company._id;
   let hash = 0;
@@ -482,7 +493,13 @@ async function calculateCompanyPurchases(
 
   const balance = company.balance || 0;
   const accumulator = company.botPurchaseAccumulator || 0;
-  const budget = Math.floor(balance / ratio) + accumulator;
+  const totalAssets = balance + inventoryValue;
+  const budget = Math.floor(totalAssets / ratio) + accumulator;
+
+  // Log budget calculation details for debugging (only if company has significant assets)
+  if (totalAssets > 100000) { // $1000+
+    console.log(`[BOT] Company ${company.name}: balance=$${(balance/100).toFixed(2)}, inventory=$${(inventoryValue/100).toFixed(2)}, ratio=${ratio}, budget=$${(budget/100).toFixed(2)}`);
+  }
 
   if (validProducts.length === 0) {
     return { purchases, newAccumulator: budget };
