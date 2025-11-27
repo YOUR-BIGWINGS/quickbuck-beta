@@ -284,12 +284,13 @@ export function ThemeSettings() {
 
           <Separator />
 
-          {/* Light Preset Themes */}
+          {/* Light Themes (built-in + custom) */}
           <div className="space-y-3">
             <Label className="text-base font-semibold">Light Themes</Label>
             <div className="grid gap-3">
+              {/* Built-in light themes */}
               {lightThemes
-                .filter((t) => t.id !== "default" && !t.id.startsWith("custom-"))
+                .filter((t) => t.id !== "default")
                 .map((theme) => (
                   <ThemeCard
                     key={theme.id}
@@ -298,17 +299,149 @@ export function ThemeSettings() {
                     onSelect={() => handlePresetChange(theme.id)}
                   />
                 ))}
+              {/* Custom light themes */}
+              {customThemes?.filter((ct) => ct.mode === "light").map((ct) => {
+                const themeColors = generateCustomThemeColors(ct.primaryColor, ct.secondaryColor, ct.mode);
+                const isCurrentlyEditing = editingTheme?._id === ct._id;
+                
+                if (isCurrentlyEditing) {
+                  return (
+                    <div key={ct._id} className="rounded-lg border-2 border-primary p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold">Edit Theme</span>
+                        <Button variant="ghost" size="icon" onClick={handleCancelEdit}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-name">Name</Label>
+                          <Input
+                            id="edit-name"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            placeholder="Theme name"
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-mode">Mode</Label>
+                          <Select value={editMode} onValueChange={(v: "light" | "dark") => setEditMode(v)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="light">Light</SelectItem>
+                              <SelectItem value="dark">Dark</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <Label>Primary</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                type="color"
+                                value={editPrimaryColor}
+                                onChange={(e) => setEditPrimaryColor(e.target.value)}
+                                className="h-10 w-14 cursor-pointer p-1"
+                              />
+                              <Input
+                                value={editPrimaryColor}
+                                onChange={(e) => setEditPrimaryColor(e.target.value)}
+                                className="flex-1"
+                              />
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label>Secondary</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                type="color"
+                                value={editSecondaryColor}
+                                onChange={(e) => setEditSecondaryColor(e.target.value)}
+                                className="h-10 w-14 cursor-pointer p-1"
+                              />
+                              <Input
+                                value={editSecondaryColor}
+                                onChange={(e) => setEditSecondaryColor(e.target.value)}
+                                className="flex-1"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex gap-2 pt-2">
+                          <Button onClick={handleSaveEdit} disabled={isEditing} className="flex-1">
+                            {isEditing ? "Saving..." : "Save Changes"}
+                          </Button>
+                          <Button variant="outline" onClick={handleCancelEdit}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                
+                return (
+                  <div key={ct._id} className="relative">
+                    <ThemeCard
+                      theme={{
+                        id: ct.id as ThemePreset,
+                        name: ct.name,
+                        mode: ct.mode,
+                        colors: themeColors,
+                      }}
+                      isSelected={preset === ct.id}
+                      onSelect={() => handlePresetChange(ct.id as ThemePreset)}
+                    />
+                    {isAdmin && (
+                      <div className="absolute right-2 top-2 flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStartEdit(ct);
+                          }}
+                          title="Edit theme"
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteTheme(ct._id, ct.name);
+                          }}
+                          title="Delete theme"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
           <Separator />
 
-          {/* Dark Preset Themes */}
+          {/* Dark Themes (built-in + custom) */}
           <div className="space-y-3">
             <Label className="text-base font-semibold">Dark Themes</Label>
             <div className="grid gap-3">
+              {/* Built-in dark themes */}
               {darkThemes
-                .filter((t) => t.id !== "dark-default" && !t.id.startsWith("custom-"))
+                .filter((t) => t.id !== "dark-default")
                 .map((theme) => (
                 <ThemeCard
                   key={theme.id}
@@ -317,150 +450,139 @@ export function ThemeSettings() {
                   onSelect={() => handlePresetChange(theme.id)}
                 />
               ))}
-            </div>
-          </div>
-
-          {/* Custom Themes (Admin can edit/delete) */}
-          {customThemes && customThemes.length > 0 && (
-            <>
-              <Separator />
-              <div className="space-y-3">
-                <Label className="text-base font-semibold">Custom Themes</Label>
-                <div className="grid gap-3">
-                  {customThemes.map((ct) => {
-                    const themeColors = generateCustomThemeColors(ct.primaryColor, ct.secondaryColor, ct.mode);
-                    const isCurrentlyEditing = editingTheme?._id === ct._id;
-                    
-                    if (isCurrentlyEditing) {
-                      return (
-                        <div key={ct._id} className="rounded-lg border-2 border-primary p-4 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <span className="font-semibold">Edit Theme</span>
-                            <Button variant="ghost" size="icon" onClick={handleCancelEdit}>
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                          
-                          <div className="space-y-3">
-                            <div className="space-y-2">
-                              <Label htmlFor="edit-name">Name</Label>
+              {/* Custom dark themes */}
+              {customThemes?.filter((ct) => ct.mode === "dark").map((ct) => {
+                const themeColors = generateCustomThemeColors(ct.primaryColor, ct.secondaryColor, ct.mode);
+                const isCurrentlyEditing = editingTheme?._id === ct._id;
+                
+                if (isCurrentlyEditing) {
+                  return (
+                    <div key={ct._id} className="rounded-lg border-2 border-primary p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold">Edit Theme</span>
+                        <Button variant="ghost" size="icon" onClick={handleCancelEdit}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-name">Name</Label>
+                          <Input
+                            id="edit-name"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            placeholder="Theme name"
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-mode">Mode</Label>
+                          <Select value={editMode} onValueChange={(v: "light" | "dark") => setEditMode(v)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="light">Light</SelectItem>
+                              <SelectItem value="dark">Dark</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <Label>Primary</Label>
+                            <div className="flex gap-2">
                               <Input
-                                id="edit-name"
-                                value={editName}
-                                onChange={(e) => setEditName(e.target.value)}
-                                placeholder="Theme name"
+                                type="color"
+                                value={editPrimaryColor}
+                                onChange={(e) => setEditPrimaryColor(e.target.value)}
+                                className="h-10 w-14 cursor-pointer p-1"
+                              />
+                              <Input
+                                value={editPrimaryColor}
+                                onChange={(e) => setEditPrimaryColor(e.target.value)}
+                                className="flex-1"
                               />
                             </div>
-                            
-                            <div className="space-y-2">
-                              <Label htmlFor="edit-mode">Mode</Label>
-                              <Select value={editMode} onValueChange={(v: "light" | "dark") => setEditMode(v)}>
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="light">Light</SelectItem>
-                                  <SelectItem value="dark">Dark</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="space-y-2">
-                                <Label>Primary</Label>
-                                <div className="flex gap-2">
-                                  <Input
-                                    type="color"
-                                    value={editPrimaryColor}
-                                    onChange={(e) => setEditPrimaryColor(e.target.value)}
-                                    className="h-10 w-14 cursor-pointer p-1"
-                                  />
-                                  <Input
-                                    value={editPrimaryColor}
-                                    onChange={(e) => setEditPrimaryColor(e.target.value)}
-                                    className="flex-1"
-                                  />
-                                </div>
-                              </div>
-                              
-                              <div className="space-y-2">
-                                <Label>Secondary</Label>
-                                <div className="flex gap-2">
-                                  <Input
-                                    type="color"
-                                    value={editSecondaryColor}
-                                    onChange={(e) => setEditSecondaryColor(e.target.value)}
-                                    className="h-10 w-14 cursor-pointer p-1"
-                                  />
-                                  <Input
-                                    value={editSecondaryColor}
-                                    onChange={(e) => setEditSecondaryColor(e.target.value)}
-                                    className="flex-1"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <div className="flex gap-2 pt-2">
-                              <Button onClick={handleSaveEdit} disabled={isEditing} className="flex-1">
-                                {isEditing ? "Saving..." : "Save Changes"}
-                              </Button>
-                              <Button variant="outline" onClick={handleCancelEdit}>
-                                Cancel
-                              </Button>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label>Secondary</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                type="color"
+                                value={editSecondaryColor}
+                                onChange={(e) => setEditSecondaryColor(e.target.value)}
+                                className="h-10 w-14 cursor-pointer p-1"
+                              />
+                              <Input
+                                value={editSecondaryColor}
+                                onChange={(e) => setEditSecondaryColor(e.target.value)}
+                                className="flex-1"
+                              />
                             </div>
                           </div>
                         </div>
-                      );
-                    }
-                    
-                    return (
-                      <div key={ct._id} className="relative">
-                        <ThemeCard
-                          theme={{
-                            id: ct.id as ThemePreset,
-                            name: ct.name,
-                            mode: ct.mode,
-                            colors: themeColors,
-                          }}
-                          isSelected={preset === ct.id}
-                          onSelect={() => handlePresetChange(ct.id as ThemePreset)}
-                        />
-                        {isAdmin && (
-                          <div className="absolute right-2 top-2 flex gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleStartEdit(ct);
-                              }}
-                              title="Edit theme"
-                            >
-                              <Edit className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-destructive hover:text-destructive"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteTheme(ct._id, ct.name);
-                              }}
-                              title="Delete theme"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        )}
+                        
+                        <div className="flex gap-2 pt-2">
+                          <Button onClick={handleSaveEdit} disabled={isEditing} className="flex-1">
+                            {isEditing ? "Saving..." : "Save Changes"}
+                          </Button>
+                          <Button variant="outline" onClick={handleCancelEdit}>
+                            Cancel
+                          </Button>
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </>
-          )}
+                    </div>
+                  );
+                }
+                
+                return (
+                  <div key={ct._id} className="relative">
+                    <ThemeCard
+                      theme={{
+                        id: ct.id as ThemePreset,
+                        name: ct.name,
+                        mode: ct.mode,
+                        colors: themeColors,
+                      }}
+                      isSelected={preset === ct.id}
+                      onSelect={() => handlePresetChange(ct.id as ThemePreset)}
+                    />
+                    {isAdmin && (
+                      <div className="absolute right-2 top-2 flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStartEdit(ct);
+                          }}
+                          title="Edit theme"
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteTheme(ct._id, ct.name);
+                          }}
+                          title="Delete theme"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
           </div>
         </div>
       </DialogContent>
