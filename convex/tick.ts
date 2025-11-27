@@ -700,10 +700,11 @@ async function deductEmployeeCosts(ctx: any) {
   const SALES_PER_COMPANY = 20;
 
   // Use indexed query by updatedAt to process companies in rotation
-  // This ensures all companies get processed eventually
+  // This ensures all companies get processed eventually (oldest updated first)
   const allCompanies = await ctx.db
     .query("companies")
-    .order("asc") // Order by _creationTime ascending (oldest first)
+    .withIndex("by_updatedAt")
+    .order("asc") // Order by updatedAt ascending (oldest updated first)
     .take(COMPANIES_PER_TICK);
 
   let companiesProcessed = 0;
@@ -819,9 +820,10 @@ async function processAutoRestock(ctx: any) {
   const COMPANIES_PER_TICK = 10;
   const PRODUCTS_PER_COMPANY = 20;
 
-  // Get companies ordered by updatedAt to ensure rotation
+  // Get companies ordered by updatedAt to ensure rotation (oldest updated first)
   const companies = await ctx.db
     .query("companies")
+    .withIndex("by_updatedAt")
     .order("asc")
     .take(COMPANIES_PER_TICK);
 

@@ -34,6 +34,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const storedPreset = localStorage.getItem("themePreset") as ThemePreset;
+      const storedColors = localStorage.getItem("themeColors");
+      const storedMode = localStorage.getItem("theme") as ThemeMode;
       const initialPreset = storedPreset || "default";
 
       // Get the theme and use its defined mode (not user preference)
@@ -44,6 +46,23 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         setModeState(lockedMode);
         localStorage.setItem("theme", lockedMode);
         applyThemeColors(theme.colors, lockedMode);
+      } else if (storedColors && storedMode) {
+        // Custom theme - use stored colors and mode
+        try {
+          const colors = JSON.parse(storedColors);
+          setPresetState(initialPreset);
+          setModeState(storedMode);
+          applyThemeColors(colors, storedMode);
+        } catch (parseError) {
+          console.error("Error parsing stored theme colors:", parseError);
+          // Fallback to default theme
+          const defaultTheme = themes[0];
+          const lockedMode = defaultTheme.mode;
+          setPresetState(defaultTheme.id);
+          setModeState(lockedMode);
+          localStorage.setItem("theme", lockedMode);
+          applyThemeColors(defaultTheme.colors, lockedMode);
+        }
       } else {
         // Fallback to default theme
         const defaultTheme = themes[0];
@@ -67,6 +86,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       if (themeColors && themeMode) {
         setModeState(themeMode);
         localStorage.setItem("theme", themeMode);
+        // Store colors for custom themes so they persist on page reload
+        localStorage.setItem("themeColors", JSON.stringify(themeColors));
         applyThemeColors(themeColors, themeMode);
       } else {
         // Otherwise look up the theme
@@ -76,6 +97,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
           const lockedMode = theme.mode;
           setModeState(lockedMode);
           localStorage.setItem("theme", lockedMode);
+          // Clear stored colors for built-in themes (not needed)
+          localStorage.removeItem("themeColors");
           applyThemeColors(theme.colors, lockedMode);
         }
       }

@@ -87,7 +87,8 @@ export default defineSchema({
   })
     .index("by_ownerId", ["ownerId"])
     .index("by_isPublic", ["isPublic"])
-    .index("by_marketCap", ["marketCap"]),
+    .index("by_marketCap", ["marketCap"])
+    .index("by_updatedAt", ["updatedAt"]),
 
   products: defineTable({
     companyId: v.id("companies"),

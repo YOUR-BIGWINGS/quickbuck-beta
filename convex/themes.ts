@@ -199,3 +199,56 @@ export const deleteCustomTheme = mutation({
     return { success: true };
   },
 });
+
+// Mutation: Update a custom theme (admin only)
+export const updateCustomTheme = mutation({
+  args: {
+    themeDocId: v.id("customThemes"),
+    name: v.optional(v.string()),
+    mode: v.optional(v.union(v.literal("light"), v.literal("dark"))),
+    primaryColor: v.optional(v.string()),
+    secondaryColor: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Check if user is admin
+    const { isAdmin } = await checkIsAdmin(ctx);
+    if (!isAdmin) {
+      throw new Error("Only admins can update custom themes");
+    }
+
+    const existingTheme = await ctx.db.get(args.themeDocId);
+    if (!existingTheme) {
+      throw new Error("Theme not found");
+    }
+
+    // If name is being changed, check for duplicates
+    if (args.name && args.name !== existingTheme.name) {
+      const duplicate = await ctx.db
+        .query("customThemes")
+        .filter((q) => q.eq(q.field("name"), args.name))
+        .first();
+
+      if (duplicate) {
+        throw new Error("A theme with this name already exists");
+      }
+    }
+
+    // Build update object
+    const updates: any = {
+      updatedAt: Date.now(),
+    };
+
+    if (args.name !== undefined) updates.name = args.name;
+    if (args.mode !== undefined) updates.mode = args.mode;
+    if (args.primaryColor !== undefined) updates.primaryColor = args.primaryColor;
+    if (args.secondaryColor !== undefined) updates.secondaryColor = args.secondaryColor;
+
+    // Update the id if name changed
+    if (args.name) {
+      updates.id = `custom-${args.name.toLowerCase().replace(/\s+/g, "-")}-${existingTheme.createdAt}`;
+    }
+
+    await ctx.db.patch(args.themeDocId, updates);
+    return { success: true };
+  },
+});
