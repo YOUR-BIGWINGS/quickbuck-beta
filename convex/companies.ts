@@ -504,6 +504,28 @@ const AVAILABLE_EMPLOYEES = [
     tickCostPercentage: 5,
     description: "Increases business stock by 10%",
   },
+  {
+    id: "employee_product_manager_junior",
+    name: "Junior Product Manager",
+    bonusType: "auto_restock_junior" as const,
+    bonusPercentage: 0, // No stock boost
+    autoRestockMin: 5, // 5% of max affordable
+    autoRestockMax: 10, // 10% of max affordable
+    upfrontCost: 100000000, // $1,000,000 in cents
+    tickCostPercentage: 5, // 5% of income per tick (slightly lower for junior)
+    description: "Automatically restocks 5-10% of max affordable inventory each tick",
+  },
+  {
+    id: "employee_product_manager_senior",
+    name: "Senior Product Manager",
+    bonusType: "auto_restock_senior" as const,
+    bonusPercentage: 0, // No stock boost
+    autoRestockMin: 30, // 30% of max affordable
+    autoRestockMax: 50, // 50% of max affordable
+    upfrontCost: 500000000, // $5,000,000 in cents
+    tickCostPercentage: 9, // 9% of income per tick
+    description: "Automatically restocks 30-50% of max affordable inventory each tick",
+  },
 ];
 
 // Query: Get available employees for a company
@@ -666,17 +688,27 @@ export const getCompanyEmployeeBonus = query({
   handler: async (ctx, args) => {
     const company = await ctx.db.get(args.companyId);
     if (!company) {
-      return { totalStockBoost: 0, totalTickCostPercentage: 0 };
+      return { totalStockBoost: 0, totalTickCostPercentage: 0, autoRestockActive: false, autoRestockType: null };
     }
 
     const employees = company.employees || [];
     
     let totalStockBoost = 0;
     let totalTickCostPercentage = 0;
+    let autoRestockActive = false;
+    let autoRestockType: string | null = null;
 
     for (const employee of employees) {
       if (employee.bonusType.startsWith("stock_boost")) {
         totalStockBoost += employee.bonusPercentage;
+      }
+      if (employee.bonusType === "auto_restock_junior") {
+        autoRestockActive = true;
+        autoRestockType = "junior"; // 5-10%
+      }
+      if (employee.bonusType === "auto_restock_senior") {
+        autoRestockActive = true;
+        autoRestockType = "senior"; // 30-50%
       }
       totalTickCostPercentage += employee.tickCostPercentage;
     }
@@ -684,6 +716,8 @@ export const getCompanyEmployeeBonus = query({
     return {
       totalStockBoost,
       totalTickCostPercentage,
+      autoRestockActive,
+      autoRestockType,
       employees,
     };
   },

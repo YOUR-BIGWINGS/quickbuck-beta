@@ -522,6 +522,25 @@ export const buyCrypto = mutation({
       throw new Error("Insufficient balance");
     }
 
+    // Calculate creator profit (2% of transaction value)
+    const CREATOR_PROFIT_PERCENT = 0.02;
+    let creatorProfit = 0;
+    
+    // Give profit to creator if this crypto has a creator and buyer isn't the creator
+    if (crypto.createdByPlayerId && crypto.createdByPlayerId !== player._id) {
+      creatorProfit = Math.floor(totalCost * CREATOR_PROFIT_PERCENT);
+      
+      // Get creator player
+      const creator = await ctx.db.get(crypto.createdByPlayerId);
+      if (creator) {
+        // Add profit to creator's balance
+        await ctx.db.patch(creator._id, {
+          balance: creator.balance + creatorProfit,
+          updatedAt: Date.now(),
+        });
+      }
+    }
+
     // Update player balance
     await ctx.db.patch(player._id, {
       balance: player.balance - totalCost,
@@ -705,9 +724,29 @@ export const sellCrypto = mutation({
       });
     }
 
-    // Update player balance
+    // Calculate creator profit (2% of transaction value)
+    const CREATOR_PROFIT_PERCENT = 0.02;
+    let creatorProfit = 0;
+    
+    // Give profit to creator if this crypto has a creator and seller isn't the creator
+    if (crypto.createdByPlayerId && crypto.createdByPlayerId !== player._id) {
+      creatorProfit = Math.floor(totalRevenue * CREATOR_PROFIT_PERCENT);
+      
+      // Get creator player
+      const creator = await ctx.db.get(crypto.createdByPlayerId);
+      if (creator) {
+        // Add profit to creator's balance
+        await ctx.db.patch(creator._id, {
+          balance: creator.balance + creatorProfit,
+          updatedAt: Date.now(),
+        });
+      }
+    }
+
+    // Update player balance (subtract creator fee from revenue)
+    const netRevenue = totalRevenue - creatorProfit;
     await ctx.db.patch(player._id, {
-      balance: player.balance + totalRevenue,
+      balance: player.balance + netRevenue,
       updatedAt: Date.now(),
     });
 
@@ -1222,5 +1261,251 @@ export const getCryptoOwnership = query({
     validData.sort((a, b) => b.balance - a.balance);
 
     return validData;
+  },
+});
+
+/**
+ * Get market overview for crypto (similar to stocks)
+ */
+export const getMarketOverview = query({
+  handler: async (ctx) => {
+    const cryptos = await ctx.db.query("cryptocurrencies").collect();
+    
+    if (cryptos.length === 0) {
+      return {
+        totalMarketCap: 0,
+        averageChange24h: 0,
+        cryptoCount: 0,
+        totalVolume24h: 0,
+      };
+    }
+    
+    // Calculate total market cap
+    const totalMarketCap = cryptos.reduce((sum, c) => sum + (c.marketCap ?? 0), 0);
+    
+    // Calculate average 24h change
+    const averageChange24h = cryptos.reduce((sum, c) => sum + (c.lastPriceChange ?? 0), 0) / cryptos.length;
+    
+    // Get 24h volume
+    const last24h = Date.now() - 24 * 60 * 60 * 1000;
+    const recentTxs = await ctx.db
+      .query("cryptoTransactions")
+      .withIndex("by_timestamp")
+      .order("desc")
+      .filter((q) => q.gte(q.field("timestamp"), last24h))
+      .take(1000);
+    
+    const totalVolume24h = recentTxs.reduce((sum, tx) => sum + tx.totalValue, 0);
+    
+    return {
+      totalMarketCap,
+      averageChange24h,
+      cryptoCount: cryptos.length,
+      totalVolume24h,
+    };
+  },
+});
+
+/**
+ * Get all cryptos with creator info
+ */
+export const getAllCryptosWithCreator = query({
+  handler: async (ctx) => {
+    const cryptos = await ctx.db.query("cryptocurrencies").collect();
+    
+    // Enrich with creator info
+    const enrichedCryptos = await Promise.all(
+      cryptos.map(async (crypto) => {
+        let creatorName = null;
+        if (crypto.createdByPlayerId) {
+          const creator = await ctx.db.get(crypto.createdByPlayerId);
+          if (creator) {
+            const user = await ctx.db.get(creator.userId);
+            creatorName = user?.name || user?.clerkUsername || `Player ${crypto.createdByPlayerId.slice(-4)}`;
+          }
+        }
+        
+        return {
+          ...crypto,
+          creatorName,
+        };
+      })
+    );
+    
+    return enrichedCryptos;
+  },
+});
+
+/**
+ * Get crypto statistics for a specific crypto
+ */
+export const getCryptoStats = query({
+  args: { cryptoId: v.id("cryptocurrencies") },
+  handler: async (ctx, args) => {
+    const crypto = await ctx.db.get(args.cryptoId);
+    if (!crypto) {
+      return null;
+    }
+    
+    // Get recent history for calculations
+    const history = await ctx.db
+      .query("cryptoPriceHistory")
+      .withIndex("by_crypto_time", (q) => q.eq("cryptoId", args.cryptoId))
+      .order("desc")
+      .take(30);
+    
+    if (history.length === 0) {
+      return {
+        crypto,
+        dayHigh: crypto.currentPrice,
+        dayLow: crypto.currentPrice,
+        weekHigh: crypto.currentPrice,
+        weekLow: crypto.currentPrice,
+        volume24h: 0,
+        priceChange24h: 0,
+        priceChangePercent24h: 0,
+      };
+    }
+    
+    // Calculate day high/low (last ~288 entries for 24h at 5min intervals)
+    const dayHistory = history.slice(0, Math.min(288, history.length));
+    const dayHigh = Math.max(...dayHistory.map(h => h.high ?? h.close ?? crypto.currentPrice));
+    const dayLow = Math.min(...dayHistory.map(h => h.low ?? h.close ?? crypto.currentPrice));
+    
+    // Calculate week high/low
+    const weekHigh = Math.max(...history.map(h => h.high ?? h.close ?? crypto.currentPrice));
+    const weekLow = Math.min(...history.map(h => h.low ?? h.close ?? crypto.currentPrice));
+    
+    // Get 24h volume from transactions
+    const last24h = Date.now() - 24 * 60 * 60 * 1000;
+    const recentTxs = await ctx.db
+      .query("cryptoTransactions")
+      .withIndex("by_cryptoId", (q) => q.eq("cryptoId", args.cryptoId))
+      .filter((q) => q.gte(q.field("timestamp"), last24h))
+      .collect();
+    
+    const volume24h = recentTxs.reduce((sum, tx) => sum + tx.amount, 0);
+    
+    // Calculate 24h price change
+    const oldestDayEntry = dayHistory[dayHistory.length - 1];
+    const price24hAgo = oldestDayEntry?.close ?? crypto.currentPrice;
+    const priceChange24h = crypto.currentPrice - price24hAgo;
+    const priceChangePercent24h = price24hAgo > 0 ? (priceChange24h / price24hAgo) * 100 : 0;
+    
+    return {
+      crypto,
+      dayHigh,
+      dayLow,
+      weekHigh,
+      weekLow,
+      volume24h,
+      priceChange24h,
+      priceChangePercent24h,
+    };
+  },
+});
+
+/**
+ * Get crypto with creator info by symbol
+ */
+export const getCryptoBySymbolWithCreator = query({
+  args: { symbol: v.string() },
+  handler: async (ctx, args) => {
+    const crypto = await ctx.db
+      .query("cryptocurrencies")
+      .withIndex("by_symbol", (q) => q.eq("symbol", args.symbol.toUpperCase()))
+      .unique();
+    
+    if (!crypto) return null;
+    
+    let creatorName = null;
+    if (crypto.createdByPlayerId) {
+      const creator = await ctx.db.get(crypto.createdByPlayerId);
+      if (creator) {
+        const user = await ctx.db.get(creator.userId);
+        creatorName = user?.name || user?.clerkUsername || `Player ${crypto.createdByPlayerId.slice(-4)}`;
+      }
+    }
+    
+    return {
+      ...crypto,
+      creatorName,
+    };
+  },
+});
+
+/**
+ * Delete cryptocurrency (only by creator or admin)
+ */
+export const deleteCrypto = mutation({
+  args: { cryptoId: v.id("cryptocurrencies") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+    if (!user) throw new Error("User not found");
+
+    const player = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+    if (!player) throw new Error("Player not found");
+
+    const crypto = await ctx.db.get(args.cryptoId);
+    if (!crypto) throw new Error("Cryptocurrency not found");
+
+    // Check if player is creator or admin
+    const isCreator = crypto.createdByPlayerId === player._id;
+    const isAdmin = player.role === "admin";
+    
+    if (!isCreator && !isAdmin) {
+      throw new Error("Only the creator or an admin can delete this cryptocurrency");
+    }
+
+    // Check if anyone owns this crypto (other than the creator)
+    const wallets = await ctx.db
+      .query("playerCryptoWallets")
+      .withIndex("by_cryptoId", (q) => q.eq("cryptoId", args.cryptoId))
+      .collect();
+    
+    const otherHolders = wallets.filter(w => w.playerId !== player._id && w.balance > 0);
+    if (otherHolders.length > 0) {
+      throw new Error("Cannot delete cryptocurrency while other players own it");
+    }
+
+    // Delete all related data
+    // Delete wallets
+    for (const wallet of wallets) {
+      await ctx.db.delete(wallet._id);
+    }
+
+    // Delete price history
+    const priceHistory = await ctx.db
+      .query("cryptoPriceHistory")
+      .withIndex("by_crypto_time", (q) => q.eq("cryptoId", args.cryptoId))
+      .collect();
+    
+    for (const history of priceHistory) {
+      await ctx.db.delete(history._id);
+    }
+
+    // Delete transactions
+    const transactions = await ctx.db
+      .query("cryptoTransactions")
+      .withIndex("by_cryptoId", (q) => q.eq("cryptoId", args.cryptoId))
+      .collect();
+    
+    for (const tx of transactions) {
+      await ctx.db.delete(tx._id);
+    }
+
+    // Delete the cryptocurrency itself
+    await ctx.db.delete(args.cryptoId);
+
+    return { success: true };
   },
 });

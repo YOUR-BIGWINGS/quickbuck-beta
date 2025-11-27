@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, memo, useCallback } from "react";
+import { useEffect, useMemo, useState, memo } from "react";
 import { getAuth } from "@clerk/react-router/ssr.server";
 import { redirect, Link } from "react-router";
 import { useQuery } from "convex/react";
@@ -18,8 +18,7 @@ import {
 } from "~/components/ui/select";
 import { Skeleton } from "~/components/ui/skeleton";
 import { AnimatedNumber } from "~/components/ui/animated-number";
-import { PriceChart } from "~/components/price-chart";
-import { formatCurrency } from "~/lib/game-utils";
+import { formatCurrency, formatCompactNumber } from "~/lib/game-utils";
 import { useTheme } from "~/contexts/theme-context";
 import { cn } from "~/lib/utils";
 import {
@@ -261,7 +260,7 @@ export default function StocksPage() {
                         Market cap share
                       </div>
                       <div className="text-lg font-semibold">
-                        <AnimatedNumber value={sector.marketCap} />
+                        {formatCompactNumber(sector.marketCap)}
                       </div>
                     </div>
                   ))
@@ -543,23 +542,12 @@ const StockCard = memo(function StockCard({ stock }: { stock: any }) {
             </div>
           </div>
 
-          <div className="h-24 overflow-hidden rounded-xl border bg-muted/40">
-            <PriceChart
-              currentPrice={price}
-              symbol={stock.symbol || "STOCK"}
-              height={96}
-              days={7}
-              showStats={false}
-              stockId={stock._id}
-            />
-          </div>
-
           <div className="space-y-1">
             <span className="text-xs uppercase tracking-wide text-muted-foreground">
               Market cap
             </span>
             <div className="text-lg font-semibold">
-              <AnimatedNumber value={marketCap} compact />
+              {formatCompactNumber(marketCap)}
             </div>
           </div>
 

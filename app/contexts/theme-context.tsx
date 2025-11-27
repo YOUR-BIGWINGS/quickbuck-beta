@@ -19,7 +19,7 @@ import {
 interface ThemeContextValue {
   preset: ThemePreset;
   mode: ThemeMode;
-  setPreset: (preset: ThemePreset) => void;
+  setPreset: (preset: ThemePreset, themeColors?: any, themeMode?: ThemeMode) => void;
   toggleMode: () => void;
   setMode: (mode: ThemeMode) => void;
 }
@@ -58,17 +58,26 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const setPreset = useCallback((newPreset: ThemePreset) => {
+  const setPreset = useCallback((newPreset: ThemePreset, themeColors?: any, themeMode?: ThemeMode) => {
     setPresetState(newPreset);
     try {
       localStorage.setItem("themePreset", newPreset);
-      const theme = getThemeById(newPreset);
-      if (theme) {
-        // Mode is now locked to the preset's defined mode
-        const lockedMode = theme.mode;
-        setModeState(lockedMode);
-        localStorage.setItem("theme", lockedMode);
-        applyThemeColors(theme.colors, lockedMode);
+      
+      // If colors and mode are provided (custom theme), use them directly
+      if (themeColors && themeMode) {
+        setModeState(themeMode);
+        localStorage.setItem("theme", themeMode);
+        applyThemeColors(themeColors, themeMode);
+      } else {
+        // Otherwise look up the theme
+        const theme = getThemeById(newPreset);
+        if (theme) {
+          // Mode is now locked to the preset's defined mode
+          const lockedMode = theme.mode;
+          setModeState(lockedMode);
+          localStorage.setItem("theme", lockedMode);
+          applyThemeColors(theme.colors, lockedMode);
+        }
       }
     } catch (error) {
       console.error("Error setting theme preset:", error);

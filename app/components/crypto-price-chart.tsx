@@ -27,7 +27,8 @@ export const CryptoPriceChart = memo(function CryptoPriceChart({
   showStats = true,
 }: CryptoPriceChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
-  const chartInstanceRef = useRef<any>(null);
+  const chartInstanceRef = useRef<ReturnType<typeof createChart> | null>(null);
+  const lineSeriesRef = useRef<ReturnType<ReturnType<typeof createChart>["addSeries"]> | null>(null);
 
   // Fetch actual price history from database - reduce data for mini charts
   const priceHistoryRaw = useQuery(api.crypto.getPriceHistory, {
@@ -98,7 +99,7 @@ export const CryptoPriceChart = memo(function CryptoPriceChart({
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    // Reuse chart instance if it exists
+    // Create chart instance only once
     if (!chartInstanceRef.current) {
       chartInstanceRef.current = createChart(chartContainerRef.current, {
         layout: {
@@ -119,26 +120,30 @@ export const CryptoPriceChart = memo(function CryptoPriceChart({
           borderColor: "#e5e7eb",
         },
       });
+
+      // Create line series only once when chart is created
+      lineSeriesRef.current = chartInstanceRef.current.addSeries(LineSeries, {
+        color: isPositive ? "#10b981" : "#ef4444",
+        lineWidth: 3,
+        priceFormat: {
+          type: "custom",
+          formatter: (price: number) => `${price.toFixed(2)}¢`,
+        },
+      });
     }
 
     const chart = chartInstanceRef.current;
+    const lineSeries = lineSeriesRef.current;
 
-    // Remove existing series if any
-    const existingSeries = chart.getSeries?.();
-    if (existingSeries) {
-      existingSeries.forEach((series: any) => chart.removeSeries(series));
+    if (lineSeries) {
+      // Update series color if needed
+      lineSeries.applyOptions({
+        color: isPositive ? "#10b981" : "#ef4444",
+      });
+      // Update data on the existing series
+      lineSeries.setData(chartData);
     }
 
-    const lineSeries = chart.addSeries(LineSeries, {
-      color: isPositive ? "#10b981" : "#ef4444",
-      lineWidth: 3,
-      priceFormat: {
-        type: "custom",
-        formatter: (price: number) => `${price.toFixed(2)}¢`,
-      },
-    });
-
-    lineSeries.setData(chartData);
     chart.timeScale().fitContent();
 
     const handleResize = () => {
@@ -163,6 +168,7 @@ export const CryptoPriceChart = memo(function CryptoPriceChart({
       if (chartInstanceRef.current) {
         chartInstanceRef.current.remove();
         chartInstanceRef.current = null;
+        lineSeriesRef.current = null;
       }
     };
   }, []);

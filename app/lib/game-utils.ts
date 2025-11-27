@@ -70,6 +70,23 @@ export function formatCompactCurrency(cents: number): string {
 }
 
 /**
+ * Format large cent values with compact notation (for market caps etc)
+ */
+export function formatCompactNumber(cents: number): string {
+  const dollars = cents / 100;
+  if (dollars >= 1_000_000_000) {
+    return `$${(dollars / 1_000_000_000).toFixed(1)}B`;
+  }
+  if (dollars >= 1_000_000) {
+    return `$${(dollars / 1_000_000).toFixed(1)}M`;
+  }
+  if (dollars >= 1_000) {
+    return `$${(dollars / 1_000).toFixed(1)}K`;
+  }
+  return `$${dollars.toFixed(0)}`;
+}
+
+/**
  * Calculate percentage change
  */
 export function calculatePercentageChange(current: number, previous: number): number {

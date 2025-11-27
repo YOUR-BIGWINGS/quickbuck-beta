@@ -1,6 +1,6 @@
 export type ThemeMode = "light" | "dark";
 
-export type ThemePreset = "default" | "light-cloud" | "dark-default" | "dark-crimson" | "dark-delta" | "light-bubblegum" | "light-alpha";
+export type ThemePreset = "default" | "light-cloud" | "dark-default" | "dark-crimson" | "dark-delta" | "light-bubblegum" | "light-alpha" | string; // Allow string for custom themes
 
 export interface ThemeColors {
   primary: string;
@@ -344,8 +344,17 @@ export const themes: Theme[] = [
   },
 ];
 
-export const getThemeById = (id: ThemePreset): Theme | undefined => {
-  return themes.find((theme) => theme.id === id);
+export const getThemeById = (id: ThemePreset, customThemes?: Theme[]): Theme | undefined => {
+  // First check built-in themes
+  const builtInTheme = themes.find((theme) => theme.id === id);
+  if (builtInTheme) return builtInTheme;
+  
+  // Then check custom themes if provided
+  if (customThemes) {
+    return customThemes.find((theme) => theme.id === id);
+  }
+  
+  return undefined;
 };
 
 export const applyThemeColors = (colors: ThemeColors, mode: ThemeMode) => {

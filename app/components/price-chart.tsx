@@ -7,6 +7,7 @@ import {
   calculatePriceStats,
 } from "~/lib/price-chart-utils";
 import { useStockPriceHistory } from "~/hooks/use-stock-price-history";
+import { useCryptoPriceHistory } from "~/hooks/use-crypto-price-history";
 import type { Id } from "convex/_generated/dataModel";
 
 interface PriceChartProps {
@@ -16,6 +17,7 @@ interface PriceChartProps {
   showStats?: boolean;
   days?: number;
   stockId?: Id<"stocks"> | null;
+  cryptoId?: Id<"cryptocurrencies"> | null;
 }
 
 export const PriceChart = memo(function PriceChart({
@@ -25,12 +27,18 @@ export const PriceChart = memo(function PriceChart({
   showStats = true,
   days = 7,
   stockId,
+  cryptoId,
 }: PriceChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
-  const chartInstanceRef = useRef<any>(null);
+  const chartInstanceRef = useRef<ReturnType<typeof createChart> | null>(null);
+  const lineSeriesRef = useRef<ReturnType<ReturnType<typeof createChart>["addSeries"]> | null>(null);
 
   // Fetch real price history from database with limit for performance
-  const realHistory = useStockPriceHistory(stockId, showStats ? undefined : 50);
+  const stockHistory = useStockPriceHistory(stockId, showStats ? undefined : 50);
+  const cryptoHistory = useCryptoPriceHistory(cryptoId, showStats ? undefined : 50);
+  
+  // Use stock history if stockId provided, otherwise use crypto history
+  const realHistory = stockId ? stockHistory : cryptoHistory;
 
   // Memoize data processing to avoid recalculation on every render
   const data = useMemo(() => {
@@ -67,7 +75,7 @@ export const PriceChart = memo(function PriceChart({
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    // Reuse chart instance if it exists
+    // Create chart instance only once
     if (!chartInstanceRef.current) {
       chartInstanceRef.current = createChart(chartContainerRef.current, {
         layout: {
@@ -88,26 +96,30 @@ export const PriceChart = memo(function PriceChart({
           borderColor: "#e5e7eb",
         },
       });
+
+      // Create line series only once when chart is created
+      lineSeriesRef.current = chartInstanceRef.current.addSeries(LineSeries, {
+        color: isPositive ? "#10b981" : "#ef4444",
+        lineWidth: 3,
+        priceFormat: {
+          type: "custom",
+          formatter: (price: number) => `$${(price / 100).toFixed(2)}`,
+        },
+      });
     }
 
     const chart = chartInstanceRef.current;
+    const lineSeries = lineSeriesRef.current;
 
-    // Remove existing series if any
-    const existingSeries = chart.getSeries?.();
-    if (existingSeries) {
-      existingSeries.forEach((series: any) => chart.removeSeries(series));
+    if (lineSeries) {
+      // Update series color if needed
+      lineSeries.applyOptions({
+        color: isPositive ? "#10b981" : "#ef4444",
+      });
+      // Update data on the existing series
+      lineSeries.setData(chartData);
     }
 
-    const lineSeries = chart.addSeries(LineSeries, {
-      color: isPositive ? "#10b981" : "#ef4444",
-      lineWidth: 3,
-      priceFormat: {
-        type: "custom",
-        formatter: (price: number) => `$${(price / 100).toFixed(2)}`,
-      },
-    });
-
-    lineSeries.setData(chartData);
     chart.timeScale().fitContent();
 
     const handleResize = () => {
@@ -122,7 +134,6 @@ export const PriceChart = memo(function PriceChart({
 
     return () => {
       window.removeEventListener("resize", handleResize);
-      // Don't remove chart on every update, only on unmount
     };
   }, [chartData, height, isPositive]);
 
@@ -132,6 +143,7 @@ export const PriceChart = memo(function PriceChart({
       if (chartInstanceRef.current) {
         chartInstanceRef.current.remove();
         chartInstanceRef.current = null;
+        lineSeriesRef.current = null;
       }
     };
   }, []);

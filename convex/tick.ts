@@ -322,6 +322,10 @@ export const executeTick = internalAction({
       console.log("[TICK] Step 1.5: Employee costs...");
       await ctx.runMutation(internal.tick.deductEmployeeCostsMutation);
 
+      // Step 1.6: Auto-restock products (Product Manager employees)
+      console.log("[TICK] Step 1.6: Auto-restock...");
+      await ctx.runMutation(internal.tick.processAutoRestockMutation);
+
       // Step 2: Stock prices
       console.log("[TICK] Step 2: Stock prices...");
       const stockPriceUpdates: any = await ctx.runMutation(internal.stocks.updateStockPrices);
@@ -809,6 +813,148 @@ async function deductEmployeeCosts(ctx: any) {
   console.log(`Processed employee costs for ${companiesProcessed} companies`);
 }
 
+// Auto-restock products for companies with Product Manager employees
+async function processAutoRestock(ctx: any) {
+  // Process up to 10 companies per tick
+  const COMPANIES_PER_TICK = 10;
+  const PRODUCTS_PER_COMPANY = 20;
+
+  // Get companies ordered by updatedAt to ensure rotation
+  const companies = await ctx.db
+    .query("companies")
+    .order("asc")
+    .take(COMPANIES_PER_TICK);
+
+  let companiesProcessed = 0;
+  let totalProductsRestocked = 0;
+
+  for (const company of companies) {
+    const employees = company.employees || [];
+    
+    // Find auto-restock employees (product managers)
+    const autoRestockEmployee = employees.find(
+      (e: any) => e.bonusType === "auto_restock_junior" || e.bonusType === "auto_restock_senior"
+    );
+
+    if (!autoRestockEmployee) {
+      continue;
+    }
+
+    // Determine restock percentage range based on employee type
+    let minPercent: number;
+    let maxPercent: number;
+    
+    if (autoRestockEmployee.bonusType === "auto_restock_senior") {
+      minPercent = 30;
+      maxPercent = 50;
+    } else {
+      // junior
+      minPercent = 5;
+      maxPercent = 10;
+    }
+
+    // Get random percentage within range
+    const restockPercent = minPercent + Math.random() * (maxPercent - minPercent);
+
+    // Get all products for this company
+    const products = await ctx.db
+      .query("products")
+      .withIndex("by_companyId", (q: any) => q.eq("companyId", company._id))
+      .filter((q: any) => q.eq(q.field("isActive"), true))
+      .take(PRODUCTS_PER_COMPANY);
+
+    if (products.length === 0) {
+      continue;
+    }
+
+    // Calculate how much we can afford to spend
+    const availableBalance = company.balance;
+    if (availableBalance <= 0) {
+      continue;
+    }
+
+    // Calculate target budget (percentage of max affordable)
+    const targetBudget = Math.floor(availableBalance * (restockPercent / 100));
+    if (targetBudget <= 0) {
+      continue;
+    }
+
+    // Distribute budget equally among products
+    const budgetPerProduct = Math.floor(targetBudget / products.length);
+    if (budgetPerProduct <= 0) {
+      continue;
+    }
+
+    let totalSpent = 0;
+    const restockedProducts: string[] = [];
+
+    // Calculate employee stock boost
+    let totalStockBoost = 0;
+    for (const employee of employees) {
+      if (employee.bonusType.startsWith("stock_boost")) {
+        totalStockBoost += employee.bonusPercentage;
+      }
+    }
+    const bonusMultiplier = 1 + (totalStockBoost / 100);
+
+    for (const product of products) {
+      if (!product.isActive) continue;
+
+      // Calculate production cost
+      const productionCostPercentage = product.productionCostPercentage ?? 0.35;
+      const productionCost = Math.floor(product.price * productionCostPercentage);
+      
+      if (productionCost <= 0) continue;
+
+      // Calculate how many units we can buy with this budget
+      const quantity = Math.floor(budgetPerProduct / productionCost);
+      if (quantity <= 0) continue;
+
+      const actualCost = productionCost * quantity;
+      if (actualCost > availableBalance - totalSpent) continue;
+
+      // Apply stock boost bonus
+      const actualQuantity = Math.floor(quantity * bonusMultiplier);
+
+      // Update product stock
+      const newStock = (product.stock || 0) + actualQuantity;
+      await ctx.db.patch(product._id, {
+        stock: newStock,
+        updatedAt: Date.now(),
+      });
+
+      totalSpent += actualCost;
+      restockedProducts.push(product.name);
+      totalProductsRestocked++;
+    }
+
+    // Deduct total spent from company balance
+    if (totalSpent > 0) {
+      const now = Date.now();
+      await ctx.db.patch(company._id, {
+        balance: company.balance - totalSpent,
+        updatedAt: now,
+      });
+
+      // Create transaction record for auto-restock
+      await ctx.db.insert("transactions", {
+        fromAccountId: company._id,
+        fromAccountType: "company" as const,
+        toAccountId: company._id,
+        toAccountType: "company" as const,
+        amount: totalSpent,
+        assetType: "product" as const,
+        description: `Auto-restock by ${autoRestockEmployee.name}: ${restockedProducts.length} products (${restockPercent.toFixed(1)}% of budget)`,
+        createdAt: now,
+      });
+
+      companiesProcessed++;
+    }
+  }
+
+  console.log(`[TICK] Auto-restock: Processed ${companiesProcessed} companies, restocked ${totalProductsRestocked} products`);
+}
+
 // Update player net worth values for efficient leaderboard queries
 // Update player net worth values
 async function updatePlayerNetWorth(
@@ -1079,6 +1225,13 @@ async function applyLoanInterest(
 export const deductEmployeeCostsMutation = internalMutation({
   handler: async (ctx) => {
     await deductEmployeeCosts(ctx);
+    return { success: true };
+  },
+});
+
+export const processAutoRestockMutation = internalMutation({
+  handler: async (ctx) => {
+    await processAutoRestock(ctx);
     return { success: true };
   },
 });

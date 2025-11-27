@@ -73,7 +73,9 @@ export default defineSchema({
           name: v.string(),
           bonusType: v.union(
             v.literal("stock_boost_5"),
-            v.literal("stock_boost_10")
+            v.literal("stock_boost_10"),
+            v.literal("auto_restock_junior"),
+            v.literal("auto_restock_senior")
           ),
           bonusPercentage: v.number(), // e.g., 5 or 10
           upfrontCost: v.number(), // in cents
@@ -595,6 +597,8 @@ export default defineSchema({
     // Threading support
     parentMessageId: v.optional(v.id("messages")), // Reference to parent message for replies
     threadRootId: v.optional(v.id("messages")), // Reference to root message of the thread
+    // Image attachment
+    imageId: v.optional(v.id("_storage")), // Reference to uploaded image in storage
   })
     .index("by_recipientId", ["recipientId"])
     .index("by_senderId", ["senderId"])
@@ -623,4 +627,18 @@ export default defineSchema({
     .index("by_playerId", ["playerId"])
     .index("by_badgeId", ["badgeId"])
     .index("by_player_badge", ["playerId", "badgeId"]),
+
+  // Custom Themes (admin-created themes)
+  customThemes: defineTable({
+    id: v.string(), // unique theme id (e.g., "custom-purple-haze")
+    name: v.string(), // Theme display name
+    mode: v.union(v.literal("light"), v.literal("dark")), // light or dark theme
+    primaryColor: v.string(), // Primary color (hex or oklch)
+    secondaryColor: v.string(), // Secondary color (hex or oklch)
+    createdByAdminId: v.id("players"), // Admin who created this theme
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_theme_id", ["id"])
+    .index("by_mode", ["mode"]),
 });

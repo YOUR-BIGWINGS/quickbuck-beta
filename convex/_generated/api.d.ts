@@ -35,6 +35,7 @@ import type * as products from "../products.js";
 import type * as rules from "../rules.js";
 import type * as stocks from "../stocks.js";
 import type * as subscriptions from "../subscriptions.js";
+import type * as themes from "../themes.js";
 import type * as tick from "../tick.js";
 import type * as transactions from "../transactions.js";
 import type * as upgrades from "../upgrades.js";
@@ -82,6 +83,7 @@ declare const fullApi: ApiFromModules<{
   rules: typeof rules;
   stocks: typeof stocks;
   subscriptions: typeof subscriptions;
+  themes: typeof themes;
   tick: typeof tick;
   transactions: typeof transactions;
   upgrades: typeof upgrades;

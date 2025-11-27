@@ -18,6 +18,7 @@ export const sendMessage = mutation({
     subject: v.optional(v.string()),
     isMod: v.optional(v.boolean()), // True when sent from mod panel
     parentMessageId: v.optional(v.id("messages")), // Reply to this message
+    imageId: v.optional(v.id("_storage")), // Attached image
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -95,6 +96,7 @@ export const sendMessage = mutation({
       isMod: args.isMod || false,
       parentMessageId,
       threadRootId,
+      imageId: args.imageId,
     });
 
     return {
@@ -487,5 +489,51 @@ export const getReplyCount = query({
       .collect();
 
     return Math.max(directReplies.length, threadReplies.length);
+  },
+});
+
+/**
+ * Generate a URL for uploading an image attachment
+ */
+export const generateUploadUrl = mutation({
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) throw new Error("User not found");
+
+    const player = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!player) throw new Error("Player not found");
+
+    // Check if sender's account is limited or banned
+    if (player.role === "banned") {
+      throw new Error("Cannot upload images while banned");
+    }
+    if (player.role === "limited") {
+      throw new Error("Cannot upload images while account is limited");
+    }
+
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+/**
+ * Get the URL for a stored image
+ */
+export const getImageUrl = query({
+  args: {
+    storageId: v.id("_storage"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.storage.getUrl(args.storageId);
   },
 });

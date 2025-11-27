@@ -1,0 +1,201 @@
+import { v } from "convex/values";
+import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+
+// Helper to check if user is admin
+async function checkIsAdmin(ctx: any): Promise<{ isAdmin: boolean; playerId?: Id<"players"> }> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    return { isAdmin: false };
+  }
+
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_token", (q: any) => q.eq("tokenIdentifier", identity.subject))
+    .unique();
+
+  if (!user) {
+    return { isAdmin: false };
+  }
+
+  const player = await ctx.db
+    .query("players")
+    .withIndex("by_userId", (q: any) => q.eq("userId", user._id))
+    .unique();
+
+  if (!player) {
+    return { isAdmin: false };
+  }
+
+  const isAdmin = player.role === "admin";
+  return { isAdmin, playerId: player._id };
+}
+
+// Helper to generate theme colors from primary and secondary colors
+function generateThemeColors(primaryColor: string, secondaryColor: string, mode: "light" | "dark") {
+  // Base colors that will be generated
+  const colors: any = {
+    primary: primaryColor,
+    primaryForeground: mode === "light" ? "#ffffff" : "#000000",
+    secondary: secondaryColor,
+    secondaryForeground: mode === "light" ? "#0a0a0a" : "#ffffff",
+  };
+
+  // Generate the rest based on mode
+  if (mode === "light") {
+    colors.background = "#ffffff";
+    colors.foreground = "#0a0a0a";
+    colors.card = "#ffffff";
+    colors.cardForeground = "#0a0a0a";
+    colors.popover = "#ffffff";
+    colors.popoverForeground = "#0a0a0a";
+    colors.muted = "#f5f5f5";
+    colors.mutedForeground = "#6b6b6b";
+    colors.accent = "#f0f0f0";
+    colors.accentForeground = "#0a0a0a";
+    colors.destructive = "#ef4444";
+    colors.destructiveForeground = "#ffffff";
+    colors.border = "#e5e5e5";
+    colors.input = "#e5e5e5";
+    colors.ring = primaryColor;
+    colors.chart1 = primaryColor;
+    colors.chart2 = secondaryColor;
+    colors.chart3 = adjustColorBrightness(primaryColor, -20);
+    colors.chart4 = adjustColorBrightness(secondaryColor, 20);
+    colors.chart5 = adjustColorBrightness(primaryColor, 20);
+    colors.sidebar = "#fafafa";
+    colors.sidebarForeground = "#0a0a0a";
+    colors.sidebarPrimary = primaryColor;
+    colors.sidebarPrimaryForeground = "#ffffff";
+    colors.sidebarAccent = "#f5f5f5";
+    colors.sidebarAccentForeground = "#0a0a0a";
+    colors.sidebarBorder = "#e5e5e5";
+    colors.sidebarRing = primaryColor;
+  } else {
+    colors.background = "#0a0a0a";
+    colors.foreground = "#ffffff";
+    colors.card = "#1a1a1a";
+    colors.cardForeground = "#ffffff";
+    colors.popover = "#1a1a1a";
+    colors.popoverForeground = "#ffffff";
+    colors.muted = "#2a2a2a";
+    colors.mutedForeground = "#a0a0a0";
+    colors.accent = "#2a2a2a";
+    colors.accentForeground = "#ffffff";
+    colors.destructive = "#dc2626";
+    colors.destructiveForeground = "#ffffff";
+    colors.border = "#2a2a2a";
+    colors.input = "#2a2a2a";
+    colors.ring = primaryColor;
+    colors.chart1 = primaryColor;
+    colors.chart2 = secondaryColor;
+    colors.chart3 = adjustColorBrightness(primaryColor, 20);
+    colors.chart4 = adjustColorBrightness(secondaryColor, -20);
+    colors.chart5 = adjustColorBrightness(primaryColor, -20);
+    colors.sidebar = "#0f0f0f";
+    colors.sidebarForeground = "#ffffff";
+    colors.sidebarPrimary = primaryColor;
+    colors.sidebarPrimaryForeground = "#ffffff";
+    colors.sidebarAccent = "#2a2a2a";
+    colors.sidebarAccentForeground = "#ffffff";
+    colors.sidebarBorder = "#2a2a2a";
+    colors.sidebarRing = primaryColor;
+  }
+
+  return colors;
+}
+
+// Simple color adjustment helper (for hex colors)
+function adjustColorBrightness(color: string, percent: number): string {
+  // If it's not a hex color, return as-is
+  if (!color.startsWith("#")) {
+    return color;
+  }
+
+  const num = parseInt(color.replace("#", ""), 16);
+  const amt = Math.round(2.55 * percent);
+  const R = (num >> 16) + amt;
+  const G = ((num >> 8) & 0x00ff) + amt;
+  const B = (num & 0x0000ff) + amt;
+
+  return (
+    "#" +
+    (
+      0x1000000 +
+      (R < 255 ? (R < 1 ? 0 : R) : 255) * 0x10000 +
+      (G < 255 ? (G < 1 ? 0 : G) : 255) * 0x100 +
+      (B < 255 ? (B < 1 ? 0 : B) : 255)
+    )
+      .toString(16)
+      .slice(1)
+  );
+}
+
+// Query: Get all custom themes
+export const getCustomThemes = query({
+  handler: async (ctx) => {
+    const themes = await ctx.db.query("customThemes").collect();
+    return themes;
+  },
+});
+
+// Mutation: Create a custom theme (admin only)
+export const createCustomTheme = mutation({
+  args: {
+    name: v.string(),
+    mode: v.union(v.literal("light"), v.literal("dark")),
+    primaryColor: v.string(),
+    secondaryColor: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Check if user is admin
+    const { isAdmin, playerId } = await checkIsAdmin(ctx);
+    if (!isAdmin || !playerId) {
+      throw new Error("Only admins can create custom themes");
+    }
+
+    // Generate a unique ID for the theme
+    const themeId = `custom-${args.name.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`;
+
+    // Check if theme with this name already exists
+    const existing = await ctx.db
+      .query("customThemes")
+      .filter((q) => q.eq(q.field("name"), args.name))
+      .first();
+
+    if (existing) {
+      throw new Error("A theme with this name already exists");
+    }
+
+    // Create the theme
+    const themeDocId = await ctx.db.insert("customThemes", {
+      id: themeId,
+      name: args.name,
+      mode: args.mode,
+      primaryColor: args.primaryColor,
+      secondaryColor: args.secondaryColor,
+      createdByAdminId: playerId,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    return { success: true, themeId, themeDocId };
+  },
+});
+
+// Mutation: Delete a custom theme (admin only)
+export const deleteCustomTheme = mutation({
+  args: {
+    themeDocId: v.id("customThemes"),
+  },
+  handler: async (ctx, args) => {
+    // Check if user is admin
+    const { isAdmin } = await checkIsAdmin(ctx);
+    if (!isAdmin) {
+      throw new Error("Only admins can delete custom themes");
+    }
+
+    await ctx.db.delete(args.themeDocId);
+    return { success: true };
+  },
+});

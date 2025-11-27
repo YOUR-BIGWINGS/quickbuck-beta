@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "convex/_generated/api";
 import type { Id } from "convex/_generated/dataModel";
@@ -44,6 +44,9 @@ import {
   X,
   ShieldCheck,
   Inbox,
+  ImagePlus,
+  Image as ImageIcon,
+  Loader2,
 } from "lucide-react";
 
 type PlayerTag = {
@@ -63,6 +66,7 @@ type MessageRecord = {
   isMod: boolean;
   threadRootId?: Id<"messages">;
   parentMessageId?: Id<"messages">;
+  imageId?: Id<"_storage">;
 };
 
 type PlayerSearchResult = {
@@ -81,6 +85,32 @@ const itemVariants = {
   visible: { opacity: 1, y: 0 },
 };
 
+// Component to display message image attachments
+function MessageImage({ imageId }: { imageId: Id<"_storage"> }) {
+  // @ts-ignore - messages module exists but not yet in generated types
+  const imageUrl = useQuery(api.messages?.getImageUrl, { storageId: imageId });
+
+  if (!imageUrl) {
+    return (
+      <div className="flex items-center justify-center h-32 bg-muted rounded-lg">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3">
+      <a href={imageUrl} target="_blank" rel="noopener noreferrer">
+        <img
+          src={imageUrl}
+          alt="Message attachment"
+          className="max-w-full max-h-64 rounded-lg border cursor-pointer hover:opacity-90 transition-opacity"
+        />
+      </a>
+    </div>
+  );
+}
+
 function MessagesPage() {
   const { preset } = useTheme();
   const [activeListTab, setActiveListTab] = useState<"inbox" | "sent">("inbox");
@@ -98,6 +128,13 @@ function MessagesPage() {
   const [messageContent, setMessageContent] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [showComposeModal, setShowComposeModal] = useState(false);
+  
+  // Image attachment state
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const replyFileInputRef = useRef<HTMLInputElement>(null);
 
   // Queries
   // @ts-ignore - messages module exists but not yet in generated types
@@ -128,6 +165,8 @@ function MessagesPage() {
   const markAsRead = useMutation(api.messages?.markAsRead);
   // @ts-ignore - messages module exists but not yet in generated types
   const deleteMessage = useMutation(api.messages?.deleteMessage);
+  // @ts-ignore - messages module exists but not yet in generated types
+  const generateUploadUrl = useMutation(api.messages?.generateUploadUrl);
 
   const inboxMessages = useMemo(() => {
     if (!Array.isArray(inboxData)) return [] as MessageRecord[];
@@ -231,14 +270,78 @@ function MessagesPage() {
     }
   };
 
+  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file");
+      return;
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be less than 5MB");
+      return;
+    }
+
+    setSelectedImage(file);
+    
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const clearImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    if (replyFileInputRef.current) {
+      replyFileInputRef.current.value = "";
+    }
+  };
+
+  const uploadImage = async (): Promise<Id<"_storage"> | undefined> => {
+    if (!selectedImage) return undefined;
+
+    setIsUploadingImage(true);
+    try {
+      const uploadUrl = await generateUploadUrl();
+      
+      const result = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": selectedImage.type },
+        body: selectedImage,
+      });
+
+      if (!result.ok) {
+        throw new Error("Failed to upload image");
+      }
+
+      const { storageId } = await result.json();
+      return storageId as Id<"_storage">;
+    } catch (error) {
+      console.error("Image upload error:", error);
+      throw new Error("Failed to upload image");
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!recipientId) {
       toast.error("Please choose a recipient before sending");
       return;
     }
 
-    if (!messageContent.trim()) {
-      toast.error("Message content cannot be empty");
+    if (!messageContent.trim() && !selectedImage) {
+      toast.error("Message content or image is required");
       return;
     }
 
@@ -246,11 +349,18 @@ function MessagesPage() {
 
     setIsSending(true);
     try {
+      // Upload image if selected
+      let imageId: Id<"_storage"> | undefined;
+      if (selectedImage) {
+        imageId = await uploadImage();
+      }
+
       await sendMessage({
         recipientId,
-        content: messageContent.trim(),
+        content: messageContent.trim() || (selectedImage ? "[Image attached]" : ""),
         isMod: false,
         parentMessageId: replyingTo ?? undefined,
+        imageId,
       });
 
       toast.success(
@@ -261,6 +371,7 @@ function MessagesPage() {
 
       setMessageContent("");
       setPlayerSearch("");
+      clearImage();
 
       if (isReply) {
         setReplyingTo(null);
@@ -317,6 +428,7 @@ function MessagesPage() {
     setMessageContent("");
     setReplyingTo(null);
     setPlayerSearch("");
+    clearImage();
   };
 
   return (
@@ -441,7 +553,10 @@ function MessagesPage() {
                               ? message.senderName
                               : message.recipientName}
                           </p>
-                          <p className="text-xs text-muted-foreground truncate">
+                          <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                            {message.imageId && (
+                              <ImageIcon className="h-3 w-3 shrink-0" />
+                            )}
                             {message.content.split("\n")[0]}
                           </p>
                         </div>
@@ -450,9 +565,14 @@ function MessagesPage() {
                         <span className="text-xs text-muted-foreground">
                           {formatRelativeTime(message.sentAt)}
                         </span>
-                        {message.isMod && (
-                          <ShieldCheck className="h-3 w-3 text-orange-500 shrink-0" />
-                        )}
+                        <div className="flex items-center gap-1">
+                          {message.imageId && (
+                            <ImageIcon className="h-3 w-3 text-blue-500 shrink-0" />
+                          )}
+                          {message.isMod && (
+                            <ShieldCheck className="h-3 w-3 text-orange-500 shrink-0" />
+                          )}
+                        </div>
                       </div>
                     </div>
                   </button>
@@ -512,6 +632,9 @@ function MessagesPage() {
                     <div className="whitespace-pre-wrap text-sm leading-relaxed">
                       {selectedMessage.content}
                     </div>
+                    {selectedMessage.imageId && (
+                      <MessageImage imageId={selectedMessage.imageId} />
+                    )}
                     <Separator />
                     <div className="flex flex-wrap gap-2">
                       <Button
@@ -607,6 +730,9 @@ function MessagesPage() {
                               <p className="text-xs leading-relaxed whitespace-pre-wrap">
                                 {message.content}
                               </p>
+                              {message.imageId && (
+                                <MessageImage imageId={message.imageId} />
+                              )}
                             </div>
                           ))}
                         </div>
@@ -640,7 +766,10 @@ function MessagesPage() {
                       size="sm"
                       variant="ghost"
                       className="ml-auto h-5 px-1"
-                      onClick={() => setReplyingTo(null)}
+                      onClick={() => {
+                        setReplyingTo(null);
+                        clearImage();
+                      }}
                     >
                       <X className="h-3 w-3" />
                     </Button>
@@ -655,18 +784,62 @@ function MessagesPage() {
                     className="resize-none"
                   />
 
+                  {/* Image Preview for Reply */}
+                  {imagePreview && (
+                    <div className="relative inline-block">
+                      <img
+                        src={imagePreview}
+                        alt="Preview"
+                        className="max-h-32 rounded-lg border"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full"
+                        onClick={clearImage}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-muted-foreground">
-                      {messageContent.length} / 2000
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={replyFileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleImageSelect}
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="gap-2"
+                        onClick={() => replyFileInputRef.current?.click()}
+                        disabled={isSending || isUploadingImage}
+                      >
+                        <ImagePlus className="h-4 w-4" />
+                        {selectedImage ? "Change" : "Image"}
+                      </Button>
+                      <span className="text-xs text-muted-foreground">
+                        {messageContent.length} / 2000
+                      </span>
+                    </div>
                     <Button
                       onClick={handleSendMessage}
-                      disabled={!messageContent.trim() || isSending}
+                      disabled={(!messageContent.trim() && !selectedImage) || isSending || isUploadingImage}
                       size="sm"
                       className="gap-2"
                     >
-                      <Send className="h-4 w-4" />
-                      {isSending ? "Sending..." : "Send"}
+                      {isUploadingImage ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                      {isUploadingImage ? "Uploading..." : isSending ? "Sending..." : "Send"}
                     </Button>
                   </div>
                 </div>
@@ -812,6 +985,49 @@ function MessagesPage() {
                       <span>{messageContent.length} / 2000</span>
                     </div>
                   </div>
+
+                  {/* Image Attachment */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Attachment</label>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleImageSelect}
+                    />
+                    {imagePreview ? (
+                      <div className="relative inline-block">
+                        <img
+                          src={imagePreview}
+                          alt="Preview"
+                          className="max-h-40 rounded-lg border"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="destructive"
+                          className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full"
+                          onClick={clearImage}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full gap-2"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <ImagePlus className="h-4 w-4" />
+                        Attach Image
+                      </Button>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Max 5MB. JPG, PNG, GIF supported.
+                    </p>
+                  </div>
                 </>
               )}
             </div>
@@ -828,11 +1044,15 @@ function MessagesPage() {
               </Button>
               <Button
                 onClick={handleSendMessage}
-                disabled={!messageContent.trim() || isSending}
+                disabled={(!messageContent.trim() && !selectedImage) || isSending || isUploadingImage}
                 className="flex-1 gap-2"
               >
-                <Send className="h-4 w-4" />
-                {isSending ? "Sending..." : "Send"}
+                {isUploadingImage ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                {isUploadingImage ? "Uploading..." : isSending ? "Sending..." : "Send"}
               </Button>
             </div>
           )}

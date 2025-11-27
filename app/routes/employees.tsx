@@ -237,7 +237,7 @@ function EmployeeManagement({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="rounded-lg border bg-card p-4">
                 <p className="text-sm text-muted-foreground">Total Stock Boost</p>
                 <p className="mt-1 text-2xl font-bold">+{employeeBonus.totalStockBoost}%</p>
@@ -247,6 +247,19 @@ function EmployeeManagement({
                 <p className="text-sm text-muted-foreground">Tick Cost</p>
                 <p className="mt-1 text-2xl font-bold">{employeeBonus.totalTickCostPercentage}%</p>
                 <p className="mt-1 text-xs text-muted-foreground">of income per tick</p>
+              </div>
+              <div className="rounded-lg border bg-card p-4">
+                <p className="text-sm text-muted-foreground">Auto Restock</p>
+                <p className="mt-1 text-2xl font-bold">
+                  {employeeBonus.autoRestockActive 
+                    ? employeeBonus.autoRestockType === "senior" 
+                      ? "30-50%" 
+                      : "5-10%"
+                    : "Inactive"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {employeeBonus.autoRestockActive ? "per tick automatically" : "Hire a Product Manager"}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -264,32 +277,46 @@ function EmployeeManagement({
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {hiredEmployees.map((employee) => (
-                <div
-                  key={employee.id}
-                  className="flex items-center justify-between rounded-lg border bg-card p-4"
-                >
-                  <div className="flex items-center gap-3">
-                    <Briefcase className="h-8 w-8 text-primary" />
-                    <div>
-                      <p className="font-semibold">{employee.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        +{employee.bonusPercentage}% Stock Boost
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Tick Cost: {employee.tickCostPercentage}% of income
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleFire(employee.id, employee.name)}
+              {hiredEmployees.map((employee) => {
+                // Determine the benefit text based on bonus type
+                let benefitText = "";
+                if (employee.bonusType.startsWith("stock_boost")) {
+                  benefitText = `+${employee.bonusPercentage}% Stock Boost`;
+                } else if (employee.bonusType === "auto_restock_junior") {
+                  benefitText = "Auto-restocks 5-10% of inventory each tick";
+                } else if (employee.bonusType === "auto_restock_senior") {
+                  benefitText = "Auto-restocks 30-50% of inventory each tick";
+                } else {
+                  benefitText = employee.bonusType;
+                }
+
+                return (
+                  <div
+                    key={employee.id}
+                    className="flex items-center justify-between rounded-lg border bg-card p-4"
                   >
-                    Fire
-                  </Button>
-                </div>
-              ))}
+                    <div className="flex items-center gap-3">
+                      <Briefcase className="h-8 w-8 text-primary" />
+                      <div>
+                        <p className="font-semibold">{employee.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {benefitText}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Tick Cost: {employee.tickCostPercentage}% of income
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleFire(employee.id, employee.name)}
+                    >
+                      Fire
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
