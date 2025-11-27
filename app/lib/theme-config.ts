@@ -390,7 +390,7 @@ export const applyThemeColors = (colors: ThemeColors, mode: ThemeMode) => {
   // Remove the collected properties
   propertiesToRemove.forEach(prop => root.style.removeProperty(prop));
 
-  // Apply new colors
+  // Apply new colors with important priority to override CSS class rules
   Object.entries(colors).forEach(([key, value]) => {
     // Convert camelCase to kebab-case for CSS variables
     let cssVar = key.replace(/([A-Z])/g, "-$1").toLowerCase();
@@ -400,7 +400,8 @@ export const applyThemeColors = (colors: ThemeColors, mode: ThemeMode) => {
       cssVar = cssVar.replace("chart", "chart-");
     }
 
-    root.style.setProperty(`--${cssVar}`, value);
+    // Use important priority to override .dark class CSS rules
+    root.style.setProperty(`--${cssVar}`, value, "important");
   });
 
   // Apply dark mode class
