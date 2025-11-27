@@ -40,74 +40,106 @@ function isDefaultTheme(themeId: string): boolean {
   return themeId === "default" || themeId === "dark-default";
 }
 
-// Helper to generate theme colors from primary and secondary colors
-function generateCustomThemeColors(primaryColor: string, secondaryColor: string, mode: "light" | "dark") {
-  const colors: any = {
-    primary: primaryColor,
-    primaryForeground: mode === "light" ? "#ffffff" : "#000000",
-    secondary: secondaryColor,
-    secondaryForeground: mode === "light" ? "#0a0a0a" : "#ffffff",
-  };
+// Helper to lighten/darken a hex color
+function adjustColor(hex: string, percent: number): string {
+  // Remove # if present
+  hex = hex.replace(/^#/, '');
+  
+  // Parse r, g, b values
+  let r = parseInt(hex.substring(0, 2), 16);
+  let g = parseInt(hex.substring(2, 4), 16);
+  let b = parseInt(hex.substring(4, 6), 16);
+  
+  // Adjust each component
+  r = Math.min(255, Math.max(0, Math.round(r + (255 * percent / 100))));
+  g = Math.min(255, Math.max(0, Math.round(g + (255 * percent / 100))));
+  b = Math.min(255, Math.max(0, Math.round(b + (255 * percent / 100))));
+  
+  // Convert back to hex
+  return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+}
 
-  if (mode === "light") {
-    colors.background = "#ffffff";
-    colors.foreground = "#0a0a0a";
-    colors.card = "#ffffff";
-    colors.cardForeground = "#0a0a0a";
-    colors.popover = "#ffffff";
-    colors.popoverForeground = "#0a0a0a";
-    colors.muted = "#f5f5f5";
-    colors.mutedForeground = "#6b6b6b";
-    colors.accent = "#f0f0f0";
-    colors.accentForeground = "#0a0a0a";
-    colors.destructive = "#ef4444";
-    colors.destructiveForeground = "#ffffff";
-    colors.border = "#e5e5e5";
-    colors.input = "#e5e5e5";
-    colors.ring = primaryColor;
-    colors.chart1 = primaryColor;
-    colors.chart2 = secondaryColor;
-    colors.chart3 = primaryColor;
-    colors.chart4 = secondaryColor;
-    colors.chart5 = primaryColor;
-    colors.sidebar = "#fafafa";
-    colors.sidebarForeground = "#0a0a0a";
-    colors.sidebarPrimary = primaryColor;
-    colors.sidebarPrimaryForeground = "#ffffff";
-    colors.sidebarAccent = "#f5f5f5";
-    colors.sidebarAccentForeground = "#0a0a0a";
-    colors.sidebarBorder = "#e5e5e5";
-    colors.sidebarRing = primaryColor;
-  } else {
-    colors.background = "#0a0a0a";
-    colors.foreground = "#ffffff";
-    colors.card = "#1a1a1a";
-    colors.cardForeground = "#ffffff";
-    colors.popover = "#1a1a1a";
-    colors.popoverForeground = "#ffffff";
-    colors.muted = "#2a2a2a";
-    colors.mutedForeground = "#a0a0a0";
-    colors.accent = "#2a2a2a";
-    colors.accentForeground = "#ffffff";
-    colors.destructive = "#dc2626";
-    colors.destructiveForeground = "#ffffff";
-    colors.border = "#2a2a2a";
-    colors.input = "#2a2a2a";
-    colors.ring = primaryColor;
-    colors.chart1 = primaryColor;
-    colors.chart2 = secondaryColor;
-    colors.chart3 = primaryColor;
-    colors.chart4 = secondaryColor;
-    colors.chart5 = primaryColor;
-    colors.sidebar = "#0f0f0f";
-    colors.sidebarForeground = "#ffffff";
-    colors.sidebarPrimary = primaryColor;
-    colors.sidebarPrimaryForeground = "#ffffff";
-    colors.sidebarAccent = "#2a2a2a";
-    colors.sidebarAccentForeground = "#ffffff";
-    colors.sidebarBorder = "#2a2a2a";
-    colors.sidebarRing = primaryColor;
-  }
+// Helper to get contrasting text color (black or white) based on background
+function getContrastColor(hex: string): string {
+  hex = hex.replace(/^#/, '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  // Calculate relative luminance
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? '#0a0a0a' : '#ffffff';
+}
+
+// Helper to generate theme colors from primary and secondary colors
+// Primary = accent color (buttons, links, highlights)
+// Secondary = background/surface colors (background, cards, sidebar, muted areas)
+function generateCustomThemeColors(primaryColor: string, secondaryColor: string, mode: "light" | "dark") {
+  // Get contrasting foreground colors
+  const primaryFg = getContrastColor(primaryColor);
+  const secondaryFg = getContrastColor(secondaryColor);
+  
+  // Generate variations of secondary for different surfaces
+  const secondaryLighter = mode === "light" ? adjustColor(secondaryColor, 5) : adjustColor(secondaryColor, 10);
+  const secondaryDarker = mode === "light" ? adjustColor(secondaryColor, -10) : adjustColor(secondaryColor, -5);
+  const secondaryMuted = mode === "light" ? adjustColor(secondaryColor, -5) : adjustColor(secondaryColor, 5);
+  
+  const colors: any = {
+    // Primary is the accent/brand color
+    primary: primaryColor,
+    primaryForeground: primaryFg,
+    
+    // Secondary color defines the overall look - backgrounds, cards, etc.
+    secondary: secondaryColor,
+    secondaryForeground: secondaryFg,
+    
+    // Background uses secondary as the base
+    background: secondaryColor,
+    foreground: secondaryFg,
+    
+    // Cards are slightly different from background
+    card: secondaryLighter,
+    cardForeground: secondaryFg,
+    
+    // Popover same as cards
+    popover: secondaryLighter,
+    popoverForeground: secondaryFg,
+    
+    // Muted areas
+    muted: secondaryMuted,
+    mutedForeground: mode === "light" ? adjustColor(secondaryFg, 40) : adjustColor(secondaryFg, -40),
+    
+    // Accent areas (hover states, etc.)
+    accent: secondaryDarker,
+    accentForeground: secondaryFg,
+    
+    // Destructive stays red
+    destructive: mode === "light" ? "#ef4444" : "#dc2626",
+    destructiveForeground: "#ffffff",
+    
+    // Borders and inputs
+    border: secondaryDarker,
+    input: secondaryDarker,
+    
+    // Ring uses primary
+    ring: primaryColor,
+    
+    // Charts
+    chart1: primaryColor,
+    chart2: adjustColor(primaryColor, mode === "light" ? 20 : -20),
+    chart3: adjustColor(primaryColor, mode === "light" ? -20 : 20),
+    chart4: secondaryDarker,
+    chart5: adjustColor(primaryColor, mode === "light" ? 40 : -40),
+    
+    // Sidebar uses secondary
+    sidebar: secondaryMuted,
+    sidebarForeground: secondaryFg,
+    sidebarPrimary: primaryColor,
+    sidebarPrimaryForeground: primaryFg,
+    sidebarAccent: secondaryDarker,
+    sidebarAccentForeground: secondaryFg,
+    sidebarBorder: secondaryDarker,
+    sidebarRing: primaryColor,
+  };
 
   return colors;
 }
