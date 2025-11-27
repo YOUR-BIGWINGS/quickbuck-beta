@@ -252,3 +252,53 @@ export const updateCustomTheme = mutation({
     return { success: true };
   },
 });
+
+// Mutation: Upsert a theme (create new or update existing by originalThemeId)
+// Used when editing built-in themes - creates a custom override
+export const upsertTheme = mutation({
+  args: {
+    originalThemeId: v.string(), // The original theme id (e.g., "light-cloud")
+    name: v.string(),
+    mode: v.union(v.literal("light"), v.literal("dark")),
+    primaryColor: v.string(),
+    secondaryColor: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Check if user is admin
+    const { isAdmin, playerId } = await checkIsAdmin(ctx);
+    if (!isAdmin || !playerId) {
+      throw new Error("Only admins can modify themes");
+    }
+
+    // Check if a custom theme override already exists for this theme
+    const existing = await ctx.db
+      .query("customThemes")
+      .filter((q) => q.eq(q.field("id"), args.originalThemeId))
+      .first();
+
+    if (existing) {
+      // Update the existing override
+      await ctx.db.patch(existing._id, {
+        name: args.name,
+        mode: args.mode,
+        primaryColor: args.primaryColor,
+        secondaryColor: args.secondaryColor,
+        updatedAt: Date.now(),
+      });
+      return { success: true, themeId: args.originalThemeId, isNew: false };
+    } else {
+      // Create a new custom theme with the same ID to override the built-in
+      await ctx.db.insert("customThemes", {
+        id: args.originalThemeId,
+        name: args.name,
+        mode: args.mode,
+        primaryColor: args.primaryColor,
+        secondaryColor: args.secondaryColor,
+        createdByAdminId: playerId,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      return { success: true, themeId: args.originalThemeId, isNew: true };
+    }
+  },
+});
