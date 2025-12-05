@@ -18,6 +18,7 @@ import {
   Tags,
   Home,
   Users,
+  DollarSign,
 } from "lucide-react";
 import { Link } from "react-router";
 import { NavMain } from "./nav-main";
@@ -146,6 +147,11 @@ const sidebarGroups = [
         title: "Upgrades",
         url: "/upgrades",
         icon: Bolt,
+      },
+      {
+        title: "Taxes",
+        url: "/taxes",
+        icon: DollarSign,
       },
     ],
   },

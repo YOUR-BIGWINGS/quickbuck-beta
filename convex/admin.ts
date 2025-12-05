@@ -2,6 +2,7 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
 // Dangerous: wipes all user/game data. Guarded by a secret string.
+// Preserves clerk accounts for rebirth players while resetting their stats
 export const resetAllData = mutation({
   args: {
     confirm: v.string(),
@@ -12,7 +13,19 @@ export const resetAllData = mutation({
       throw new Error("Invalid confirmation token. Aborting reset.");
     }
 
-    // List of tables to clear. Keep in sync with convex/schema.ts
+    // First, identify players with clerk account protection (rebirth players)
+    const allPlayers = await ctx.db.query("players").collect();
+    const protectedPlayers = allPlayers.filter(p => p.hasClerkAccount === true);
+    const protectedUserIds = new Set(protectedPlayers.map(p => p.userId));
+    
+    // Get starting balance from config
+    const startingBalanceConfig = await ctx.db
+      .query("gameConfig")
+      .withIndex("by_key", (q) => q.eq("key", "startingPlayerBalance"))
+      .unique();
+    const startingBalance = startingBalanceConfig?.value || 1000000;
+
+    // List of tables to clear (excluding users and players initially)
     const tables = [
       "tickHistory",
       "marketplaceSales",
@@ -22,8 +35,6 @@ export const resetAllData = mutation({
       "transactions",
       "carts",
       "cartItems",
-      "players",
-      "users",
       "companies",
       "products",
       "loans",
@@ -35,6 +46,7 @@ export const resetAllData = mutation({
       "gameConfig",
     ];
 
+    // Clear all tables except users and players
     for (const table of tables) {
       try {
         const rows = await (ctx.db.query as any)(table).collect();
@@ -42,17 +54,55 @@ export const resetAllData = mutation({
           try {
             await (ctx.db.delete as any)(row._id);
           } catch (err) {
-            // ignore individual delete failures
             console.warn(`Failed to delete row ${row._id} from ${table}:`, err);
           }
         }
       } catch (err) {
-        // table might not exist or other errors - ignore
         console.warn(`Skipping table ${table}:`, err);
       }
     }
 
-    return { success: true };
+    // Handle players table specially
+    for (const player of allPlayers) {
+      if (player.hasClerkAccount === true) {
+        // Reset rebirth player stats but preserve clerk account and rebirth count
+        try {
+          await ctx.db.patch(player._id, {
+            balance: startingBalance,
+            netWorth: startingBalance,
+            // Keep: rebirthCount, hasClerkAccount, role (if admin/mod)
+            updatedAt: Date.now(),
+          });
+        } catch (err) {
+          console.warn(`Failed to reset protected player ${player._id}:`, err);
+        }
+      } else {
+        // Delete non-rebirth players
+        try {
+          await ctx.db.delete(player._id);
+        } catch (err) {
+          console.warn(`Failed to delete player ${player._id}:`, err);
+        }
+      }
+    }
+
+    // Handle users table - delete non-protected users
+    const allUsers = await ctx.db.query("users").collect();
+    for (const user of allUsers) {
+      if (!protectedUserIds.has(user._id)) {
+        try {
+          await ctx.db.delete(user._id);
+        } catch (err) {
+          console.warn(`Failed to delete user ${user._id}:`, err);
+        }
+      }
+    }
+
+    return { 
+      success: true,
+      protectedPlayers: protectedPlayers.length,
+      message: `Wipe complete. ${protectedPlayers.length} rebirth player(s) preserved with clerk accounts.`
+    };
   },
 });
 

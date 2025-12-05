@@ -87,10 +87,30 @@ export const buyCompanyDirectly = mutation({
 
     const now = Date.now();
 
-    // Transfer payment
+    // Calculate 2% transaction tax
+    const TRANSACTION_TAX_RATE = 0.02;
+    const transactionTax = Math.floor(sale.askingPrice * TRANSACTION_TAX_RATE);
+    const totalWithTax = sale.askingPrice + transactionTax;
+
+    // Verify buyer has enough for purchase + tax
+    if (buyer.balance < totalWithTax) {
+      throw new Error("Insufficient balance (including 2% transaction tax)");
+    }
+
+    // Transfer payment (including tax)
     await ctx.db.patch(args.buyerId, {
-      balance: buyer.balance - sale.askingPrice,
+      balance: buyer.balance - totalWithTax,
       updatedAt: now,
+    });
+
+    // Record transaction tax
+    await ctx.db.insert("taxes", {
+      playerId: args.buyerId,
+      taxType: "transaction",
+      amount: transactionTax,
+      taxRate: TRANSACTION_TAX_RATE,
+      description: `Transaction tax on company purchase: ${company.name} ($${(sale.askingPrice / 100).toFixed(2)})`,
+      timestamp: now,
     });
 
     const seller = await ctx.db.get(sale.sellerId);

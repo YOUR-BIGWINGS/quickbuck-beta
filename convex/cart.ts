@@ -263,6 +263,17 @@ export const checkout = mutation({
       throw new Error("Cart is empty");
     }
 
+    // Get player for rebirth discount check
+    const player = await ctx.db.get(args.userId);
+    if (!player) {
+      throw new Error("Player not found");
+    }
+
+    // Check if player has rebirth 5 discount
+    const rebirthCount = player.rebirthCount || 0;
+    const hasRebirthDiscount = rebirthCount >= 5;
+    const discountRate = hasRebirthDiscount ? 0.05 : 0; // 5% discount for rebirth 5+
+
     // Verify stock and calculate total
     let total = 0;
     for (const item of cartItems) {
@@ -278,14 +289,19 @@ export const checkout = mutation({
         throw new Error(`Insufficient stock for ${product.name}`);
       }
 
-      const itemTotal = product.price * item.quantity;
+      // Apply rebirth discount if applicable
+      const discountedPrice = hasRebirthDiscount 
+        ? Math.floor(product.price * (1 - discountRate))
+        : product.price;
+      
+      const itemTotal = discountedPrice * item.quantity;
 
       // EXPLOIT FIX: Validate item total is safe
       if (!Number.isSafeInteger(itemTotal)) {
         throw new Error(`Price calculation overflow for ${product.name}`);
       }
 
-      total += itemTotal; // Use current price
+      total += itemTotal; // Use discounted price
 
       // EXPLOIT FIX: Validate running total is safe
       if (!Number.isSafeInteger(total)) {
@@ -293,26 +309,51 @@ export const checkout = mutation({
       }
     }
 
-    // Check balance
+    // Calculate 2% transaction tax
+    const TRANSACTION_TAX_RATE = 0.02;
+    const transactionTax = Math.floor(total * TRANSACTION_TAX_RATE);
+    const totalWithTax = total + transactionTax;
+
+    // Check balance (including tax)
     if (args.accountType === "player") {
       const playerId = args.accountId as Id<"players">;
       const player = await ctx.db.get(playerId);
-      if (!player || player.balance < total) {
-        throw new Error("Insufficient balance");
+      if (!player || player.balance < totalWithTax) {
+        throw new Error("Insufficient balance (including 2% transaction tax)");
       }
       await ctx.db.patch(playerId, {
-        balance: player.balance - total,
+        balance: player.balance - totalWithTax,
         updatedAt: Date.now(),
+      });
+
+      // Record transaction tax
+      await ctx.db.insert("taxes", {
+        playerId: playerId,
+        taxType: "transaction",
+        amount: transactionTax,
+        taxRate: TRANSACTION_TAX_RATE,
+        description: `Transaction tax on cart purchase ($${(total / 100).toFixed(2)})`,
+        timestamp: Date.now(),
       });
     } else {
       const companyId = args.accountId as Id<"companies">;
       const company = await ctx.db.get(companyId);
-      if (!company || company.balance < total) {
-        throw new Error("Insufficient balance");
+      if (!company || company.balance < totalWithTax) {
+        throw new Error("Insufficient balance (including 2% transaction tax)");
       }
       await ctx.db.patch(companyId, {
-        balance: company.balance - total,
+        balance: company.balance - totalWithTax,
         updatedAt: Date.now(),
+      });
+
+      // Record transaction tax (for company owner)
+      await ctx.db.insert("taxes", {
+        playerId: company.ownerId,
+        taxType: "transaction",
+        amount: transactionTax,
+        taxRate: TRANSACTION_TAX_RATE,
+        description: `Transaction tax on company cart purchase ($${(total / 100).toFixed(2)})`,
+        timestamp: Date.now(),
       });
     }
 
@@ -327,6 +368,11 @@ export const checkout = mutation({
       const product = await ctx.db.get(item.productId);
       if (!product) continue;
 
+      // Apply rebirth discount if applicable
+      const discountedPrice = hasRebirthDiscount 
+        ? Math.floor(product.price * (1 - discountRate))
+        : product.price;
+
       // Update stock
       if (product.stock !== undefined && product.stock !== null) {
         await ctx.db.patch(item.productId, {
@@ -335,9 +381,9 @@ export const checkout = mutation({
         });
       }
 
-      // Update product revenue and sales
+      // Update product revenue and sales (using discounted price)
       await ctx.db.patch(item.productId, {
-        totalRevenue: product.totalRevenue + product.price * item.quantity,
+        totalRevenue: product.totalRevenue + discountedPrice * item.quantity,
         totalSold: product.totalSold + item.quantity,
         updatedAt: now,
       });
@@ -355,7 +401,7 @@ export const checkout = mutation({
         await ctx.db.patch(existingInventory._id, {
           quantity: existingInventory.quantity + item.quantity,
           totalPrice:
-            existingInventory.totalPrice + product.price * item.quantity,
+            existingInventory.totalPrice + discountedPrice * item.quantity,
           purchasedAt: now,
         });
       } else {
@@ -365,15 +411,15 @@ export const checkout = mutation({
           productId: item.productId,
           quantity: item.quantity,
           purchasedAt: now,
-          totalPrice: product.price * item.quantity,
+          totalPrice: discountedPrice * item.quantity,
         });
       }
 
-      // Credit company
+      // Credit company (using discounted price)
       const company = await ctx.db.get(product.companyId);
       if (company) {
         await ctx.db.patch(product.companyId, {
-          balance: company.balance + product.price * item.quantity,
+          balance: company.balance + discountedPrice * item.quantity,
           updatedAt: now,
         });
       }
@@ -385,12 +431,12 @@ export const checkout = mutation({
         quantity: item.quantity,
         purchaserId: args.userId,
         purchaserType: "player" as const,
-        totalPrice: product.price * item.quantity,
+        totalPrice: discountedPrice * item.quantity,
         createdAt: now,
       });
 
       // Track company payments for consolidated transaction
-      const itemTotal = product.price * item.quantity;
+      const itemTotal = discountedPrice * item.quantity;
       const currentAmount = companyPayments.get(product.companyId) || 0;
       companyPayments.set(product.companyId, currentAmount + itemTotal);
 
@@ -425,7 +471,7 @@ export const checkout = mutation({
       updatedAt: now,
     });
 
-    return { success: true, total };
+    return { success: true, total, transactionTax, totalWithTax };
   },
 });
 
@@ -466,6 +512,18 @@ export const checkoutWithCrypto = mutation({
       throw new Error("Invalid crypto price");
     }
 
+    // Get player for rebirth discount check
+    const playerId = args.accountId as Id<"players">;
+    const player = await ctx.db.get(playerId);
+    if (!player) {
+      throw new Error("Player not found");
+    }
+
+    // Check if player has rebirth 5 discount
+    const rebirthCount = player.rebirthCount || 0;
+    const hasRebirthDiscount = rebirthCount >= 5;
+    const discountRate = hasRebirthDiscount ? 0.05 : 0; // 5% discount for rebirth 5+
+
     // Verify stock and calculate total in base currency
     let total = 0;
     for (const item of cartItems) {
@@ -481,7 +539,12 @@ export const checkoutWithCrypto = mutation({
         throw new Error(`Insufficient stock for ${product.name}`);
       }
 
-      const itemTotal = product.price * item.quantity;
+      // Apply rebirth discount if applicable
+      const discountedPrice = hasRebirthDiscount 
+        ? Math.floor(product.price * (1 - discountRate))
+        : product.price;
+
+      const itemTotal = discountedPrice * item.quantity;
 
       if (!Number.isSafeInteger(itemTotal)) {
         throw new Error(`Price calculation overflow for ${product.name}`);
@@ -497,12 +560,22 @@ export const checkoutWithCrypto = mutation({
     // Calculate crypto needed based on current price
     const cryptoNeeded = total / crypto.currentPrice;
 
+    // Calculate 2% transaction tax (in cash)
+    const TRANSACTION_TAX_RATE = 0.02;
+    const transactionTax = Math.floor(total * TRANSACTION_TAX_RATE);
+
     // Check player has enough crypto
     if (args.accountType !== "player") {
       throw new Error("Only players can use crypto for marketplace purchases");
     }
 
-    const playerId = args.accountId as Id<"players">;
+    // Check player has enough cash for transaction tax
+    if (player.balance < transactionTax) {
+      throw new Error(
+        `Insufficient cash balance for 2% transaction tax ($${(transactionTax / 100).toFixed(2)})`
+      );
+    }
+
     const wallet = await ctx.db
       .query("playerCryptoWallets")
       .withIndex("by_player_crypto", (q) =>
@@ -517,6 +590,22 @@ export const checkoutWithCrypto = mutation({
         )}, have ${wallet?.balance.toFixed(8) || "0"}`
       );
     }
+
+    // Deduct transaction tax from cash balance
+    await ctx.db.patch(playerId, {
+      balance: player.balance - transactionTax,
+      updatedAt: Date.now(),
+    });
+
+    // Record transaction tax
+    await ctx.db.insert("taxes", {
+      playerId: playerId,
+      taxType: "transaction",
+      amount: transactionTax,
+      taxRate: TRANSACTION_TAX_RATE,
+      description: `Transaction tax on crypto cart purchase ($${(total / 100).toFixed(2)})`,
+      timestamp: Date.now(),
+    });
 
     // Deduct from crypto wallet
     const newWalletBalance = wallet.balance - cryptoNeeded;
@@ -547,6 +636,11 @@ export const checkoutWithCrypto = mutation({
       const product = await ctx.db.get(item.productId);
       if (!product) continue;
 
+      // Apply rebirth discount if applicable
+      const discountedPrice = hasRebirthDiscount 
+        ? Math.floor(product.price * (1 - discountRate))
+        : product.price;
+
       // Update stock
       if (product.stock !== undefined && product.stock !== null) {
         await ctx.db.patch(item.productId, {
@@ -555,9 +649,9 @@ export const checkoutWithCrypto = mutation({
         });
       }
 
-      // Update product revenue and sales
+      // Update product revenue and sales (using discounted price)
       await ctx.db.patch(item.productId, {
-        totalRevenue: product.totalRevenue + product.price * item.quantity,
+        totalRevenue: product.totalRevenue + discountedPrice * item.quantity,
         totalSold: product.totalSold + item.quantity,
         updatedAt: now,
       });
@@ -574,7 +668,7 @@ export const checkoutWithCrypto = mutation({
         await ctx.db.patch(existingInventory._id, {
           quantity: existingInventory.quantity + item.quantity,
           totalPrice:
-            existingInventory.totalPrice + product.price * item.quantity,
+            existingInventory.totalPrice + discountedPrice * item.quantity,
           purchasedAt: now,
         });
       } else {
@@ -583,15 +677,15 @@ export const checkoutWithCrypto = mutation({
           productId: item.productId,
           quantity: item.quantity,
           purchasedAt: now,
-          totalPrice: product.price * item.quantity,
+          totalPrice: discountedPrice * item.quantity,
         });
       }
 
-      // Credit company in base currency
+      // Credit company in base currency (using discounted price)
       const company = await ctx.db.get(product.companyId);
       if (company) {
         await ctx.db.patch(product.companyId, {
-          balance: company.balance + product.price * item.quantity,
+          balance: company.balance + discountedPrice * item.quantity,
           updatedAt: now,
         });
       }
@@ -603,7 +697,7 @@ export const checkoutWithCrypto = mutation({
         quantity: item.quantity,
         purchaserId: args.userId,
         purchaserType: "player" as const,
-        totalPrice: product.price * item.quantity,
+        totalPrice: discountedPrice * item.quantity,
         createdAt: now,
       });
 
@@ -643,6 +737,7 @@ export const checkoutWithCrypto = mutation({
       cryptoUsed: cryptoNeeded,
       cryptoSymbol: crypto.symbol,
       cryptoPrice: crypto.currentPrice,
+      transactionTax,
     };
   },
 });

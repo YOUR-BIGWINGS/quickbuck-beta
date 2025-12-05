@@ -35,10 +35,10 @@ export const sendGlobalAlert = mutation({
       throw new Error("Player not found");
     }
 
-    // Check admin permission
-    const isAdmin = await hasPermission(ctx, currentPlayer._id, "admin");
-    if (!isAdmin) {
-      throw new Error("Only admins can send global alerts");
+    // Check high_mod or admin permission
+    const hasHighModAccess = await hasPermission(ctx, currentPlayer._id, "high_mod");
+    if (!hasHighModAccess) {
+      throw new Error("Only high mods and admins can send global alerts");
     }
 
     // Validate inputs
@@ -229,10 +229,10 @@ export const deleteAlert = mutation({
       throw new Error("Player not found");
     }
 
-    // Check admin permission
-    const isAdmin = await hasPermission(ctx, currentPlayer._id, "admin");
-    if (!isAdmin) {
-      throw new Error("Only admins can delete alerts");
+    // Check high_mod or admin permission
+    const hasHighModAccess = await hasPermission(ctx, currentPlayer._id, "high_mod");
+    if (!hasHighModAccess) {
+      throw new Error("Only high mods and admins can delete alerts");
     }
 
     const alert = await ctx.db.get(args.alertId);

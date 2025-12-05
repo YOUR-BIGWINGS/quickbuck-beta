@@ -26,7 +26,10 @@ export default function Panel() {
   const banPlayer = useMutation(api.moderation.banPlayer);
   const unbanPlayer = useMutation(api.moderation.unbanPlayer);
   const assignModerator = useMutation(api.moderation.assignModerator);
+  const assignHighModerator = useMutation(api.moderation.assignHighModerator);
   const removeModerator = useMutation(api.moderation.removeModerator);
+  const assignProbationaryMod = useMutation(api.moderation.assignProbationaryMod);
+  const removeProbationaryMod = useMutation(api.moderation.removeProbationaryMod);
   const deleteCompany = useMutation(api.moderation.deleteCompanyAsMod);
   const deleteProduct = useMutation(api.moderation.deleteProductAsMod);
   const bulkDeleteProducts = useMutation(api.moderation.bulkDeleteProducts);
@@ -98,27 +101,27 @@ export default function Panel() {
   const [messageText, setMessageText] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
 
-  // Player details modal state
-  const [playerDetailsModal, setPlayerDetailsModal] = useState<{
-    playerId: Id<"players">;
-    playerName: string;
+  // Lil mod action tracking state
+  const [viewLilModActionsModal, setViewLilModActionsModal] = useState<{
+    modId: Id<"players">;
+    modName: string;
   } | null>(null);
+  
+  const lilModActions = useQuery(
+    api.moderation.getLilModActions,
+    viewLilModActionsModal ? { modId: viewLilModActionsModal.modId } : "skip"
+  );
+  
+  const lilModActionCount = useQuery(
+    api.moderation.getLilModActionCount,
+    viewLilModActionsModal ? { modId: viewLilModActionsModal.modId } : "skip"
+  );
 
   // Search for users query (after state declaration)
   const searchResults = useQuery(
     // @ts-ignore - messages module exists but not yet in generated types
     api.messages?.searchPlayers,
     messageSearchQuery.length > 1 ? { searchQuery: messageSearchQuery } : "skip"
-  );
-
-  // Player companies and products queries
-  const playerCompanies = useQuery(
-    api.moderation.getPlayerCompanies,
-    playerDetailsModal ? { playerId: playerDetailsModal.playerId } : "skip"
-  );
-  const playerProducts = useQuery(
-    api.moderation.getPlayerProducts,
-    playerDetailsModal ? { playerId: playerDetailsModal.playerId } : "skip"
   );
 
   const showMessage = (message: string) => {
@@ -276,14 +279,13 @@ export default function Panel() {
   }
 
   const isAdmin = moderationAccess.role === "admin";
+  const isHighMod = moderationAccess.role === "high_mod";
+  const hasHighModAccess = isAdmin || isHighMod; // high_mod or admin can access these features
   
   // Debug: Log admin status
   console.log("Moderation Access:", moderationAccess);
   console.log("Is Admin:", isAdmin);
-
-  const handleViewPlayerDetails = (playerId: Id<"players">, playerName: string) => {
-    setPlayerDetailsModal({ playerId, playerName });
-  };
+  console.log("Is High Mod:", isHighMod);
 
   const handleLimitPlayer = async (playerId: Id<"players">) => {
     const reason = prompt("Enter reason for limiting this account:");
@@ -375,6 +377,16 @@ export default function Panel() {
     }
   };
 
+  const handleAssignHighMod = async (playerId: Id<"players">) => {
+    if (!confirm("Promote this player to high moderator?")) return;
+    try {
+      await assignHighModerator({ targetPlayerId: playerId });
+      showMessage("✓ Player promoted to high moderator");
+    } catch (e: any) {
+      showMessage("✗ Error: " + e.message);
+    }
+  };
+
   const handleRemoveMod = async (playerId: Id<"players">) => {
     if (!confirm("Demote this moderator to normal user?")) return;
     try {
@@ -383,6 +395,30 @@ export default function Panel() {
     } catch (e: any) {
       showMessage("✗ Error: " + e.message);
     }
+  };
+
+  const handleAssignProbationaryMod = async (playerId: Id<"players">) => {
+    if (!confirm("Promote this player to probationary moderator (lil_mod)? They will only have warn and limit permissions.")) return;
+    try {
+      await assignProbationaryMod({ targetPlayerId: playerId });
+      showMessage("✓ Player promoted to probationary moderator");
+    } catch (e: any) {
+      showMessage("✗ Error: " + e.message);
+    }
+  };
+
+  const handleRemoveProbationaryMod = async (playerId: Id<"players">) => {
+    if (!confirm("Demote this probationary moderator to normal user?")) return;
+    try {
+      await removeProbationaryMod({ targetPlayerId: playerId });
+      showMessage("✓ Probationary moderator demoted");
+    } catch (e: any) {
+      showMessage("✗ Error: " + e.message);
+    }
+  };
+
+  const handleViewLilModActions = (playerId: Id<"players">, playerName: string) => {
+    setViewLilModActionsModal({ modId: playerId, modName: playerName });
   };
 
   const handleClearWarnings = async (playerId: Id<"players">) => {
@@ -655,7 +691,7 @@ export default function Panel() {
         >
           Message User
         </button>
-        {isAdmin && (
+        {hasHighModAccess && (
           <button
             className={`retro-tab ${activeTab === "alerts" ? "active" : ""}`}
             onClick={() => setActiveTab("alerts")}
@@ -690,20 +726,27 @@ export default function Panel() {
                   {players.map((player) => (
                     <tr key={player._id}>
                       <td>
-                        <span 
-                          className="player-name-link"
-                          onClick={() => handleViewPlayerDetails(player._id, player.userName)}
-                          title="Click to view player's companies and products"
-                        >
-                          {player.userName}
-                        </span>
+                        {player.role === "lil_mod" ? (
+                          <span
+                            className="clickable"
+                            style={{ cursor: "pointer", textDecoration: "underline", color: "#4a7c59" }}
+                            title="Click to view mod actions"
+                            onClick={() => handleViewLilModActions(player._id, player.userName)}
+                          >
+                            {player.userName}
+                          </span>
+                        ) : (
+                          player.userName
+                        )}
                       </td>
                       <td>{player.userEmail}</td>
                       <td>
                         <span
                           className={`role-tag role-${player.role || "normal"}`}
                         >
-                          {(player.role || "normal").toUpperCase()}
+                          {player.role === "lil_mod" 
+                            ? "LIL MOD" 
+                            : (player.role || "normal").toUpperCase()}
                         </span>
                       </td>
                       <td>${(player.balance / 100).toFixed(2)}</td>
@@ -772,15 +815,33 @@ export default function Panel() {
                               >
                                 Ban
                               </button>
-                              {isAdmin && (
-                                <button
-                                  onClick={() => handleAssignMod(player._id)}
-                                  className="btn-small btn-success"
-                                >
-                                  → Mod
-                                </button>
+                              {hasHighModAccess && (
+                                <>
+                                  <button
+                                    onClick={() => handleAssignProbationaryMod(player._id)}
+                                    className="btn-small btn-success"
+                                    style={{ backgroundColor: "#4a7c59" }}
+                                  >
+                                    → Lil Mod
+                                  </button>
+                                  <button
+                                    onClick={() => handleAssignMod(player._id)}
+                                    className="btn-small btn-success"
+                                  >
+                                    → Mod
+                                  </button>
+                                </>
                               )}
                               {isAdmin && (
+                                <button
+                                  onClick={() => handleAssignHighMod(player._id)}
+                                  className="btn-small btn-success"
+                                  style={{ backgroundColor: "#006400" }}
+                                >
+                                  → High Mod
+                                </button>
+                              )}
+                              {hasHighModAccess && (
                                 <button
                                   onClick={() =>
                                     handleSetPlayerBalance(player._id)
@@ -826,7 +887,7 @@ export default function Panel() {
                               >
                                 Ban
                               </button>
-                              {isAdmin && (
+                              {hasHighModAccess && (
                                 <button
                                   onClick={() =>
                                     handleSetPlayerBalance(player._id)
@@ -846,7 +907,7 @@ export default function Panel() {
                               >
                                 Unban
                               </button>
-                              {isAdmin ? (
+                              {hasHighModAccess ? (
                                 <>
                                   <button
                                     onClick={() =>
@@ -875,20 +936,33 @@ export default function Panel() {
                                 </>
                               ) : (
                                 <span style={{ color: "#666", fontSize: "10px" }}>
-                                  (Admin only)
+                                  (High Mod only)
                                 </span>
                               )}
                             </>
                           )}
-                          {player.role === "mod" && (
+                          {player.role === "lil_mod" && (
                             <>
-                              {isAdmin && (
+                              <button
+                                onClick={() => handleViewLilModActions(player._id, player.userName)}
+                                className="btn-small btn-info"
+                                title="View all mod actions"
+                              >
+                                📋 View Actions
+                              </button>
+                              {hasHighModAccess && (
                                 <>
                                   <button
-                                    onClick={() => handleRemoveMod(player._id)}
+                                    onClick={() => handleRemoveProbationaryMod(player._id)}
                                     className="btn-small btn-warn"
                                   >
                                     Demote
+                                  </button>
+                                  <button
+                                    onClick={() => handleAssignMod(player._id)}
+                                    className="btn-small btn-success"
+                                  >
+                                    → Mod
                                   </button>
                                   <button
                                     onClick={() =>
@@ -899,6 +973,59 @@ export default function Panel() {
                                     Set $
                                   </button>
                                 </>
+                              )}
+                            </>
+                          )}
+                          {player.role === "mod" && (
+                            <>
+                              {hasHighModAccess && (
+                                <button
+                                  onClick={() => handleRemoveMod(player._id)}
+                                  className="btn-small btn-warn"
+                                >
+                                  Demote
+                                </button>
+                              )}
+                              {isAdmin && (
+                                <button
+                                  onClick={() => handleAssignHighMod(player._id)}
+                                  className="btn-small btn-success"
+                                  style={{ backgroundColor: "#006400" }}
+                                >
+                                  → High Mod
+                                </button>
+                              )}
+                              {hasHighModAccess && (
+                                <button
+                                  onClick={() =>
+                                    handleSetPlayerBalance(player._id)
+                                  }
+                                  className="btn-small btn-info"
+                                >
+                                  Set $
+                                </button>
+                              )}
+                            </>
+                          )}
+                          {player.role === "high_mod" && (
+                            <>
+                              {isAdmin && (
+                                <button
+                                  onClick={() => handleRemoveMod(player._id)}
+                                  className="btn-small btn-warn"
+                                >
+                                  Demote
+                                </button>
+                              )}
+                              {hasHighModAccess && (
+                                <button
+                                  onClick={() =>
+                                    handleSetPlayerBalance(player._id)
+                                  }
+                                  className="btn-small btn-info"
+                                >
+                                  Set $
+                                </button>
                               )}
                             </>
                           )}
@@ -955,7 +1082,7 @@ export default function Panel() {
                           >
                             Delete
                           </button>
-                          {isAdmin && (
+                          {hasHighModAccess && (
                             <button
                               onClick={() =>
                                 handleSetCompanyBalance(company._id)
@@ -1405,98 +1532,7 @@ export default function Panel() {
         </div>
       </div>
 
-      {/* Player Details Modal */}
-      <div className={`warning-modal-overlay ${playerDetailsModal ? "visible" : ""}`}>
-        <div className="warning-modal-box player-details-box">
-          <h3>📊 Player Details</h3>
-          <p>
-            Player: <strong>{playerDetailsModal?.playerName}</strong>
-          </p>
 
-          <div className="player-details-content">
-            {/* Companies Section */}
-            <div className="player-details-section">
-              <h4>🏢 Companies ({playerCompanies?.length || 0})</h4>
-              {playerCompanies === undefined ? (
-                <div className="loading">Loading companies...</div>
-              ) : playerCompanies.length === 0 ? (
-                <p className="no-data">No companies owned</p>
-              ) : (
-                <table className="retro-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Type</th>
-                      <th>Balance</th>
-                      <th>Ticker</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {playerCompanies.map((company) => (
-                      <tr key={company._id}>
-                        <td>{company.name}</td>
-                        <td>{company.isPublic ? "Public" : "Private"}</td>
-                        <td>${(company.balance / 100).toFixed(2)}</td>
-                        <td>{company.ticker || "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-
-            {/* Products Section */}
-            <div className="player-details-section">
-              <h4>📦 Products ({playerProducts?.length || 0})</h4>
-              {playerProducts === undefined ? (
-                <div className="loading">Loading products...</div>
-              ) : playerProducts.length === 0 ? (
-                <p className="no-data">No products created</p>
-              ) : (
-                <table className="retro-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Company</th>
-                      <th>Price</th>
-                      <th>Stock</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {playerProducts.map((product) => (
-                      <tr key={product._id}>
-                        <td>{product.name}</td>
-                        <td>{product.companyName}</td>
-                        <td>${(product.price / 100).toFixed(2)}</td>
-                        <td>{product.stock}</td>
-                        <td>
-                          {product.isArchived ? (
-                            <span style={{ color: "var(--text-secondary)" }}>Archived</span>
-                          ) : product.isActive ? (
-                            <span style={{ color: "var(--text-success)" }}>Active</span>
-                          ) : (
-                            <span style={{ color: "var(--text-warning)" }}>Inactive</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-
-          <div className="warning-modal-buttons">
-            <button
-              className="btn-cancel"
-              onClick={() => setPlayerDetailsModal(null)}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      </div>
 
       {/* Global Alert Modal */}
       <div className={`alert-modal-overlay ${showAlertModal ? "visible" : ""}`}>
@@ -1625,6 +1661,71 @@ export default function Panel() {
               onClick={handleBulkDelete}
             >
               Delete {selectedProducts.size} Product(s)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Lil Mod Actions Modal */}
+      <div
+        className={`warning-modal-overlay ${
+          viewLilModActionsModal ? "visible" : ""
+        }`}
+      >
+        <div className="warning-modal-box view-warnings-box" style={{ maxWidth: "800px" }}>
+          <h3>📋 Probationary Mod Actions</h3>
+          <p>
+            Moderator: <strong>{viewLilModActionsModal?.modName}</strong>
+          </p>
+          {lilModActionCount && (
+            <div style={{ marginBottom: "15px", fontSize: "14px" }}>
+              <strong>Action Summary:</strong>
+              <ul style={{ marginTop: "5px", marginLeft: "20px" }}>
+                <li>Total Actions: {lilModActionCount.total}</li>
+                <li>Warnings Issued: {lilModActionCount.warn}</li>
+                <li>Accounts Limited: {lilModActionCount.limit}</li>
+                <li>Accounts Restored: {lilModActionCount.unlimit}</li>
+              </ul>
+            </div>
+          )}
+
+          {lilModActions === undefined ? (
+            <div className="loading">Loading actions...</div>
+          ) : lilModActions.length === 0 ? (
+            <p className="no-warnings-text">No actions on record</p>
+          ) : (
+            <div className="warnings-list" style={{ maxHeight: "400px", overflowY: "auto" }}>
+              {lilModActions.map((action, index) => (
+                <div key={action._id} className="warning-item" style={{ marginBottom: "10px" }}>
+                  <div className="warning-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "5px" }}>
+                    <span className="warning-number" style={{ fontWeight: "bold" }}>
+                      {action.actionType === "warn" && "⚠️ Warning"}
+                      {action.actionType === "limit" && "🔒 Limited Account"}
+                      {action.actionType === "unlimit" && "🔓 Restored Account"}
+                    </span>
+                    <span className="warning-date" style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                      {new Date(action.timestamp).toLocaleString()}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: "14px", marginBottom: "5px" }}>
+                    <strong>Target:</strong> {action.targetPlayerName || "Unknown"}
+                  </div>
+                  {action.reason && (
+                    <div className="warning-reason" style={{ fontSize: "14px", fontStyle: "italic" }}>
+                      <strong>Reason:</strong> {action.reason}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="warning-modal-buttons" style={{ marginTop: "20px" }}>
+            <button
+              className="btn-cancel"
+              onClick={() => setViewLilModActionsModal(null)}
+            >
+              Close
             </button>
           </div>
         </div>
@@ -1994,10 +2095,22 @@ export default function Panel() {
           color: #ffffff;
         }
 
+        .role-lil_mod {
+          background: #7cb68f;
+          border-color: #4a7c59;
+          color: #000000;
+        }
+
         .role-mod {
           background: var(--text-success);
           border-color: #008000;
           color: #000000;
+        }
+
+        .role-high_mod {
+          background: #006400;
+          border-color: #003300;
+          color: #ffffff;
         }
 
         .role-admin {
@@ -2226,55 +2339,6 @@ export default function Panel() {
         .warning-count.clickable {
           cursor: pointer;
           text-decoration: underline;
-        }
-
-        /* Player name link - clickable but not blue */
-        .player-name-link {
-          cursor: pointer;
-          color: inherit;
-        }
-
-        .player-name-link:hover {
-          text-decoration: underline;
-        }
-
-        /* Player details modal */
-        .player-details-box {
-          max-width: 900px;
-        }
-
-        .player-details-content {
-          margin: 20px 0;
-        }
-
-        .player-details-section {
-          margin-bottom: 30px;
-        }
-
-        .player-details-section h4 {
-          color: var(--header-bg);
-          border-bottom: 2px solid var(--header-bg);
-          padding-bottom: 5px;
-          margin-bottom: 15px;
-        }
-
-        .player-details-section .retro-table {
-          font-size: 12px;
-        }
-
-        .player-details-section .no-data {
-          text-align: center;
-          color: var(--text-secondary);
-          font-style: italic;
-          padding: 15px;
-          background: var(--input-bg);
-          border: 2px inset var(--input-border);
-        }
-
-        .player-details-section .loading {
-          text-align: center;
-          color: var(--text-secondary);
-          padding: 15px;
         }
 
         .warning-count.clickable:hover {

@@ -154,6 +154,15 @@
   }
   button {
     @apply hover:cursor-pointer;
+    /* Ensure minimum touch target size for mobile */
+    min-height: 44px;
+    min-width: 44px;
+  }
+  @media (min-width: 640px) {
+    button {
+      min-height: auto;
+      min-width: auto;
+    }
   }
   h1,
   h2,
@@ -168,6 +177,18 @@
   }
   a:hover {
     @apply no-underline;
+  }
+  
+  /* Improve mobile scrolling */
+  @media (max-width: 640px) {
+    * {
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    /* Prevent horizontal scroll */
+    body {
+      overflow-x: hidden;
+    }
   }
 }
 

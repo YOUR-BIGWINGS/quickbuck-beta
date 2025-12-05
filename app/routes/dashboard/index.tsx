@@ -27,6 +27,7 @@ import {
 import { AnimatedNumber } from "~/components/ui/animated-number";
 import { formatCompactCurrency, formatCurrency } from "~/lib/game-utils";
 import { useTheme } from "~/contexts/theme-context";
+import { RebirthNotification } from "~/components/dashboard/rebirth-notification";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -205,6 +206,7 @@ export default function DashboardPage() {
       initial="hidden"
       animate="visible"
     >
+      <RebirthNotification />
       <div className="@container/main flex flex-1 flex-col">
         <div className="flex flex-col gap-6 p-6">
           {/* Hero Section */}
@@ -218,14 +220,14 @@ export default function DashboardPage() {
               <div className="absolute -right-32 -top-32 h-64 w-64 rounded-full bg-white/20 blur-3xl dark:bg-black/30" />
               <div className="absolute -bottom-32 -left-32 h-64 w-64 rounded-full bg-white/20 blur-3xl dark:bg-black/30" />
 
-              <CardContent className="relative z-10 p-8">
-                <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="space-y-4">
+              <CardContent className="relative z-10 p-4 sm:p-6 md:p-8">
+                <div className="flex flex-col gap-4 sm:gap-6 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="space-y-3 sm:space-y-4">
                     <div>
-                      <h1 className="text-sm font-medium text-white/70">
+                      <h1 className="text-xs sm:text-sm font-medium text-white/70">
                         Total Net Worth
                       </h1>
-                      <div className="text-4xl font-bold tracking-tight lg:text-5xl">
+                      <div className="text-3xl sm:text-4xl font-bold tracking-tight lg:text-5xl">
                         <AnimatedNumber
                           value={netWorth}
                           compact={true}
@@ -233,7 +235,7 @@ export default function DashboardPage() {
                           className="text-white"
                         />
                       </div>
-                      <div className="mt-2 flex items-center gap-2 text-sm">
+                      <div className="mt-2 flex items-center gap-2 text-xs sm:text-sm">
                         <span className="text-white/70">Cash Available:</span>
                         <span className="font-semibold text-white">
                           {formatCurrency(balance)}
@@ -242,17 +244,17 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
-                    <Link to="/stocks">
-                      <Button className="w-full bg-white/10 text-white hover:bg-white/20 backdrop-blur-sm">
+                  <div className="flex flex-col gap-2 sm:gap-3 sm:flex-row lg:flex-col">
+                    <Link to="/stocks" className="flex-1 sm:flex-initial">
+                      <Button className="w-full bg-white/10 text-white hover:bg-white/20 backdrop-blur-sm text-sm sm:text-base">
                         <TrendingUp className="mr-2 h-4 w-4" />
                         Trade Now
                       </Button>
                     </Link>
-                    <Link to="/companies">
+                    <Link to="/companies" className="flex-1 sm:flex-initial">
                       <Button
                         variant="outline"
-                        className="w-full border-white/20 bg-transparent text-white hover:bg-white/10"
+                        className="w-full border-white/20 bg-transparent text-white hover:bg-white/10 text-sm sm:text-base"
                       >
                         <Building2 className="mr-2 h-4 w-4" />
                         Manage Companies
@@ -266,7 +268,7 @@ export default function DashboardPage() {
 
           {/* Stats Grid */}
           <motion.div variants={itemVariants}>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
               {quickStats.map((stat, index) => {
                 const Icon = stat.icon;
                 return (
@@ -326,7 +328,7 @@ export default function DashboardPage() {
           </motion.div>
 
           {/* Portfolio Breakdown & Timer */}
-          <div className="grid gap-6 lg:grid-cols-3">
+          <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
             <motion.div variants={itemVariants} className="lg:col-span-2">
               <Card>
                 <CardHeader>

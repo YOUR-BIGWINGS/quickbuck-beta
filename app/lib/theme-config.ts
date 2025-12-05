@@ -117,6 +117,42 @@ const defaultDarkColors: ThemeColors = {
   sidebarRing: "oklch(0.6735 0.201 33.2114)",
 };
 
+// QuickBuck Pro theme (Rebirth 2 unlock)
+const quickbuckProColors: ThemeColors = {
+  primary: "#788bff",
+  primaryForeground: "#ffffff",
+  background: "#ffffff",
+  foreground: "#0a0a0a",
+  card: "#ffffff",
+  cardForeground: "#0a0a0a",
+  popover: "#ffffff",
+  popoverForeground: "#0a0a0a",
+  secondary: "#ffffff",
+  secondaryForeground: "#0a0a0a",
+  muted: "#f5f5f5",
+  mutedForeground: "#6b6b6b",
+  accent: "#f0f0f0",
+  accentForeground: "#0a0a0a",
+  destructive: "#ef4444",
+  destructiveForeground: "#ffffff",
+  border: "#e5e5e5",
+  input: "#e5e5e5",
+  ring: "#788bff",
+  chart1: "#788bff",
+  chart2: "#ffffff",
+  chart3: "#5a6fd8",
+  chart4: "#9aa8ff",
+  chart5: "#3d4fb5",
+  sidebar: "#fafafa",
+  sidebarForeground: "#0a0a0a",
+  sidebarPrimary: "#788bff",
+  sidebarPrimaryForeground: "#ffffff",
+  sidebarAccent: "#f5f5f5",
+  sidebarAccentForeground: "#0a0a0a",
+  sidebarBorder: "#e5e5e5",
+  sidebarRing: "#788bff",
+};
+
 export const themes: Theme[] = [
   {
     id: "default",
@@ -129,6 +165,12 @@ export const themes: Theme[] = [
     name: "Default Dark",
     mode: "dark",
     colors: defaultDarkColors,
+  },
+  {
+    id: "quickbuck-pro",
+    name: "QuickBuck Pro",
+    mode: "light",
+    colors: quickbuckProColors,
   },
 ];
 

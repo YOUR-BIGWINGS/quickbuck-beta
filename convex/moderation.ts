@@ -3,7 +3,7 @@ import { mutation, query, internalMutation } from "./_generated/server";
 import type { Id, Doc } from "./_generated/dataModel";
 
 // Type definitions for player roles
-export type PlayerRole = "normal" | "limited" | "banned" | "mod" | "admin";
+export type PlayerRole = "normal" | "limited" | "banned" | "lil_mod" | "mod" | "high_mod" | "admin";
 
 // Helper: Get player role
 export async function getPlayerRole(
@@ -15,10 +15,11 @@ export async function getPlayerRole(
 }
 
 // Helper: Check if player has permission level
+// Permission hierarchy: admin > high_mod > mod > lil_mod
 export async function hasPermission(
   ctx: any,
   playerId: Id<"players">,
-  requiredRole: "mod" | "admin"
+  requiredRole: "lil_mod" | "mod" | "high_mod" | "admin"
 ): Promise<boolean> {
   const role = await getPlayerRole(ctx, playerId);
 
@@ -26,8 +27,16 @@ export async function hasPermission(
     return role === "admin";
   }
 
+  if (requiredRole === "high_mod") {
+    return role === "high_mod" || role === "admin";
+  }
+
   if (requiredRole === "mod") {
-    return role === "mod" || role === "admin";
+    return role === "mod" || role === "high_mod" || role === "admin";
+  }
+
+  if (requiredRole === "lil_mod") {
+    return role === "lil_mod" || role === "mod" || role === "high_mod" || role === "admin";
   }
 
   return false;
@@ -96,7 +105,7 @@ export const checkModerationAccess = query({
       .unique();
 
     const role = player?.role || "normal";
-    const hasAccess = role === "mod" || role === "admin";
+    const hasAccess = role === "lil_mod" || role === "mod" || role === "high_mod" || role === "admin";
 
     return { hasAccess, role };
   },
@@ -110,7 +119,9 @@ export const getAllPlayersForModeration = query({
         v.literal("normal"),
         v.literal("limited"),
         v.literal("banned"),
+        v.literal("lil_mod"),
         v.literal("mod"),
+        v.literal("high_mod"),
         v.literal("admin")
       )
     ),
@@ -189,18 +200,18 @@ export const limitPlayer = mutation({
 
     if (!currentPlayer) throw new Error("Player not found");
 
-    const hasAccess = await hasPermission(ctx, currentPlayer._id, "mod");
+    const hasAccess = await hasPermission(ctx, currentPlayer._id, "lil_mod");
     if (!hasAccess) {
-      throw new Error("Insufficient permissions - mod or admin required");
+      throw new Error("Insufficient permissions - lil_mod or higher required");
     }
 
     const targetPlayer = await ctx.db.get(args.targetPlayerId);
     if (!targetPlayer) throw new Error("Target player not found");
 
-    // Prevent limiting admins or self
+    // Prevent limiting admins, mods, or self
     const targetRole = targetPlayer.role || "normal";
-    if (targetRole === "admin") {
-      throw new Error("Cannot limit an admin");
+    if (targetRole === "admin" || targetRole === "high_mod" || targetRole === "mod" || targetRole === "lil_mod") {
+      throw new Error("Cannot limit staff members");
     }
     if (args.targetPlayerId === currentPlayer._id) {
       throw new Error("Cannot limit yourself");
@@ -211,6 +222,21 @@ export const limitPlayer = mutation({
       limitReason: args.reason,
       updatedAt: Date.now(),
     });
+
+    // Log action if performed by lil_mod
+    const currentRole = currentPlayer.role || "normal";
+    if (currentRole === "lil_mod") {
+      const targetUser = await ctx.db.get(targetPlayer.userId);
+      await ctx.db.insert("modActions", {
+        modId: currentPlayer._id,
+        modName: user.name || user.email || "Unknown",
+        targetPlayerId: args.targetPlayerId,
+        targetPlayerName: targetUser?.name || "Unknown",
+        actionType: "limit",
+        reason: args.reason,
+        timestamp: Date.now(),
+      });
+    }
 
     return { success: true, message: "Player account limited successfully" };
   },
@@ -239,16 +265,33 @@ export const unlimitPlayer = mutation({
 
     if (!currentPlayer) throw new Error("Player not found");
 
-    const hasAccess = await hasPermission(ctx, currentPlayer._id, "mod");
+    const hasAccess = await hasPermission(ctx, currentPlayer._id, "lil_mod");
     if (!hasAccess) {
-      throw new Error("Insufficient permissions - mod or admin required");
+      throw new Error("Insufficient permissions - lil_mod or higher required");
     }
+
+    const targetPlayer = await ctx.db.get(args.targetPlayerId);
+    if (!targetPlayer) throw new Error("Target player not found");
 
     await ctx.db.patch(args.targetPlayerId, {
       role: "normal",
       limitReason: undefined,
       updatedAt: Date.now(),
     });
+
+    // Log action if performed by lil_mod
+    const currentRole = currentPlayer.role || "normal";
+    if (currentRole === "lil_mod") {
+      const targetUser = await ctx.db.get(targetPlayer.userId);
+      await ctx.db.insert("modActions", {
+        modId: currentPlayer._id,
+        modName: user.name || user.email || "Unknown",
+        targetPlayerId: args.targetPlayerId,
+        targetPlayerName: targetUser?.name || "Unknown",
+        actionType: "unlimit",
+        timestamp: Date.now(),
+      });
+    }
 
     return { success: true, message: "Player account restored to normal" };
   },
@@ -541,10 +584,10 @@ export const permanentlyDeleteBannedPlayer = mutation({
 
     if (!currentPlayer) throw new Error("Player not found");
 
-    // Only admins can permanently delete
-    const isAdmin = await hasPermission(ctx, currentPlayer._id, "admin");
-    if (!isAdmin) {
-      throw new Error("Only admins can permanently delete accounts");
+    // Only admins and high_mods can permanently delete
+    const hasHighModAccess = await hasPermission(ctx, currentPlayer._id, "high_mod");
+    if (!hasHighModAccess) {
+      throw new Error("Only admins and high mods can permanently delete accounts");
     }
 
     const targetPlayer = await ctx.db.get(args.targetPlayerId);
@@ -786,18 +829,18 @@ export const warnPlayer = mutation({
 
     if (!currentPlayer) throw new Error("Player not found");
 
-    const hasAccess = await hasPermission(ctx, currentPlayer._id, "mod");
+    const hasAccess = await hasPermission(ctx, currentPlayer._id, "lil_mod");
     if (!hasAccess) {
-      throw new Error("Insufficient permissions - mod or admin required");
+      throw new Error("Insufficient permissions - lil_mod or higher required");
     }
 
     const targetPlayer = await ctx.db.get(args.targetPlayerId);
     if (!targetPlayer) throw new Error("Target player not found");
 
-    // Prevent warning admins or self
+    // Prevent warning staff members or self
     const targetRole = targetPlayer.role || "normal";
-    if (targetRole === "admin") {
-      throw new Error("Cannot warn an admin");
+    if (targetRole === "admin" || targetRole === "high_mod" || targetRole === "mod" || targetRole === "lil_mod") {
+      throw new Error("Cannot warn staff members");
     }
     if (args.targetPlayerId === currentPlayer._id) {
       throw new Error("Cannot warn yourself");
@@ -818,6 +861,21 @@ export const warnPlayer = mutation({
       warningCount: newWarnings.length,
       updatedAt: Date.now(),
     });
+
+    // Log action if performed by lil_mod
+    const currentRole = currentPlayer.role || "normal";
+    if (currentRole === "lil_mod") {
+      const targetUser = await ctx.db.get(targetPlayer.userId);
+      await ctx.db.insert("modActions", {
+        modId: currentPlayer._id,
+        modName: user.name || user.email || "Unknown",
+        targetPlayerId: args.targetPlayerId,
+        targetPlayerName: targetUser?.name || "Unknown",
+        actionType: "warn",
+        reason: args.reason,
+        timestamp: Date.now(),
+      });
+    }
 
     return {
       success: true,
@@ -925,8 +983,110 @@ export const removeWarning = mutation({
   },
 });
 
-// Mutation: Assign moderator role (admin only)
+// Mutation: Assign moderator role (high_mod and admin)
 export const assignModerator = mutation({
+  args: {
+    targetPlayerId: v.id("players"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) throw new Error("User not found");
+
+    const currentPlayer = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!currentPlayer) throw new Error("Player not found");
+
+    const hasHighModAccess = await hasPermission(ctx, currentPlayer._id, "high_mod");
+    if (!hasHighModAccess) {
+      throw new Error("Insufficient permissions - high mod or admin required");
+    }
+
+    const targetPlayer = await ctx.db.get(args.targetPlayerId);
+    if (!targetPlayer) throw new Error("Target player not found");
+
+    const currentRole = targetPlayer.role || "normal";
+    if (currentRole === "banned") {
+      throw new Error("Cannot promote a banned player");
+    }
+    if (currentRole === "high_mod" || currentRole === "admin") {
+      throw new Error("Cannot change this player's role");
+    }
+
+    await ctx.db.patch(args.targetPlayerId, {
+      role: "mod",
+      updatedAt: Date.now(),
+    });
+
+    return { success: true, message: "Player promoted to moderator" };
+  },
+});
+
+// Mutation: Remove moderator role (high_mod and admin)
+export const removeModerator = mutation({
+  args: {
+    targetPlayerId: v.id("players"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) throw new Error("User not found");
+
+    const currentPlayer = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!currentPlayer) throw new Error("Player not found");
+
+    const hasHighModAccess = await hasPermission(ctx, currentPlayer._id, "high_mod");
+    const isAdmin = await hasPermission(ctx, currentPlayer._id, "admin");
+    
+    if (!hasHighModAccess) {
+      throw new Error("Insufficient permissions - high mod or admin required");
+    }
+
+    const targetPlayer = await ctx.db.get(args.targetPlayerId);
+    if (!targetPlayer) throw new Error("Target player not found");
+
+    const currentRole = targetPlayer.role || "normal";
+    if (currentRole === "admin") {
+      throw new Error("Cannot demote an admin");
+    }
+    // High mods can only demote regular mods, not other high mods
+    if (currentRole === "high_mod" && !isAdmin) {
+      throw new Error("Only admins can demote high moderators");
+    }
+    if (currentRole !== "mod" && currentRole !== "high_mod") {
+      throw new Error("Target player is not a moderator or high mod");
+    }
+
+    await ctx.db.patch(args.targetPlayerId, {
+      role: "normal",
+      updatedAt: Date.now(),
+    });
+
+    return { success: true, message: "Moderator demoted to normal user" };
+  },
+});
+
+// Mutation: Assign high moderator role (admin only)
+export const assignHighModerator = mutation({
   args: {
     targetPlayerId: v.id("players"),
   },
@@ -960,61 +1120,16 @@ export const assignModerator = mutation({
     if (currentRole === "banned") {
       throw new Error("Cannot promote a banned player");
     }
-
-    await ctx.db.patch(args.targetPlayerId, {
-      role: "mod",
-      updatedAt: Date.now(),
-    });
-
-    return { success: true, message: "Player promoted to moderator" };
-  },
-});
-
-// Mutation: Remove moderator role (admin only)
-export const removeModerator = mutation({
-  args: {
-    targetPlayerId: v.id("players"),
-  },
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
-      .unique();
-
-    if (!user) throw new Error("User not found");
-
-    const currentPlayer = await ctx.db
-      .query("players")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .unique();
-
-    if (!currentPlayer) throw new Error("Player not found");
-
-    const isAdmin = await hasPermission(ctx, currentPlayer._id, "admin");
-    if (!isAdmin) {
-      throw new Error("Insufficient permissions - admin required");
-    }
-
-    const targetPlayer = await ctx.db.get(args.targetPlayerId);
-    if (!targetPlayer) throw new Error("Target player not found");
-
-    const currentRole = targetPlayer.role || "normal";
     if (currentRole === "admin") {
-      throw new Error("Cannot demote an admin");
-    }
-    if (currentRole !== "mod") {
-      throw new Error("Target player is not a moderator");
+      throw new Error("Cannot change an admin's role");
     }
 
     await ctx.db.patch(args.targetPlayerId, {
-      role: "normal",
+      role: "high_mod",
       updatedAt: Date.now(),
     });
 
-    return { success: true, message: "Moderator demoted to normal user" };
+    return { success: true, message: "Player promoted to high moderator" };
   },
 });
 
@@ -1188,7 +1303,7 @@ export const bulkDeleteProducts = mutation({
   },
 });
 
-// Mutation: Set player balance (admin only)
+// Mutation: Set player balance (admin and high_mod only)
 export const setPlayerBalance = mutation({
   args: {
     targetPlayerId: v.id("players"),
@@ -1212,9 +1327,9 @@ export const setPlayerBalance = mutation({
 
     if (!currentPlayer) throw new Error("Player not found");
 
-    const isAdmin = await hasPermission(ctx, currentPlayer._id, "admin");
-    if (!isAdmin) {
-      throw new Error("Insufficient permissions - admin required");
+    const hasHighModAccess = await hasPermission(ctx, currentPlayer._id, "high_mod");
+    if (!hasHighModAccess) {
+      throw new Error("Insufficient permissions - high mod or admin required");
     }
 
     if (args.newBalance < 0 || !Number.isSafeInteger(args.newBalance)) {
@@ -1233,7 +1348,7 @@ export const setPlayerBalance = mutation({
   },
 });
 
-// Mutation: Set company balance (admin only)
+// Mutation: Set company balance (admin and high_mod only)
 export const setCompanyBalance = mutation({
   args: {
     companyId: v.id("companies"),
@@ -1257,9 +1372,9 @@ export const setCompanyBalance = mutation({
 
     if (!currentPlayer) throw new Error("Player not found");
 
-    const isAdmin = await hasPermission(ctx, currentPlayer._id, "admin");
-    if (!isAdmin) {
-      throw new Error("Insufficient permissions - admin required");
+    const hasHighModAccess = await hasPermission(ctx, currentPlayer._id, "high_mod");
+    if (!hasHighModAccess) {
+      throw new Error("Insufficient permissions - high mod or admin required");
     }
 
     if (args.newBalance < 0 || !Number.isSafeInteger(args.newBalance)) {
@@ -2372,5 +2487,187 @@ export const searchPlayersByName = query({
     );
 
     return filtered.slice(0, 20); // Return max 20 results
+  },
+});
+
+// Mutation: Assign probationary mod role (high_mod and admin only)
+export const assignProbationaryMod = mutation({
+  args: {
+    targetPlayerId: v.id("players"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) throw new Error("User not found");
+
+    const currentPlayer = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!currentPlayer) throw new Error("Player not found");
+
+    const hasHighModAccess = await hasPermission(ctx, currentPlayer._id, "high_mod");
+    if (!hasHighModAccess) {
+      throw new Error("Insufficient permissions - high mod or admin required");
+    }
+
+    const targetPlayer = await ctx.db.get(args.targetPlayerId);
+    if (!targetPlayer) throw new Error("Target player not found");
+
+    const currentRole = targetPlayer.role || "normal";
+    if (currentRole === "banned") {
+      throw new Error("Cannot promote a banned player");
+    }
+    if (currentRole === "high_mod" || currentRole === "admin") {
+      throw new Error("Cannot change this player's role");
+    }
+
+    await ctx.db.patch(args.targetPlayerId, {
+      role: "lil_mod",
+      updatedAt: Date.now(),
+    });
+
+    return { success: true, message: "Player promoted to probationary moderator" };
+  },
+});
+
+// Mutation: Remove probationary mod role (high_mod and admin only)
+export const removeProbationaryMod = mutation({
+  args: {
+    targetPlayerId: v.id("players"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) throw new Error("User not found");
+
+    const currentPlayer = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!currentPlayer) throw new Error("Player not found");
+
+    const hasHighModAccess = await hasPermission(ctx, currentPlayer._id, "high_mod");
+    if (!hasHighModAccess) {
+      throw new Error("Insufficient permissions - high mod or admin required");
+    }
+
+    const targetPlayer = await ctx.db.get(args.targetPlayerId);
+    if (!targetPlayer) throw new Error("Target player not found");
+
+    const currentRole = targetPlayer.role || "normal";
+    if (currentRole !== "lil_mod") {
+      throw new Error("Target player is not a probationary moderator");
+    }
+
+    await ctx.db.patch(args.targetPlayerId, {
+      role: "normal",
+      updatedAt: Date.now(),
+    });
+
+    return { success: true, message: "Probationary moderator demoted to normal user" };
+  },
+});
+
+// Query: Get all moderation actions taken by a specific lil_mod
+export const getLilModActions = query({
+  args: {
+    modId: v.id("players"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) throw new Error("User not found");
+
+    const currentPlayer = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!currentPlayer) throw new Error("Player not found");
+
+    const hasAccess = await hasPermission(ctx, currentPlayer._id, "high_mod");
+    if (!hasAccess) {
+      throw new Error("Insufficient permissions - high mod or admin required");
+    }
+
+    // Get all actions by this mod
+    const actions = await ctx.db
+      .query("modActions")
+      .withIndex("by_modId", (q) => q.eq("modId", args.modId))
+      .order("desc")
+      .collect();
+
+    return actions;
+  },
+});
+
+// Query: Get action count for a lil_mod
+export const getLilModActionCount = query({
+  args: {
+    modId: v.id("players"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) throw new Error("User not found");
+
+    const currentPlayer = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!currentPlayer) throw new Error("Player not found");
+
+    const hasAccess = await hasPermission(ctx, currentPlayer._id, "lil_mod");
+    if (!hasAccess) {
+      throw new Error("Insufficient permissions");
+    }
+
+    // Get all actions by this mod
+    const actions = await ctx.db
+      .query("modActions")
+      .withIndex("by_modId", (q) => q.eq("modId", args.modId))
+      .collect();
+
+    // Count by action type
+    const counts = {
+      warn: 0,
+      limit: 0,
+      unlimit: 0,
+      total: actions.length,
+    };
+
+    for (const action of actions) {
+      counts[action.actionType]++;
+    }
+
+    return counts;
   },
 });

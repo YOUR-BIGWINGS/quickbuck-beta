@@ -2,7 +2,9 @@
  * TICK SYSTEM
  *
  * Central coordinating system that runs every 5 minutes to:
- * 1. Execute bot purchases from marketplace (ALL companies @ $500k each, in batches of 31,999 operations)
+ * 1. Execute bot purchases from marketplace (ALL companies, in batches of 31,999 operations)
+ *    - Companies with $1M+ balance: Fixed $50,000 budget per tick
+ *    - Companies under $1M: Dynamic budget based on assets/ratio algorithm
  * 2. Deduct employee costs (10 companies per tick, rotated)
  * 3. Update stock prices (via realistic stock market engine)
  * 4. Update cryptocurrency prices
@@ -17,7 +19,7 @@
  * - Batches are built dynamically each tick based on all companies and products
  * - All batches execute sequentially before the 5-minute timer resets
  * - System scales automatically as companies and products are added
- * - $500,000 budget per company, split equally among valid products
+ * - Budget per company varies by company balance (see calculateCompanyPurchases)
  */
 
 import { v } from "convex/values";
@@ -431,7 +433,9 @@ export const manualTick = action({
  * BOT PURCHASE SYSTEM - BATCH-BASED WITH 31,999 OPERATION LIMIT
  *
  * New architecture to prevent overload failures:
- * - Budget per company: $500,000 fixed
+ * - Budget per company:
+ *   * $1M+ balance: Fixed $50,000 per tick
+ *   * Under $1M: Dynamic budget based on (assets/ratio) algorithm
  * - Processes ALL companies every tick
  * - Operations are grouped into batches of 31,999 max to prevent failures
  * - Dynamically manages batches as companies/products are added
@@ -444,7 +448,8 @@ export const manualTick = action({
  */
 
 const OPERATIONS_PER_BATCH = 32000; // Max operations per batch to prevent overload
-const BUDGET_PER_COMPANY = 50000000; // $500,000 in cents
+const FIXED_BUDGET_THRESHOLD = 100000000; // $1,000,000 in cents - companies at or above this get fixed budget
+const FIXED_BUDGET_AMOUNT = 5000000; // $50,000 in cents - fixed budget for large companies
 const MAX_PRODUCT_PRICE = 5000000; // $50,000 max
 
 // Calculate purchases for a single company
@@ -472,37 +477,49 @@ async function calculateCompanyPurchases(
     return hasValidPrice; // && withinMaxPrice;
   });
 
-  // Calculate total inventory value for the company
-  // Inventory value = sum of (stock * productionCost) for all products
-  const inventoryValue = products.reduce((sum: number, p: any) => {
-    if ((p.stock ?? 0) > 0 && p.price && p.price > 0) {
-      const productionCost = Math.floor(p.price * (p.productionCostPercentage ?? 0.35));
-      return sum + (p.stock * productionCost);
-    }
-    return sum;
-  }, 0);
-
-  // Calculate budget: ((balance + inventoryValue) / ratio) + accumulated value
-  // This accounts for both cash and inventory assets when determining purchasing power
-  // Generate pseudo-random ratio between 15 and 30 using seed and company ID
-  const str = seed.toString() + company._id;
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  const randomVal = Math.abs(hash) / 2147483647;
-  const ratio = Math.floor(randomVal * (30 - 15 + 1)) + 15;
-
   const balance = company.balance || 0;
   const accumulator = company.botPurchaseAccumulator || 0;
-  const totalAssets = balance + inventoryValue;
-  const budget = Math.floor(totalAssets / ratio) + accumulator;
+  
+  // NEW LOGIC: Fixed $50,000 budget for companies with $1M+ balance
+  // For companies under $1M, use the dynamic algorithm
+  let budget: number;
+  
+  if (balance >= 100000000) { // $1,000,000 in cents
+    // Fixed budget of $50,000 for companies with $1M+ balance
+    budget = 5000000 + accumulator; // $50,000 in cents
+    console.log(`[BOT] Company ${company.name}: balance=$${(balance/100).toFixed(2)} (≥$1M), using fixed budget=$${(budget/100).toFixed(2)}`);
+  } else {
+    // Dynamic budget algorithm for companies under $1M
+    // Calculate total inventory value for the company
+    // Inventory value = sum of (stock * productionCost) for all products
+    const inventoryValue = products.reduce((sum: number, p: any) => {
+      if ((p.stock ?? 0) > 0 && p.price && p.price > 0) {
+        const productionCost = Math.floor(p.price * (p.productionCostPercentage ?? 0.35));
+        return sum + (p.stock * productionCost);
+      }
+      return sum;
+    }, 0);
 
-  // Log budget calculation details for debugging (only if company has significant assets)
-  if (totalAssets > 100000) { // $1000+
-    console.log(`[BOT] Company ${company.name}: balance=$${(balance/100).toFixed(2)}, inventory=$${(inventoryValue/100).toFixed(2)}, ratio=${ratio}, budget=$${(budget/100).toFixed(2)}`);
+    // Calculate budget: ((balance + inventoryValue) / ratio) + accumulated value
+    // This accounts for both cash and inventory assets when determining purchasing power
+    // Generate pseudo-random ratio between 15 and 30 using seed and company ID
+    const str = seed.toString() + company._id;
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    const randomVal = Math.abs(hash) / 2147483647;
+    const ratio = Math.floor(randomVal * (30 - 15 + 1)) + 15;
+
+    const totalAssets = balance + inventoryValue;
+    budget = Math.floor(totalAssets / ratio) + accumulator;
+
+    // Log budget calculation details for debugging (only if company has significant assets)
+    if (totalAssets > 100000) { // $1000+
+      console.log(`[BOT] Company ${company.name}: balance=$${(balance/100).toFixed(2)}, inventory=$${(inventoryValue/100).toFixed(2)}, ratio=${ratio}, budget=$${(budget/100).toFixed(2)}`);
+    }
   }
 
   if (validProducts.length === 0) {

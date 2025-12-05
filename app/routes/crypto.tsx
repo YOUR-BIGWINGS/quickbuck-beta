@@ -437,20 +437,20 @@ function HeroSection({
     >
       <div
         className={cn(
-          "relative z-10 grid gap-6 p-6 md:grid-cols-[minmax(0,1fr)_minmax(0,420px)] md:p-8",
+          "relative z-10 grid gap-4 sm:gap-6 p-4 sm:p-6 md:grid-cols-[minmax(0,1fr)_minmax(0,420px)] md:p-8",
           preset === "default" || preset === "dark-default"
             ? "bg-gradient-to-br from-[#8B5CF6] to-[#6366F1]"
             : "bg-primary",
         )}
       >
-        <div className="space-y-3 lg:space-y-4">
-          <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
+        <div className="space-y-2 sm:space-y-3 lg:space-y-4">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight md:text-4xl">
             Crypto Market
           </h1>
-          <p className="max-w-xl text-sm text-white/80 md:text-base">
+          <p className="max-w-xl text-xs sm:text-sm text-white/80 md:text-base">
             Trade player-created cryptocurrencies. Create your own crypto for $10,000 and earn 2% on every trade. Monitor prices, track momentum, and build your portfolio.
           </p>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-4 sm:mt-6 grid gap-2 sm:gap-3 grid-cols-2 lg:grid-cols-4">
             {marketOverview ? (
               <>
                 <HeroStat

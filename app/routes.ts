@@ -18,6 +18,7 @@ export default [
   route("admin/diagnostics", "routes/admin/diagnostics.tsx"),
   route("admin/tick", "routes/admin/tick.tsx"),
   route("admin/stocks", "routes/admin/stocks.tsx"),
+  route("admin/wipe", "routes/admin/wipe.tsx"),
   layout("routes/dashboard/layout.tsx", [
     route("dashboard", "routes/dashboard/index.tsx"),
     route("leaderboard", "routes/leaderboard.tsx"),
@@ -32,6 +33,7 @@ export default [
     route("company-marketplace", "routes/dashboard/company-marketplace.tsx"),
     route("gamble", "routes/gamble.tsx"),
     route("upgrades", "routes/upgrades.tsx"),
+    route("taxes", "routes/taxes.tsx"),
     route("accounts", "routes/dashboard/accounts.tsx"),
     route("transfers", "routes/dashboard/transfers.tsx"),
     route("transactions", "routes/dashboard/transactions.tsx"),

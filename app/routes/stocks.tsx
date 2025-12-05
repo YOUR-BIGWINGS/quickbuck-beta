@@ -328,22 +328,22 @@ function HeroSection({
     >
       <div
         className={cn(
-          "relative z-10 grid gap-6 p-6 md:grid-cols-[minmax(0,1fr)_minmax(0,420px)] md:p-8",
+          "relative z-10 grid gap-4 sm:gap-6 p-4 sm:p-6 md:grid-cols-[minmax(0,1fr)_minmax(0,420px)] md:p-8",
           preset === "default" || preset === "dark-default"
             ? "bg-gradient-to-br from-[#FF934F] to-[#EF7176]"
             : "bg-primary",
         )}
       >
-        <div className="space-y-3 lg:space-y-4">
-          <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
+        <div className="space-y-2 sm:space-y-3 lg:space-y-4">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight md:text-4xl">
             Stock Market
           </h1>
-          <p className="max-w-xl text-sm text-white/80 md:text-base">
+          <p className="max-w-xl text-xs sm:text-sm text-white/80 md:text-base">
             Monitor live market momentum, compare sectors, and execute trades
             with a clear view of valuations and volatility. Stay ahead of the
             next swing.
           </p>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-4 sm:mt-6 grid gap-2 sm:gap-3 grid-cols-2 lg:grid-cols-4">
             {marketOverview ? (
               <>
                 <HeroStat
@@ -452,11 +452,11 @@ function HeroStat({
   isCount?: boolean;
 }) {
   return (
-    <div className="space-y-1 rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
-      <div className="text-xs uppercase tracking-wide text-white/70">
+    <div className="space-y-1 rounded-lg sm:rounded-xl border border-white/20 bg-white/10 p-3 sm:p-4 backdrop-blur-sm">
+      <div className="text-[10px] sm:text-xs uppercase tracking-wide text-white/70">
         {label}
       </div>
-      <div className="text-xl font-semibold text-white">
+      <div className="text-base sm:text-lg md:text-xl font-semibold text-white">
         {isPercent ? (
           <>
             {value >= 0 ? "+" : ""}

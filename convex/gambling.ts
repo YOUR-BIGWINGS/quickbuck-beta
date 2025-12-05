@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
+import { applyRebirthBoost } from "./rebirths";
 
 // ===============================
 // BLACKJACK STATE MANAGEMENT
@@ -218,15 +219,17 @@ export const playSlots = mutation({
       payout = Math.floor(args.betAmount * multiplier);
     }
 
-    // Award payout
+    // Award payout (with rebirth boost for R3+)
     if (payout > 0) {
+      const boostedPayout = await applyRebirthBoost(ctx, player._id, payout);
       const updatedPlayer = await ctx.db.get(player._id);
       if (updatedPlayer) {
         await ctx.db.patch(player._id, {
-          balance: updatedPlayer.balance + payout,
+          balance: updatedPlayer.balance + boostedPayout,
           updatedAt: Date.now(),
         });
       }
+      payout = boostedPayout; // Update payout for return value
     }
 
     // Record history
@@ -338,6 +341,7 @@ export const startBlackjack = mutation({
     if (playerValue === 21) {
       gameState = "blackjack";
       payout = Math.floor(args.betAmount * 2.5); // 2.5x for blackjack
+      payout = await applyRebirthBoost(ctx, player._id, payout); // Apply rebirth boost
       
       const updatedPlayer = await ctx.db.get(player._id);
       if (updatedPlayer) {
@@ -557,7 +561,11 @@ export const standBlackjack = mutation({
       result = "win";
     }
 
-    // Award payout
+    // Award payout (with rebirth boost for R3+, but not for push)
+    if (payout > 0 && result === "win" && gameState !== "push") {
+      payout = await applyRebirthBoost(ctx, player._id, payout);
+    }
+    
     if (payout > 0) {
       const updatedPlayer = await ctx.db.get(player._id);
       if (updatedPlayer) {
@@ -727,15 +735,17 @@ export const playDice = mutation({
       payout = Math.floor(args.betAmount * multiplier);
     }
 
-    // Award payout
+    // Award payout (with rebirth boost for R3+)
     if (payout > 0) {
+      const boostedPayout = await applyRebirthBoost(ctx, player._id, payout);
       const updatedPlayer = await ctx.db.get(player._id);
       if (updatedPlayer) {
         await ctx.db.patch(player._id, {
-          balance: updatedPlayer.balance + payout,
+          balance: updatedPlayer.balance + boostedPayout,
           updatedAt: Date.now(),
         });
       }
+      payout = boostedPayout; // Update payout for return value
     }
 
     // Record history
@@ -874,15 +884,17 @@ export const playRoulette = mutation({
       payout = args.betAmount * multiplier;
     }
 
-    // Award payout
+    // Award payout (with rebirth boost for R3+)
     if (payout > 0) {
+      const boostedPayout = await applyRebirthBoost(ctx, player._id, payout);
       const updatedPlayer = await ctx.db.get(player._id);
       if (updatedPlayer) {
         await ctx.db.patch(player._id, {
-          balance: updatedPlayer.balance + payout,
+          balance: updatedPlayer.balance + boostedPayout,
           updatedAt: Date.now(),
         });
       }
+      payout = boostedPayout; // Update payout for return value
     }
 
     // Record history

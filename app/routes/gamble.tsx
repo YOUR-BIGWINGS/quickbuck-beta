@@ -113,12 +113,12 @@ function SlotsGame({ balance }: { balance: number }) {
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Reels */}
-        <div className="flex justify-center items-center gap-4 py-8">
+        <div className="flex justify-center items-center gap-2 sm:gap-4 py-6 sm:py-8">
           {reels.map((symbol, i) => (
             <div
               key={i}
               className={cn(
-                "w-24 h-24 flex items-center justify-center text-5xl rounded-lg border-2 border-border bg-muted",
+                "w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 flex items-center justify-center text-3xl sm:text-4xl md:text-5xl rounded-lg border-2 border-border bg-muted",
                 isSpinning && "animate-pulse"
               )}
             >
@@ -156,7 +156,7 @@ function SlotsGame({ balance }: { balance: number }) {
           </div>
 
           {/* Quick bet buttons in dollars */}
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
             {[1, 5, 10, 50].map((amount) => (
               <Button
                 key={amount}
@@ -164,6 +164,7 @@ function SlotsGame({ balance }: { balance: number }) {
                 size="sm"
                 onClick={() => setBetAmount(amount.toString())}
                 disabled={isSpinning}
+                className="text-xs sm:text-sm h-9"
               >
                 ${amount}
               </Button>
@@ -172,7 +173,7 @@ function SlotsGame({ balance }: { balance: number }) {
         </div>
 
         {/* Payout Info */}
-        <div className="text-sm text-muted-foreground space-y-1 p-3 rounded-lg bg-muted">
+        <div className="text-xs sm:text-sm text-muted-foreground space-y-1 p-3 rounded-lg bg-muted">
           <p>💎💎💎 = 5x | 7️⃣7️⃣7️⃣ = 10x</p>
           <p>Three of a kind = 3x | Two of a kind = 1.5x</p>
         </div>
@@ -410,11 +411,11 @@ function BlackjackGame({ balance }: { balance: number }) {
               <p className="text-sm font-semibold">
                 Dealer&apos;s Hand ({gameState.dealerValue})
               </p>
-              <div className="flex gap-2">
+              <div className="flex gap-1.5 sm:gap-2 flex-wrap">
                 {gameState.dealerHand.map((card: number, i: number) => (
                   <div
                     key={i}
-                    className="w-16 h-20 flex items-center justify-center text-2xl rounded border-2 border-border bg-card"
+                    className="w-12 h-16 sm:w-14 sm:h-18 md:w-16 md:h-20 flex items-center justify-center text-xl sm:text-2xl rounded border-2 border-border bg-card"
                   >
                     {renderCard(card)}
                   </div>
@@ -427,11 +428,11 @@ function BlackjackGame({ balance }: { balance: number }) {
               <p className="text-sm font-semibold">
                 Your Hand ({gameState.playerValue})
               </p>
-              <div className="flex gap-2">
+              <div className="flex gap-1.5 sm:gap-2 flex-wrap">
                 {gameState.playerHand.map((card: number, i: number) => (
                   <div
                     key={i}
-                    className="w-16 h-20 flex items-center justify-center text-2xl rounded border-2 border-primary bg-card"
+                    className="w-12 h-16 sm:w-14 sm:h-18 md:w-16 md:h-20 flex items-center justify-center text-xl sm:text-2xl rounded border-2 border-primary bg-card"
                   >
                     {renderCard(card)}
                   </div>
@@ -459,11 +460,12 @@ function BlackjackGame({ balance }: { balance: number }) {
 
             {/* Game Controls */}
             {gameState.gameState === "playing" && (
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button
                   onClick={handleHit}
                   disabled={isLoading}
                   variant="default"
+                  className="flex-1 min-w-[100px]"
                 >
                   Hit
                 </Button>
@@ -471,6 +473,7 @@ function BlackjackGame({ balance }: { balance: number }) {
                   onClick={handleStand}
                   disabled={isLoading}
                   variant="outline"
+                  className="flex-1 min-w-[100px]"
                 >
                   Stand
                 </Button>
@@ -612,19 +615,19 @@ function DiceGame({ balance }: { balance: number }) {
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Dice Display */}
-        <div className="flex justify-center items-center gap-6 py-8">
+        <div className="flex justify-center items-center gap-3 sm:gap-4 md:gap-6 py-6 sm:py-8 flex-wrap">
           {dice.map((die, i) => (
             <div
               key={i}
               className={cn(
-                "w-20 h-20 flex items-center justify-center text-4xl rounded-lg border-2 border-border bg-muted",
+                "w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20 flex items-center justify-center text-3xl sm:text-4xl rounded-lg border-2 border-border bg-muted",
                 isRolling && "animate-bounce"
               )}
             >
               {die}
             </div>
           ))}
-          <div className="text-3xl font-bold text-muted-foreground">
+          <div className="text-2xl sm:text-3xl font-bold text-muted-foreground">
             = {dice[0] + dice[1]}
           </div>
         </div>
@@ -809,10 +812,10 @@ function RouletteGame({ balance }: { balance: number }) {
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Roulette Wheel Display */}
-        <div className="flex flex-col items-center gap-4 py-8">
+        <div className="flex flex-col items-center gap-3 sm:gap-4 py-6 sm:py-8">
           <div
             className={cn(
-              "w-32 h-32 flex items-center justify-center text-5xl rounded-full border-4",
+              "w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 flex items-center justify-center text-4xl sm:text-5xl rounded-full border-4",
               isSpinning && "animate-spin",
               getNumberColor(number) === "green" &&
                 "border-green-500 bg-green-500/10",
@@ -826,6 +829,7 @@ function RouletteGame({ balance }: { balance: number }) {
           </div>
           <Badge
             variant={getNumberColor(number) === "green" ? "default" : "outline"}
+            className="text-xs sm:text-sm"
           >
             {getNumberColor(number).toUpperCase()}
           </Badge>
@@ -836,34 +840,34 @@ function RouletteGame({ balance }: { balance: number }) {
           <p className="text-sm font-semibold">Choose your bet:</p>
 
           {/* Row 1: Colors */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
             <Button
               variant={betType === "red" ? "default" : "outline"}
               onClick={() => setBetType("red")}
               disabled={isSpinning}
-              className={betType === "red" ? "bg-red-600 hover:bg-red-700" : ""}
+              className={cn("text-xs sm:text-sm", betType === "red" ? "bg-red-600 hover:bg-red-700" : "")}
             >
-              🔴 Red
+              🔴 <span className="hidden sm:inline">Red</span>
             </Button>
             <Button
               variant={betType === "black" ? "default" : "outline"}
               onClick={() => setBetType("black")}
               disabled={isSpinning}
-              className={
+              className={cn("text-xs sm:text-sm",
                 betType === "black" ? "bg-gray-800 hover:bg-gray-900" : ""
-              }
+              )}
             >
-              ⚫ Black
+              ⚫ <span className="hidden sm:inline">Black</span>
             </Button>
             <Button
               variant={betType === "green" ? "default" : "outline"}
               onClick={() => setBetType("green")}
               disabled={isSpinning}
-              className={
+              className={cn("text-xs sm:text-sm",
                 betType === "green" ? "bg-green-600 hover:bg-green-700" : ""
-              }
+              )}
             >
-              🟢 Green (0)
+              🟢 <span className="hidden sm:inline">Green (0)</span>
             </Button>
           </div>
 
@@ -1013,28 +1017,28 @@ export default function GamblePage() {
   return (
     <div className="flex flex-1 flex-col">
       <div className="@container/main flex flex-1 flex-col gap-2">
-        <div className="flex flex-col gap-4 p-4 md:gap-6 md:p-6">
+        <div className="flex flex-col gap-3 sm:gap-4 p-3 sm:p-4 md:gap-6 md:p-6">
           {/* Page Header */}
-          <div className="flex flex-col gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
+          <div className="flex flex-col gap-1 sm:gap-2">
+            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight md:text-3xl">
               Casino
             </h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs sm:text-sm text-muted-foreground">
               Try your luck with slots, blackjack, dice, and roulette.
             </p>
           </div>
 
           {/* Balance Card */}
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 sm:pt-6 pb-4 sm:pb-6">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-green-500" />
-                  <span className="text-sm text-muted-foreground">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
+                  <span className="text-xs sm:text-sm text-muted-foreground">
                     Your Balance
                   </span>
                 </div>
-                <div className="text-2xl font-bold">
+                <div className="text-xl sm:text-2xl font-bold">
                   ${((balance ?? 0) / 100).toFixed(2)}
                 </div>
               </div>
@@ -1043,26 +1047,26 @@ export default function GamblePage() {
 
           {/* Games Tabs */}
           <Tabs defaultValue="slots" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="slots">Slots</TabsTrigger>
-              <TabsTrigger value="blackjack">Blackjack</TabsTrigger>
-              <TabsTrigger value="dice">Dice</TabsTrigger>
-              <TabsTrigger value="roulette">Roulette</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-4 h-auto">
+              <TabsTrigger value="slots" className="text-xs sm:text-sm py-2">Slots</TabsTrigger>
+              <TabsTrigger value="blackjack" className="text-xs sm:text-sm py-2">Blackjack</TabsTrigger>
+              <TabsTrigger value="dice" className="text-xs sm:text-sm py-2">Dice</TabsTrigger>
+              <TabsTrigger value="roulette" className="text-xs sm:text-sm py-2">Roulette</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="slots" className="mt-6">
+            <TabsContent value="slots" className="mt-3 sm:mt-4 md:mt-6">
               <SlotsGame balance={balance ?? 0} />
             </TabsContent>
 
-            <TabsContent value="blackjack" className="mt-6">
+            <TabsContent value="blackjack" className="mt-3 sm:mt-4 md:mt-6">
               <BlackjackGame balance={balance ?? 0} />
             </TabsContent>
 
-            <TabsContent value="dice" className="mt-6">
+            <TabsContent value="dice" className="mt-3 sm:mt-4 md:mt-6">
               <DiceGame balance={balance ?? 0} />
             </TabsContent>
 
-            <TabsContent value="roulette" className="mt-6">
+            <TabsContent value="roulette" className="mt-3 sm:mt-4 md:mt-6">
               <RouletteGame balance={balance ?? 0} />
             </TabsContent>
           </Tabs>

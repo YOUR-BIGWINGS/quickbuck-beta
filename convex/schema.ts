@@ -23,7 +23,9 @@ export default defineSchema({
         v.literal("normal"),
         v.literal("limited"),
         v.literal("banned"),
+        v.literal("lil_mod"),
         v.literal("mod"),
+        v.literal("high_mod"),
         v.literal("admin")
       )
     ), // Player role - defaults to "normal"
@@ -38,6 +40,8 @@ export default defineSchema({
       )
     ), // List of warnings
     warningCount: v.optional(v.number()), // Total warnings (for quick access)
+    rebirthCount: v.optional(v.number()), // Number of rebirths player has completed
+    hasClerkAccount: v.optional(v.boolean()), // True if player has rebirthed and should keep clerk access during wipe
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -45,7 +49,8 @@ export default defineSchema({
     .index("by_role", ["role"])
     .index("by_balance", ["balance"])
     .index("by_netWorth", ["netWorth"])
-    .index("by_lastNetWorthUpdate", ["lastNetWorthUpdate"]),
+    .index("by_lastNetWorthUpdate", ["lastNetWorthUpdate"])
+    .index("by_rebirthCount", ["rebirthCount"]),
 
   companies: defineTable({
     ownerId: v.id("players"),
@@ -642,4 +647,66 @@ export default defineSchema({
   })
     .index("by_theme_id", ["id"])
     .index("by_mode", ["mode"]),
+
+  // Player Tags (admin-created custom tags for players)
+  playerTags: defineTable({
+    playerId: v.id("players"),
+    tagText: v.string(), // e.g., "VIP", "Staff", "Beta Tester"
+    tagColor: v.string(), // Hex color for the tag
+    usernameColor: v.optional(v.string()), // Optional hex color for the username
+    createdByAdminId: v.id("players"), // Admin who created this tag
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_playerId", ["playerId"]),
+
+  // Moderation actions log (for tracking lil_mod actions)
+  modActions: defineTable({
+    modId: v.id("players"), // lil_mod who performed the action
+    modName: v.string(), // Name of the mod at time of action
+    targetPlayerId: v.optional(v.id("players")), // Player who was targeted (if applicable)
+    targetPlayerName: v.optional(v.string()), // Name of target player
+    actionType: v.union(
+      v.literal("warn"),
+      v.literal("limit"),
+      v.literal("unlimit")
+    ), // Action type
+    reason: v.optional(v.string()), // Reason for action
+    timestamp: v.number(),
+  })
+    .index("by_modId", ["modId"])
+    .index("by_targetPlayerId", ["targetPlayerId"])
+    .index("by_timestamp", ["timestamp"]),
+
+  // Tax system
+  taxes: defineTable({
+    playerId: v.id("players"),
+    taxType: v.union(
+      v.literal("transaction"), // 2% on purchases/sales
+      v.literal("wealth"), // Daily net worth tax
+      v.literal("evasion_fine") // 50% fine when caught evading
+    ),
+    amount: v.number(), // in cents (positive = tax paid)
+    netWorthAtTime: v.optional(v.number()), // net worth when tax was collected (for wealth tax)
+    taxRate: v.optional(v.number()), // percentage used for this tax
+    description: v.string(),
+    timestamp: v.number(),
+  })
+    .index("by_playerId", ["playerId"])
+    .index("by_taxType", ["taxType"])
+    .index("by_timestamp", ["timestamp"])
+    .index("by_player_timestamp", ["playerId", "timestamp"]),
+
+  taxEvasion: defineTable({
+    playerId: v.id("players"),
+    evadingUntil: v.number(), // timestamp when evasion protection ends (1 week from attempt)
+    successfulEvasions: v.number(), // count of successful evasions
+    failedEvasions: v.number(), // count of failed evasions (caught)
+    lastAttemptTimestamp: v.number(), // when they last attempted
+    lastDailyTaxTimestamp: v.optional(v.number()), // last time daily tax was collected
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_playerId", ["playerId"])
+    .index("by_evadingUntil", ["evadingUntil"]),
 });

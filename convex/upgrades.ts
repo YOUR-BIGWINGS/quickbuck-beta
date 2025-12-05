@@ -161,14 +161,21 @@ export const purchaseUpgrade = mutation({
       throw new Error("Upgrade already purchased");
     }
 
+    // Apply rebirth 5 discount
+    const rebirthCount = player.rebirthCount || 0;
+    const hasRebirthDiscount = rebirthCount >= 5;
+    const finalCost = hasRebirthDiscount 
+      ? Math.floor(upgrade.cost * 0.95) // 5% discount
+      : upgrade.cost;
+
     // Check balance
-    if (player.balance < upgrade.cost) {
+    if (player.balance < finalCost) {
       throw new Error("Insufficient balance");
     }
 
     // Deduct cost from balance
     await ctx.db.patch(player._id, {
-      balance: player.balance - upgrade.cost,
+      balance: player.balance - finalCost,
       updatedAt: Date.now(),
     });
 
@@ -178,21 +185,25 @@ export const purchaseUpgrade = mutation({
       upgradeType: upgrade.upgradeType,
       name: upgrade.name,
       description: upgrade.description,
-      cost: upgrade.cost,
+      cost: finalCost,
       benefit: upgrade.benefit,
       isActive: true,
       purchasedAt: Date.now(),
     });
 
     // Create transaction record
+    const description = hasRebirthDiscount
+      ? `Purchased upgrade: ${upgrade.name} (5% rebirth discount applied)`
+      : `Purchased upgrade: ${upgrade.name}`;
+    
     await ctx.db.insert("transactions", {
       fromAccountId: player._id,
       fromAccountType: "player" as const,
       toAccountId: player._id,
       toAccountType: "player" as const,
-      amount: upgrade.cost,
+      amount: finalCost,
       assetType: "cash" as const,
-      description: `Purchased upgrade: ${upgrade.name}`,
+      description: description,
       createdAt: Date.now(),
     });
 

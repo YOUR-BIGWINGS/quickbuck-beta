@@ -23,6 +23,12 @@ crons.interval(
   internal.cleanup.cleanupInactiveItems
 );
 
+crons.interval(
+  "collect daily wealth tax",
+  { hours: 24 }, // Run once per day
+  internal.taxes.collectAllDailyTaxes
+);
+
 console.log("[CRONS] ✅ Cron jobs registered successfully");
 
 export default crons;
