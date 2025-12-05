@@ -4,7 +4,7 @@
 function getClerkDomain() {
   // Use hardcoded domain to avoid requiring environment variable in Convex
   // This matches the domain from your Clerk dashboard
-  return 'https://select-corgi-4.clerk.accounts.dev';
+  return 'https://quickbuck.me';
 }
 
 export default {
