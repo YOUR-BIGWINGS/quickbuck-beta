@@ -85,24 +85,6 @@ export function SiteHeader() {
             variant="ghost"
             size="icon"
             asChild
-            title="News"
-            aria-label="News"
-            className="h-8 w-8 sm:h-9 sm:w-9"
-          >
-            <a
-              href="https://news.quickbuck.xyz"
-              rel="noopener noreferrer"
-              target="_blank"
-              className="flex items-center"
-            >
-              <Newspaper className="h-4 w-4 sm:h-5 sm:w-5" />
-            </a>
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            asChild
             title="GitHub"
             aria-label="GitHub"
             className="h-8 w-8 sm:h-9 sm:w-9 hidden sm:flex"
