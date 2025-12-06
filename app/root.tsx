@@ -132,8 +132,8 @@ function AppContent({ loaderData }: Route.ComponentProps) {
     <ClerkProvider
       publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}
       loaderData={loaderData}
-      signUpFallbackRedirectUrl="/"
-      signInFallbackRedirectUrl="/"
+      signUpFallbackRedirectUrl="/dashboard"
+      signInFallbackRedirectUrl="/dashboard"
       domain="clerk.quickbuck.me"
     >
       <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
