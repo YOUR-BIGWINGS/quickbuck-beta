@@ -134,6 +134,7 @@ function AppContent({ loaderData }: Route.ComponentProps) {
       loaderData={loaderData}
       signUpFallbackRedirectUrl="/"
       signInFallbackRedirectUrl="/"
+      domain="clerk.quickbuck.me"
     >
       <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
         <ThemeProvider>
