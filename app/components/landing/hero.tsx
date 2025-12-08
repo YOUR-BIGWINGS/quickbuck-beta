@@ -29,7 +29,7 @@ export const HeroSection = ({ isSignedIn }: { isSignedIn: boolean }) => {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.1 }}
-            className="mb-8 inline-flex items-center gap-2 rounded-full border bg-background/50 backdrop-blur-sm px-4 py-2 text-sm"
+            className="mb-8 inline-flex items-center gap-2 rounded-full border bg-background/50 backdrop-blur-sm px-4 py-2 text-sm shadow-md"
           >
             <Zap className="h-4 w-4 text-yellow-500" />
             <span className="text-muted-foreground">
@@ -70,7 +70,7 @@ export const HeroSection = ({ isSignedIn }: { isSignedIn: boolean }) => {
             transition={{ delay: 0.4, duration: 0.6 }}
             className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4"
           >
-            <Button size="lg" asChild className="w-full sm:w-auto">
+            <Button size="lg" asChild className="w-full sm:w-auto rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300">
               <Link
                 to={isSignedIn ? "/dashboard" : "/sign-up"}
                 prefetch="viewport"
@@ -84,7 +84,7 @@ export const HeroSection = ({ isSignedIn }: { isSignedIn: boolean }) => {
                 size="lg"
                 variant="outline"
                 asChild
-                className="w-full sm:w-auto"
+                className="w-full sm:w-auto rounded-2xl hover:shadow-lg transition-all duration-300"
               >
                 <Link to="/leaderboard" prefetch="viewport">
                   <Trophy className="h-5 w-5 mr-2" />
@@ -134,12 +134,12 @@ const FeatureCard = ({
 }) => {
   return (
     <motion.div
-      whileHover={{ scale: 1.05 }}
-      transition={{ duration: 0.2 }}
+      whileHover={{ scale: 1.05, y: -4 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
       className="relative group"
     >
-      <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-2xl opacity-0 group-hover:opacity-100 blur transition duration-300" />
-      <div className="relative bg-background border rounded-2xl p-6 h-full">
+      <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-2xl opacity-0 group-hover:opacity-100 blur-md transition-all duration-300" />
+      <div className="relative bg-background border rounded-2xl p-6 h-full shadow-md hover:shadow-xl transition-all duration-300">
         <div className="text-emerald-500 mb-3">{icon}</div>
         <h3 className="font-semibold text-lg mb-2">{title}</h3>
         <p className="text-sm text-muted-foreground">{description}</p>

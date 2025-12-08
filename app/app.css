@@ -37,12 +37,12 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 12px;
-  --radius-xl: 20px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
   --font-serif: "Playfair Display", serif;
-  --radius: 0.75rem;
+  --radius: 1rem;
   --tracking-tighter: calc(var(--tracking-normal) - 0.05em);
   --tracking-tight: calc(var(--tracking-normal) - 0.025em);
   --tracking-wide: calc(var(--tracking-normal) + 0.025em);
@@ -109,22 +109,22 @@
   --font-sans: "Inter", sans-serif;
   --font-serif: "Playfair Display", serif;
   --font-mono: "Fira Code", monospace;
-  /* Apple uses more rounded corners */
-  --radius: 0.75rem;
-  /* Apple-style shadows */
-  --shadow-2xs: 0px 4px 10px -4px hsl(222.2 84% 4.9% / 0.04);
-  --shadow-xs: 0px 4px 10px -4px hsl(222.2 84% 4.9% / 0.04);
-  --shadow-sm: 0px 4px 10px -4px hsl(222.2 84% 4.9% / 0.08),
-    0px 1px 2px -5px hsl(222.2 84% 4.9% / 0.08);
-  --shadow: 0px 4px 10px -4px hsl(222.2 84% 4.9% / 0.08),
-    0px 1px 2px -5px hsl(222.2 84% 4.9% / 0.08);
-  --shadow-md: 0px 4px 10px -4px hsl(222.2 84% 4.9% / 0.08),
-    0px 2px 4px -5px hsl(222.2 84% 4.9% / 0.08);
-  --shadow-lg: 0px 4px 10px -4px hsl(222.2 84% 4.9% / 0.08),
-    0px 4px 6px -5px hsl(222.2 84% 4.9% / 0.08);
-  --shadow-xl: 0px 4px 10px -4px hsl(222.2 84% 4.9% / 0.08),
-    0px 8px 10px -5px hsl(222.2 84% 4.9% / 0.08);
-  --shadow-2xl: 0px 4px 10px -4px hsl(222.2 84% 4.9% / 0.2);
+  /* SpreadShift-style rounded corners */
+  --radius: 1rem;
+  /* Modern, subtle shadows */
+  --shadow-2xs: 0px 1px 2px 0px hsl(222.2 84% 4.9% / 0.03);
+  --shadow-xs: 0px 1px 3px 0px hsl(222.2 84% 4.9% / 0.05);
+  --shadow-sm: 0px 2px 4px -1px hsl(222.2 84% 4.9% / 0.06),
+    0px 1px 2px -1px hsl(222.2 84% 4.9% / 0.06);
+  --shadow: 0px 4px 6px -2px hsl(222.2 84% 4.9% / 0.08),
+    0px 2px 4px -2px hsl(222.2 84% 4.9% / 0.06);
+  --shadow-md: 0px 6px 12px -4px hsl(222.2 84% 4.9% / 0.10),
+    0px 3px 6px -3px hsl(222.2 84% 4.9% / 0.05);
+  --shadow-lg: 0px 10px 20px -6px hsl(222.2 84% 4.9% / 0.12),
+    0px 5px 10px -4px hsl(222.2 84% 4.9% / 0.08);
+  --shadow-xl: 0px 15px 30px -8px hsl(222.2 84% 4.9% / 0.15),
+    0px 8px 15px -6px hsl(222.2 84% 4.9% / 0.10);
+  --shadow-2xl: 0px 25px 50px -12px hsl(222.2 84% 4.9% / 0.25);
   --shadow-color: hsl(222.2, 84%, 4.9%);
   --shadow-opacity: 0.08;
   --shadow-blur: 10px;
@@ -150,10 +150,10 @@
   input,
   select,
   textarea {
-    @apply focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200;
+    @apply focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-300 ease-out;
   }
   button {
-    @apply hover:cursor-pointer;
+    @apply hover:cursor-pointer transition-all duration-300 ease-out;
     /* Ensure minimum touch target size for mobile */
     min-height: 44px;
     min-width: 44px;
@@ -179,7 +179,7 @@
     @apply no-underline;
   }
   
-  /* Improve mobile scrolling */
+  /* Improve mobile scrolling and interaction */
   @media (max-width: 640px) {
     * {
       -webkit-tap-highlight-color: transparent;
@@ -189,12 +189,56 @@
     body {
       overflow-x: hidden;
     }
+    
+    /* Better touch targets for mobile */
+    a, button, [role="button"], label, input[type="checkbox"], input[type="radio"] {
+      min-height: 44px;
+      min-width: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    /* Improve form inputs for mobile */
+    input, select, textarea {
+      font-size: 16px; /* Prevents zoom on iOS */
+      padding: 12px;
+    }
+    
+    /* Better spacing for mobile cards */
+    [data-slot="card"] {
+      padding: 1rem;
+    }
+    
+    /* Better modal padding on mobile */
+    [data-slot="dialog-content"] {
+      padding: 1rem;
+      margin: 1rem;
+    }
+    
+    /* Improve sheet header padding */
+    [data-slot="sheet-header"] {
+      padding: 1rem;
+    }
+    
+    /* Make scrollable areas more obvious */
+    .overflow-y-auto, .overflow-x-auto {
+      -webkit-overflow-scrolling: touch;
+    }
+  }
+  
+  /* Tablet optimizations */
+  @media (min-width: 641px) and (max-width: 1024px) {
+    /* Better spacing for tablets */
+    [data-slot="card"] {
+      padding: 1.25rem;
+    }
   }
 }
 
 /* Dark mode shadows and non-color styles only - theme colors are controlled by JS */
 .dark {
-  --radius: 0.75rem;
+  --radius: 1rem;
   --font-sans: "Inter", sans-serif;
   --font-serif: "Playfair Display", serif;
   --font-mono: "Fira Code", monospace;
@@ -206,19 +250,19 @@
   --shadow-offset-y: 4px;
   --letter-spacing: -0.01em;
   --spacing: 0.25rem;
-  --shadow-2xs: 0px 4px 10px -4px hsl(210 40% 98% / 0.04);
-  --shadow-xs: 0px 4px 10px -4px hsl(210 40% 98% / 0.04);
-  --shadow-sm: 0px 4px 10px -4px hsl(210 40% 98% / 0.08),
-    0px 1px 2px -5px hsl(210 40% 98% / 0.08);
-  --shadow: 0px 4px 10px -4px hsl(210 40% 98% / 0.08),
-    0px 1px 2px -5px hsl(210 40% 98% / 0.08);
-  --shadow-md: 0px 4px 10px -4px hsl(210 40% 98% / 0.08),
-    0px 2px 4px -5px hsl(210 40% 98% / 0.08);
-  --shadow-lg: 0px 4px 10px -4px hsl(210 40% 98% / 0.08),
-    0px 4px 6px -5px hsl(210 40% 98% / 0.08);
-  --shadow-xl: 0px 4px 10px -4px hsl(210 40% 98% / 0.08),
-    0px 8px 10px -5px hsl(210 40% 98% / 0.08);
-  --shadow-2xl: 0px 4px 10px -4px hsl(210 40% 98% / 0.2);
+  --shadow-2xs: 0px 1px 2px 0px hsl(210 40% 98% / 0.03);
+  --shadow-xs: 0px 1px 3px 0px hsl(210 40% 98% / 0.05);
+  --shadow-sm: 0px 2px 4px -1px hsl(210 40% 98% / 0.06),
+    0px 1px 2px -1px hsl(210 40% 98% / 0.06);
+  --shadow: 0px 4px 6px -2px hsl(210 40% 98% / 0.08),
+    0px 2px 4px -2px hsl(210 40% 98% / 0.06);
+  --shadow-md: 0px 6px 12px -4px hsl(210 40% 98% / 0.10),
+    0px 3px 6px -3px hsl(210 40% 98% / 0.05);
+  --shadow-lg: 0px 10px 20px -6px hsl(210 40% 98% / 0.12),
+    0px 5px 10px -4px hsl(210 40% 98% / 0.08);
+  --shadow-xl: 0px 15px 30px -8px hsl(210 40% 98% / 0.15),
+    0px 8px 15px -6px hsl(210 40% 98% / 0.10);
+  --shadow-2xl: 0px 25px 50px -12px hsl(210 40% 98% / 0.25);
 }
 
 @layer base {
@@ -227,5 +271,102 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* SpreadShift-style animations */
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.6s ease-out;
+  }
+  
+  .animate-slide-up {
+    animation: slideUp 0.6s ease-out;
+  }
+  
+  .animate-scale-in {
+    animation: scaleIn 0.4s ease-out;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  
+  .transition-smooth {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .hover-lift {
+    transition: all 0.3s ease-out;
+  }
+  
+  .hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+  }
+  
+  /* Mobile-specific utilities */
+  .mobile-scroll {
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
+  }
+  
+  .mobile-safe-area {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  /* Better mobile tap target */
+  .tap-target {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* Prevent text selection on buttons/interactive elements */
+  .no-select {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  
+  /* Responsive page padding */
+  @media (max-width: 640px) {
+    [data-slot="sidebar-inset"] > div[class*="p-6"] {
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+    
+    /* Reduce gap on mobile */
+    [data-slot="sidebar-inset"] > div > div[class*="gap-6"] {
+      gap: 1rem;
+    }
   }
 }

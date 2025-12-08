@@ -211,7 +211,7 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-6 p-6">
           {/* Hero Section */}
           <motion.div variants={itemVariants}>
-            <Card className={`relative overflow-hidden border-0 text-white shadow-2xl ${
+            <Card className={`relative overflow-hidden border-0 text-white shadow-xl rounded-2xl transition-all duration-300 ${
               preset === "default" || preset === "dark-default" 
                 ? "bg-gradient-to-br from-[#FF934F] to-[#EF7176] dark:from-[#FF934F] dark:to-[#EF7176]" 
                 : "bg-primary"
@@ -280,7 +280,7 @@ export default function DashboardPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
                   >
-                    <Card className="relative overflow-hidden">
+                    <Card className="relative overflow-hidden rounded-2xl transition-all duration-300 hover:shadow-lg">
                       <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                           <div className="space-y-2">
@@ -330,7 +330,7 @@ export default function DashboardPage() {
           {/* Portfolio Breakdown & Timer */}
           <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
             <motion.div variants={itemVariants} className="lg:col-span-2">
-              <Card>
+              <Card className="rounded-2xl transition-all duration-300">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <PieChart className="h-5 w-5" />
@@ -358,7 +358,7 @@ export default function DashboardPage() {
                     {portfolioBreakdown.map((item, index) => (
                       <motion.div
                         key={item.label}
-                        className="flex items-center justify-between rounded-lg border p-3"
+                        className="flex items-center justify-between rounded-xl border p-3 transition-all duration-300 hover:shadow-md"
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.1 }}
@@ -395,7 +395,7 @@ export default function DashboardPage() {
 
           {/* Quick Actions */}
           <motion.div variants={itemVariants}>
-            <Card>
+            <Card className="rounded-2xl transition-all duration-300">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Target className="h-5 w-5" />
@@ -416,7 +416,7 @@ export default function DashboardPage() {
                         whileTap={{ scale: 0.98 }}
                       >
                         <Link to={action.href}>
-                          <Card className="h-full cursor-pointer transition-all hover:shadow-md">
+                          <Card className="h-full cursor-pointer transition-all duration-300 hover:shadow-lg rounded-xl">
                             <CardContent className="p-4">
                               <div className="space-y-3">
                                 <div
@@ -447,7 +447,7 @@ export default function DashboardPage() {
           {/* Recent Transactions */}
           {recentTransactions.length > 0 && (
             <motion.div variants={itemVariants}>
-              <Card>
+              <Card className="rounded-2xl transition-all duration-300">
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
                     <Activity className="h-5 w-5" />
@@ -464,7 +464,7 @@ export default function DashboardPage() {
                     {recentTransactions.map((transaction, index) => (
                       <motion.div
                         key={transaction._id}
-                        className="flex items-center justify-between rounded-lg border p-3"
+                        className="flex items-center justify-between rounded-xl border p-3 transition-all duration-300 hover:shadow-md hover:bg-accent/50"
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.1 }}

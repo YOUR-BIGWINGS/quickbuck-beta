@@ -24,14 +24,14 @@ export const CTASection = ({ isSignedIn }: { isSignedIn: boolean }) => {
         >
           <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 via-blue-500 to-purple-500 rounded-3xl opacity-20 blur-xl" />
 
-          <div className="relative bg-background/80 backdrop-blur-sm border rounded-3xl p-8 md:p-12 lg:p-16 text-center">
+          <div className="relative bg-background/80 backdrop-blur-sm border rounded-3xl p-8 md:p-12 lg:p-16 text-center shadow-xl">
             {/* Icon */}
             <motion.div
               initial={{ scale: 0 }}
               whileInView={{ scale: 1 }}
               viewport={{ once: true }}
               transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-              className="inline-flex p-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-blue-500 mb-6"
+              className="inline-flex p-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-blue-500 mb-6 shadow-lg"
             >
               <Sparkles className="h-8 w-8 text-white" />
             </motion.div>
@@ -68,7 +68,7 @@ export const CTASection = ({ isSignedIn }: { isSignedIn: boolean }) => {
               transition={{ delay: 0.5, duration: 0.6 }}
               className="flex flex-col sm:flex-row items-center justify-center gap-4"
             >
-              <Button size="lg" asChild className="w-full sm:w-auto group">
+              <Button size="lg" asChild className="w-full sm:w-auto group rounded-2xl shadow-lg hover:shadow-xl">
                 <Link to={isSignedIn ? "/dashboard" : "/sign-up"} prefetch="viewport">
                   <TrendingUp className="h-5 w-5 mr-2" />
                   {isSignedIn ? "Go to Dashboard" : "Start Playing Free"}
@@ -80,7 +80,7 @@ export const CTASection = ({ isSignedIn }: { isSignedIn: boolean }) => {
                   size="lg"
                   variant="outline"
                   asChild
-                  className="w-full sm:w-auto"
+                  className="w-full sm:w-auto rounded-2xl hover:shadow-lg"
                 >
                   <Link to="/sign-in" prefetch="viewport">
                     Already have an account?

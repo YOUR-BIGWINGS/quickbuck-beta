@@ -77,8 +77,8 @@ export function CountdownTimer({
       style={heightPx ? { height: `${heightPx}px` } : undefined}
     >
       <Card
-        className={`relative overflow-hidden ${heightPx ? "h-full" : ""} ${
-          isAlmostDue ? "border-[var(--chart-3)]/20 dark:border-[var(--chart-3)]/30" : ""
+        className={`relative overflow-hidden rounded-2xl transition-all duration-300 ${heightPx ? "h-full" : ""} ${
+          isAlmostDue ? "border-[var(--chart-3)]/20 dark:border-[var(--chart-3)]/30 shadow-lg" : ""
         }`}
       >
         {/* Progress bar background */}

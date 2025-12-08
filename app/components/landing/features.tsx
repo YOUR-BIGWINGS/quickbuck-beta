@@ -125,15 +125,15 @@ const FeatureCard = ({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ delay: index * 0.1, duration: 0.5 }}
-      whileHover={{ y: -5 }}
+      whileHover={{ y: -8, scale: 1.02 }}
       className="relative group"
     >
       <div
-        className={`absolute -inset-0.5 bg-gradient-to-r ${feature.gradient} rounded-2xl opacity-0 group-hover:opacity-100 blur transition duration-300`}
+        className={`absolute -inset-0.5 bg-gradient-to-r ${feature.gradient} rounded-2xl opacity-0 group-hover:opacity-100 blur-md transition-all duration-300`}
       />
-      <div className="relative bg-background border rounded-2xl p-6 h-full">
+      <div className="relative bg-background border rounded-2xl p-6 h-full shadow-md hover:shadow-xl transition-all duration-300">
         <div
-          className={`inline-flex p-3 rounded-xl bg-gradient-to-r ${feature.gradient} mb-4`}
+          className={`inline-flex p-3 rounded-xl bg-gradient-to-r ${feature.gradient} mb-4 shadow-lg`}
         >
           <feature.icon className="h-6 w-6 text-white" />
         </div>

@@ -8,6 +8,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "~/components/ui/sidebar";
 import { Badge } from "~/components/ui/badge";
 
@@ -27,6 +28,7 @@ export const NavMain = memo(
     unreadCount?: number;
   }) => {
     const location = useLocation();
+    const { isMobile, setOpenMobile } = useSidebar();
 
     const groupsWithActiveStatus = useMemo(
       () =>
@@ -54,7 +56,16 @@ export const NavMain = memo(
                       isActive={item.isActive}
                       asChild
                     >
-                      <Link to={item.url} prefetch="intent">
+                      <Link 
+                        to={item.url} 
+                        prefetch="intent"
+                        onClick={() => {
+                          // Auto-close sidebar on mobile when navigation link is clicked
+                          if (isMobile) {
+                            setOpenMobile(false);
+                          }
+                        }}
+                      >
                         {item.icon && <item.icon />}
                         <span>{item.title}</span>
                         {item.url === "/messages" && unreadCount && unreadCount > 0 && (

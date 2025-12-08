@@ -86,6 +86,18 @@ export const meta: Route.MetaFunction = () => [
     content:
       "Compete on leaderboards, trade stocks and crypto, and grow your portfolio in Quickbuck.",
   },
+  {
+    name: "viewport",
+    content: "width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover",
+  },
+  {
+    name: "apple-mobile-web-app-capable",
+    content: "yes",
+  },
+  {
+    name: "mobile-web-app-capable",
+    content: "yes",
+  },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -93,7 +105,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover" />
         <Meta />
         <Links />
         {/* Set initial theme before paint to prevent FOUC */}
