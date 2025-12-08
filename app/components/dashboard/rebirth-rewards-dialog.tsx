@@ -64,11 +64,24 @@ export function RebirthRewardsDialog() {
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold">Rebirth System</DialogTitle>
           <DialogDescription>
-            Reach $100 billion net worth to ascend and unlock exclusive rewards
+            Reach $10 trillion net worth to ascend and unlock exclusive rewards
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 mt-4">
+          {/* Rebirth Information - Moved to Top */}
+          <div className="rounded-lg border p-4 bg-muted/30">
+            <h3 className="font-semibold mb-2">How Rebirth Works</h3>
+            <ul className="space-y-2 text-sm text-muted-foreground">
+              <li>• Reach a net worth of $10 trillion to qualify</li>
+              <li>• Rebirthing resets your balance, companies, investments, and assets</li>
+              <li>• You keep your rebirth level, badges, and special privileges</li>
+              <li>• Your Clerk account is protected during game wipes</li>
+              <li>• Each rebirth grants increasingly powerful rewards</li>
+              <li>• Rebirth 3+ players receive a permanent 5% account boost</li>
+              <li>• Rebirth 5+ players receive a 5% discount on all purchases</li>
+            </ul>
+          </div>
           {/* Current Status */}
           <div className="rounded-lg border p-4 bg-muted/50">
             <h3 className="font-semibold mb-2">Your Status</h3>
@@ -236,20 +249,6 @@ export function RebirthRewardsDialog() {
               </div>
             </div>
           )}
-
-          {/* Rebirth Information */}
-          <div className="rounded-lg border p-4 bg-muted/30">
-            <h3 className="font-semibold mb-2">How Rebirth Works</h3>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>• Reach a net worth of $100 billion (10 trillion cents) to qualify</li>
-              <li>• Rebirthing resets your balance, companies, investments, and assets</li>
-              <li>• You keep your rebirth level, badges, and special privileges</li>
-              <li>• Your Clerk account is protected during game wipes</li>
-              <li>• Each rebirth grants increasingly powerful rewards</li>
-              <li>• Rebirth 3+ players receive a permanent 5% account boost</li>
-              <li>• Rebirth 5+ players receive a 5% discount on all purchases</li>
-            </ul>
-          </div>
         </div>
       </DialogContent>
     </Dialog>

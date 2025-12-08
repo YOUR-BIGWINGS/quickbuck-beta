@@ -2,8 +2,8 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 
-// Rebirth threshold: 10T net worth
-const REBIRTH_THRESHOLD = 10_000_000_000_000; // 10 trillion cents ($100 billion)
+// Rebirth threshold: 10T dollars (1000T cents)
+const REBIRTH_THRESHOLD = 1_000_000_000_000_000; // 1000 trillion cents ($10 trillion)
 
 /**
  * Query: Check if player is eligible for rebirth
