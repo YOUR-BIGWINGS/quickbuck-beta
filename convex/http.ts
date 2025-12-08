@@ -93,13 +93,12 @@ http.route({
 });
 
 // Stripe webhook endpoint for subscription events
+// Import at top level for proper typing
+import { stripeWebhook } from "./stripeWebhook";
 http.route({
   path: "/api/webhooks/stripe",
   method: "POST",
-  handler: httpAction(async (ctx, request) => {
-    const { stripeWebhook } = await import("./stripeWebhook");
-    return await stripeWebhook(ctx, request);
-  }),
+  handler: stripeWebhook,
 });
 
 // Tick endpoint - can be called by external scheduler

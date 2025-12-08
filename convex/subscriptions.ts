@@ -3,10 +3,12 @@ import { api, internal } from "./_generated/api";
 import { action, httpAction, internalMutation, mutation, query } from "./_generated/server";
 import Stripe from "stripe";
 
-// Initialize Stripe with secret key
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2024-11-20.acacia",
-});
+// Helper to get Stripe instance
+function getStripe() {
+  return new Stripe(process.env.STRIPE_SECRET_KEY || "", {
+    apiVersion: "2025-11-17.clover",
+  });
+}
 
 // QuickBuck+ Plan Configuration
 const QUICKBUCK_PLUS = {
@@ -49,9 +51,11 @@ export const createCheckoutSession = action({
     cancelUrl: v.string(),
   },
   handler: async (ctx, args) => {
+    const stripe = getStripe();
+    
     try {
       // Check if user already has an active subscription
-      const existingSub = await ctx.runQuery(internal.subscriptions.getUserSubscription, {
+      const existingSub = await ctx.runQuery(api.subscriptions.getUserSubscription, {
         userId: args.userId,
       });
 
@@ -598,6 +602,8 @@ export const createCustomerPortalUrl = action({
     returnUrl: v.string(),
   },
   handler: async (ctx, args) => {
+    const stripe = getStripe();
+    
     try {
       // Get user's subscription to find customer ID
       const subscription = await ctx.runQuery(api.subscriptions.getUserSubscription, {

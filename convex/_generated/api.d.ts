@@ -36,6 +36,7 @@ import type * as products from "../products.js";
 import type * as rebirths from "../rebirths.js";
 import type * as rules from "../rules.js";
 import type * as stocks from "../stocks.js";
+import type * as stripeWebhook from "../stripeWebhook.js";
 import type * as subscriptions from "../subscriptions.js";
 import type * as taxes from "../taxes.js";
 import type * as themes from "../themes.js";
@@ -87,6 +88,7 @@ declare const fullApi: ApiFromModules<{
   rebirths: typeof rebirths;
   rules: typeof rules;
   stocks: typeof stocks;
+  stripeWebhook: typeof stripeWebhook;
   subscriptions: typeof subscriptions;
   taxes: typeof taxes;
   themes: typeof themes;

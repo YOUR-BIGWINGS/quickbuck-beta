@@ -3,12 +3,12 @@ import { httpAction, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-11-17.clover",
-});
-
 // Stripe webhook endpoint - handles subscription events
 export const stripeWebhook = httpAction(async (ctx, request) => {
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
+    apiVersion: "2025-11-17.clover",
+  });
+  
   const signature = request.headers.get("stripe-signature");
 
   if (!signature) {
