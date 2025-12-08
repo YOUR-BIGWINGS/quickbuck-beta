@@ -140,12 +140,20 @@ function AppContent({ loaderData }: Route.ComponentProps) {
     }
   }, []);
 
+  const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
+  if (!clerkPublishableKey) {
+    console.error('VITE_CLERK_PUBLISHABLE_KEY is not defined');
+  }
+
   return (
     <ClerkProvider
-      publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}
+      publishableKey={clerkPublishableKey}
       loaderData={loaderData}
       signUpFallbackRedirectUrl="/dashboard"
       signInFallbackRedirectUrl="/dashboard"
+      domain="clerk.quickbuck.me"
+      proxyUrl="https://clerk.quickbuck.me"
     >
       <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
         <ThemeProvider>
