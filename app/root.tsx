@@ -135,6 +135,7 @@ function AppContent({ loaderData }: Route.ComponentProps) {
       signUpFallbackRedirectUrl="/dashboard"
       signInFallbackRedirectUrl="/dashboard"
       domain="clerk.quickbuck.me"
+      proxyUrl="https://clerk.quickbuck.me"
       clerkJSUrl="https://clerk.quickbuck.me/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
     >
       <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
