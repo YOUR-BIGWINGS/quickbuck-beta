@@ -29,6 +29,12 @@ crons.interval(
   internal.taxes.collectAllDailyTaxes
 );
 
+crons.interval(
+  "check expired VIP subscriptions",
+  { hours: 6 }, // Run every 6 hours to catch expired subscriptions quickly
+  internal.subscriptions.checkExpiredVIPSubscriptions
+);
+
 console.log("[CRONS] ✅ Cron jobs registered successfully");
 
 export default crons;

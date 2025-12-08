@@ -29,6 +29,9 @@ export default defineSchema({
         v.literal("admin")
       )
     ), // Player role - defaults to "normal"
+    isVIP: v.optional(v.boolean()), // QuickBuck+ VIP status
+    vipExpiresAt: v.optional(v.number()), // When VIP expires (for tracking)
+    previousTheme: v.optional(v.string()), // Store theme before VIP in case we need to reset
     limitReason: v.optional(v.string()), // Reason for limited account
     banReason: v.optional(v.string()), // Reason for ban
     warnings: v.optional(
@@ -50,7 +53,8 @@ export default defineSchema({
     .index("by_balance", ["balance"])
     .index("by_netWorth", ["netWorth"])
     .index("by_lastNetWorthUpdate", ["lastNetWorthUpdate"])
-    .index("by_rebirthCount", ["rebirthCount"]),
+    .index("by_rebirthCount", ["rebirthCount"])
+    .index("by_isVIP", ["isVIP"]),
 
   companies: defineTable({
     ownerId: v.id("players"),
@@ -329,37 +333,44 @@ export default defineSchema({
     .index("by_playerId_productId", ["playerId", "productId"]),
 
   subscriptions: defineTable({
-    userId: v.optional(v.string()),
-    polarId: v.optional(v.string()),
-    polarPriceId: v.optional(v.string()),
-    currency: v.optional(v.string()),
-    interval: v.optional(v.string()),
-    status: v.optional(v.string()),
-    currentPeriodStart: v.optional(v.number()),
-    currentPeriodEnd: v.optional(v.number()),
-    cancelAtPeriodEnd: v.optional(v.boolean()),
-    amount: v.optional(v.number()),
-    startedAt: v.optional(v.number()),
-    endsAt: v.optional(v.number()),
-    endedAt: v.optional(v.number()),
-    canceledAt: v.optional(v.number()),
-    customerCancellationReason: v.optional(v.string()),
-    customerCancellationComment: v.optional(v.string()),
-    metadata: v.optional(v.any()),
-    customFieldData: v.optional(v.any()),
-    customerId: v.optional(v.string()),
+    userId: v.string(), // Clerk user ID
+    stripeCustomerId: v.string(), // Stripe customer ID
+    stripeSubscriptionId: v.string(), // Stripe subscription ID
+    stripePriceId: v.string(), // Stripe price ID for QuickBuck+
+    status: v.union(
+      v.literal("active"),
+      v.literal("canceled"),
+      v.literal("incomplete"),
+      v.literal("incomplete_expired"),
+      v.literal("past_due"),
+      v.literal("trialing"),
+      v.literal("unpaid")
+    ),
+    currentPeriodStart: v.number(), // Unix timestamp
+    currentPeriodEnd: v.number(), // Unix timestamp
+    cancelAtPeriodEnd: v.boolean(),
+    canceledAt: v.optional(v.number()), // Unix timestamp
+    planName: v.string(), // e.g., "QuickBuck+"
+    amount: v.number(), // Amount in cents (300 for 3 AUD)
+    currency: v.string(), // "aud"
+    interval: v.literal("month"), // "month" for monthly subscriptions
+    createdAt: v.number(),
+    updatedAt: v.number(),
   })
-    .index("userId", ["userId"])
-    .index("polarId", ["polarId"]),
+    .index("by_userId", ["userId"])
+    .index("by_stripeCustomerId", ["stripeCustomerId"])
+    .index("by_stripeSubscriptionId", ["stripeSubscriptionId"])
+    .index("by_status", ["status"]),
   webhookEvents: defineTable({
     type: v.string(),
-    polarEventId: v.string(),
-    createdAt: v.string(),
-    modifiedAt: v.string(),
+    stripeEventId: v.string(),
+    processed: v.boolean(),
+    createdAt: v.number(),
     data: v.any(),
   })
-    .index("type", ["type"])
-    .index("polarEventId", ["polarEventId"]),
+    .index("by_stripeEventId", ["stripeEventId"])
+    .index("by_processed", ["processed"])
+    .index("type", ["type"]),
 
   globalAlerts: defineTable({
     createdBy: v.id("players"), // admin who created it

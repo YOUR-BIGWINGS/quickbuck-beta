@@ -92,7 +92,15 @@ http.route({
   }),
 });
 
-// Payments/webhook route removed — payments are disabled for now.
+// Stripe webhook endpoint for subscription events
+http.route({
+  path: "/api/webhooks/stripe",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const { stripeWebhook } = await import("./stripeWebhook");
+    return await stripeWebhook(ctx, request);
+  }),
+});
 
 // Tick endpoint - can be called by external scheduler
 http.route({

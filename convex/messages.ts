@@ -379,6 +379,9 @@ export const searchPlayers = query({
           playerId: player._id,
           playerName: user.name || "Anonymous",
           role: player.role,
+          balance: player.balance,
+          isVIP: player.isVIP || false,
+          vipExpiresAt: player.vipExpiresAt,
           playerBadges: playerBadges.filter((b) => b !== null),
         };
       })

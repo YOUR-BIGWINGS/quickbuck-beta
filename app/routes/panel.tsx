@@ -53,8 +53,12 @@ export default function Panel() {
   const createCrypto = useMutation(api.crypto.createCryptocurrency);
   const updateCryptoParams = useMutation(api.crypto.updateCryptoParameters);
 
+  // VIP management mutations
+  const adminGrantVIP = useMutation(api.subscriptions.adminGrantVIP);
+  const adminRevokeVIP = useMutation(api.subscriptions.adminRevokeVIP);
+
   const [activeTab, setActiveTab] = useState<
-    "players" | "companies" | "products" | "crypto" | "alerts" | "messages"
+    "players" | "companies" | "products" | "crypto" | "alerts" | "messages" | "vip"
   >("players");
   const [actionMessage, setActionMessage] = useState<string>("");
   const [showAlertModal, setShowAlertModal] = useState(false);
@@ -98,6 +102,10 @@ export default function Panel() {
     id: Id<"players">;
     name: string;
   } | null>(null);
+
+  // VIP management state
+  const [vipSearchQuery, setVipSearchQuery] = useState("");
+  const [vipDurationMonths, setVipDurationMonths] = useState(1);
   const [messageText, setMessageText] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
 
@@ -118,10 +126,11 @@ export default function Panel() {
   );
 
   // Search for users query (after state declaration)
+  const searchQuery = activeTab === "messages" ? messageSearchQuery : vipSearchQuery;
   const searchResults = useQuery(
     // @ts-ignore - messages module exists but not yet in generated types
     api.messages?.searchPlayers,
-    messageSearchQuery.length > 1 ? { searchQuery: messageSearchQuery } : "skip"
+    searchQuery.length > 1 ? { searchQuery } : "skip"
   );
 
   const showMessage = (message: string) => {
@@ -697,6 +706,14 @@ export default function Panel() {
             onClick={() => setActiveTab("alerts")}
           >
             Global Alerts
+          </button>
+        )}
+        {isAdmin && (
+          <button
+            className={`retro-tab ${activeTab === "vip" ? "active" : ""}`}
+            onClick={() => setActiveTab("vip")}
+          >
+            VIP Management
           </button>
         )}
       </div>
@@ -1434,6 +1451,125 @@ export default function Panel() {
               >
                 {isSendingMessage ? "Sending..." : "Send Message"}
               </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "vip" && isAdmin && (
+          <div className="vip-section">
+            <h2>VIP Management</h2>
+            <p className="vip-description">
+              Grant or revoke VIP status for testing and support purposes.
+              VIP members get access to premium themes, stock analysis bot, and a gold VIP tag.
+            </p>
+
+            <div className="vip-form">
+              <label htmlFor="vip-user-search">Search User:</label>
+              <input
+                id="vip-user-search"
+                type="text"
+                value={vipSearchQuery}
+                onChange={(e) => setVipSearchQuery(e.target.value)}
+                placeholder="Enter player name..."
+              />
+
+              {vipSearchQuery.length > 0 && (
+                <div className="search-results">
+                  {searchResults === undefined ? (
+                    <div className="loading">Searching...</div>
+                  ) : searchResults.length === 0 ? (
+                    <div className="no-data">No users found</div>
+                  ) : (
+                    <div className="vip-results-list">
+                      {searchResults.map((player: any) => {
+                        const isVIP = player.isVIP || false;
+                        const vipExpiry = player.vipExpiresAt 
+                          ? new Date(player.vipExpiresAt).toLocaleDateString()
+                          : null;
+
+                        return (
+                          <div key={player.playerId} className="vip-result-item">
+                            <div className="vip-player-info">
+                              <span className="vip-player-name">
+                                {player.playerName || "Unknown"}
+                                {isVIP && <span className="vip-badge">👑 VIP</span>}
+                              </span>
+                              <span className="vip-player-balance">
+                                ${(player.balance / 100).toFixed(2)}
+                              </span>
+                              {isVIP && vipExpiry && (
+                                <span className="vip-expiry">
+                                  Expires: {vipExpiry}
+                                </span>
+                              )}
+                            </div>
+                            <div className="vip-actions">
+                              {!isVIP ? (
+                                <>
+                                  <select
+                                    value={vipDurationMonths}
+                                    onChange={(e) => setVipDurationMonths(Number(e.target.value))}
+                                    className="vip-duration-select"
+                                  >
+                                    <option value={1}>1 Month</option>
+                                    <option value={2}>2 Months</option>
+                                    <option value={3}>3 Months</option>
+                                    <option value={6}>6 Months</option>
+                                    <option value={12}>12 Months</option>
+                                  </select>
+                                  <button
+                                    className="btn-primary btn-small"
+                                    onClick={async () => {
+                                      try {
+                                        await adminGrantVIP({
+                                          targetPlayerId: player.playerId,
+                                          durationMonths: vipDurationMonths,
+                                        });
+                                        showMessage(`✓ VIP granted to ${player.playerName} for ${vipDurationMonths} month(s)`);
+                                      } catch (e: any) {
+                                        showMessage("✗ Error: " + e.message);
+                                      }
+                                    }}
+                                  >
+                                    Grant VIP
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  className="btn-danger btn-small"
+                                  onClick={async () => {
+                                    if (!confirm(`Revoke VIP status from ${player.playerName}?`)) return;
+                                    try {
+                                      await adminRevokeVIP({
+                                        targetPlayerId: player.playerId,
+                                      });
+                                      showMessage(`✓ VIP revoked from ${player.playerName}`);
+                                    } catch (e: any) {
+                                      showMessage("✗ Error: " + e.message);
+                                    }
+                                  }}
+                                >
+                                  Revoke VIP
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="vip-info-box">
+              <h3>ℹ️ VIP Information</h3>
+              <ul>
+                <li><strong>VIP Benefits:</strong> Premium themes, stock analysis bot, gold VIP tag</li>
+                <li><strong>Subscription Price:</strong> $3 AUD per month</li>
+                <li><strong>Use This Tool For:</strong> Testing, customer support, promotions</li>
+                <li><strong>Note:</strong> Manually granted VIP will expire after the selected duration</li>
+              </ul>
             </div>
           </div>
         )}
@@ -2701,6 +2837,131 @@ export default function Panel() {
           font-size: 11px;
           color: var(--text-secondary);
           margin-top: -10px;
+        }
+
+        /* VIP Management Styles */
+        .vip-section h2 {
+          color: var(--header-bg);
+          border-bottom: 2px solid var(--header-bg);
+          padding-bottom: 5px;
+          margin-bottom: 15px;
+        }
+
+        .vip-description {
+          margin-bottom: 20px;
+          padding: 10px;
+          background: var(--alert-info-bg);
+          border: 2px solid #0080ff;
+          color: var(--content-text);
+        }
+
+        .vip-form {
+          display: flex;
+          flex-direction: column;
+          gap: 15px;
+          max-width: 800px;
+        }
+
+        .vip-form label {
+          font-weight: bold;
+          color: var(--content-text);
+        }
+
+        .vip-form input {
+          padding: 8px;
+          border: 2px solid var(--table-border);
+          background: var(--content-bg);
+          color: var(--content-text);
+          font-family: "Courier New", monospace;
+        }
+
+        .vip-results-list {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .vip-result-item {
+          padding: 15px;
+          border: 2px solid var(--table-border);
+          background: var(--content-bg);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .vip-player-info {
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+        }
+
+        .vip-player-name {
+          font-weight: bold;
+          font-size: 16px;
+          color: var(--content-text);
+        }
+
+        .vip-badge {
+          margin-left: 8px;
+          color: #FFD700;
+          font-size: 14px;
+        }
+
+        .vip-player-balance {
+          font-size: 14px;
+          color: #00cc00;
+        }
+
+        .vip-expiry {
+          font-size: 12px;
+          color: var(--text-secondary);
+        }
+
+        .vip-actions {
+          display: flex;
+          gap: 10px;
+          align-items: center;
+        }
+
+        .vip-duration-select {
+          padding: 6px 10px;
+          border: 2px solid var(--table-border);
+          background: var(--content-bg);
+          color: var(--content-text);
+          font-family: "Courier New", monospace;
+          cursor: pointer;
+        }
+
+        .vip-info-box {
+          margin-top: 30px;
+          padding: 15px;
+          background: var(--alert-warning-bg);
+          border: 2px solid var(--warning-yellow);
+          color: var(--content-text);
+        }
+
+        .vip-info-box h3 {
+          color: var(--header-bg);
+          margin-bottom: 10px;
+        }
+
+        .vip-info-box ul {
+          list-style-type: none;
+          padding-left: 0;
+        }
+
+        .vip-info-box li {
+          margin-bottom: 8px;
+          padding-left: 20px;
+          position: relative;
+        }
+
+        .vip-info-box li:before {
+          content: "▸";
+          position: absolute;
+          left: 0;
+          color: var(--header-bg);
         }
       `}</style>
     </div>
