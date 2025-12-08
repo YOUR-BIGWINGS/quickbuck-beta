@@ -13,6 +13,7 @@ export default [
   route("success", "routes/success.tsx"),
   route("maintenance", "routes/maintenance.tsx"),
   route("panel", "routes/panel.tsx"),
+  route("pricing", "routes/pricing.tsx"),
   route("rules", "routes/rules.tsx"),
   route("admin/maintenance", "routes/admin/maintenance.tsx"),
   route("admin/diagnostics", "routes/admin/diagnostics.tsx"),

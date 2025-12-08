@@ -1,7 +1,7 @@
 import { Button } from "~/components/ui/button";
 import { Separator } from "~/components/ui/separator";
 import { SidebarTrigger } from "~/components/ui/sidebar";
-import { Github, BookOpen, Newspaper, Bug, Trash2 } from "lucide-react";
+import { Github, BookOpen, Newspaper, Bug, Trash2, Plus } from "lucide-react";
 import DiscordIcon from "~/components/icons/discord-icon";
 import { useQuery } from "convex/react";
 import { api } from "convex/_generated/api";
@@ -21,6 +21,18 @@ export function SiteHeader() {
     <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
       <div className="flex w-full items-center gap-1 px-2 sm:px-4 lg:gap-2 lg:px-6">
         <SidebarTrigger className="-ml-1" />
+        <Button
+          variant="ghost"
+          size="icon"
+          asChild
+          title="QuickBuck+"
+          aria-label="QuickBuck+"
+          className="h-8 w-8 sm:h-9 sm:w-9 text-yellow-500 hover:text-yellow-600 hover:bg-yellow-50"
+        >
+          <Link to="/pricing" className="flex items-center">
+            <Plus className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={3} />
+          </Link>
+        </Button>
         <Separator
           orientation="vertical"
           className="mx-1 sm:mx-2 data-[orientation=vertical]:h-4"
