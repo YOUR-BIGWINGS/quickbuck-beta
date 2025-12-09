@@ -19,6 +19,7 @@ import {
   Home,
   Users,
   DollarSign,
+  Crown,
 } from "lucide-react";
 import { Link } from "react-router";
 import { NavMain } from "./nav-main";
@@ -153,6 +154,11 @@ const sidebarGroups = [
         url: "/taxes",
         icon: DollarSign,
       },
+      {
+        title: "QuickBuck+",
+        url: "/subscription",
+        icon: Crown,
+      },
     ],
   },
 ];
@@ -193,7 +199,7 @@ export function AppSidebar({
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <Link to="/subscription" prefetch="viewport">
+            <Link to="/dashboard" prefetch="viewport">
               <div className="flex items-center gap-2 py-1">
                 {/* Optimized light/dark logos */}
                 <img
