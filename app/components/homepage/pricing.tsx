@@ -46,8 +46,8 @@ export default function Pricing({ loaderData }: { loaderData: any }) {
         return;
       }
 
-      // Redirect to Ko-fi membership page
-      const kofiUrl = import.meta.env.VITE_KOFI_URL || "https://ko-fi.com/brodie21746/membership";
+      // Redirect to Ko-fi QuickBuck+ tier
+      const kofiUrl = import.meta.env.VITE_KOFI_URL || "https://ko-fi.com/brodie21746#tier17652766881070";
       window.open(kofiUrl, "_blank");
       setLoadingPriceId(null);
     } catch (error) {
