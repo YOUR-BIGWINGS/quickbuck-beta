@@ -18,10 +18,9 @@ import { api } from "../../convex/_generated/api";
 export default function IntegratedPricing() {
   const { isSignedIn, userId } = useAuth();
   const [loadingPriceId, setLoadingPriceId] = useState<string | null>(null);
-  const [plans, setPlans] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const getPlans = useAction(api.subscriptions.getAvailablePlans);
+  const plans = useQuery(api.subscriptions.getAvailablePlans);
   const subscriptionStatus = useQuery(
     api.subscriptions.checkUserSubscriptionStatus,
     {
@@ -43,20 +42,6 @@ export default function IntegratedPricing() {
       upsertUser().catch(console.error);
     }
   }, [isSignedIn, upsertUser]);
-
-  // Load plans on component mount
-  React.useEffect(() => {
-    const loadPlans = async () => {
-      try {
-        const result = await getPlans();
-        setPlans(result);
-      } catch (error) {
-        console.error("Failed to load plans:", error);
-        setError("Failed to load pricing plans. Please try again.");
-      }
-    };
-    loadPlans();
-  }, [getPlans]);
 
   const handleSubscribe = async (priceId: string) => {
     if (!isSignedIn) {
