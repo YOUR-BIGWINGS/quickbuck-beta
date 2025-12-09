@@ -54,7 +54,7 @@ export default function IntegratedPricing() {
       }
 
       // Redirect to Ko-fi membership page
-      const kofiUrl = process.env.NEXT_PUBLIC_KOFI_URL || "https://ko-fi.com/yourpage/membership";
+      const kofiUrl = import.meta.env.VITE_KOFI_URL || "https://ko-fi.com/brodie21746/membership";
       window.open(kofiUrl, "_blank");
       setLoadingPriceId(null);
     } catch (error) {
