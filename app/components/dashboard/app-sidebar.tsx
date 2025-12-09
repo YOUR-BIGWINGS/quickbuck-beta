@@ -247,6 +247,27 @@ export function AppSidebar({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    asChild
+                    className="h-9 w-9 text-yellow-500 hover:text-yellow-600"
+                  >
+                    <Link to="/subscription">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none" className="h-4 w-4">
+                        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+                      </svg>
+                    </Link>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>QuickBuck+</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             {isAdmin && (
               <TooltipProvider>
                 <Tooltip>

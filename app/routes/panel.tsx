@@ -53,9 +53,10 @@ export default function Panel() {
   const createCrypto = useMutation(api.crypto.createCryptocurrency);
   const updateCryptoParams = useMutation(api.crypto.updateCryptoParameters);
 
-  // VIP management mutations
+  // VIP management mutations and queries
   const adminGrantVIP = useMutation(api.subscriptions.adminGrantVIP);
   const adminRevokeVIP = useMutation(api.subscriptions.adminRevokeVIP);
+  const allVIPUsers = useQuery(api.subscriptions.getAllVIPUsers);
 
   const [activeTab, setActiveTab] = useState<
     "players" | "companies" | "products" | "crypto" | "alerts" | "messages" | "vip"
@@ -1463,7 +1464,80 @@ export default function Panel() {
               VIP members get access to premium themes, stock analysis bot, and a gold VIP tag.
             </p>
 
+            {/* Current VIP Users List */}
+            <div className="vip-current-users">
+              <h3>Current VIP Users ({allVIPUsers?.length || 0})</h3>
+              {!allVIPUsers ? (
+                <div className="loading">Loading VIP users...</div>
+              ) : allVIPUsers.length === 0 ? (
+                <div className="no-data">No VIP users found</div>
+              ) : (
+                <div className="vip-users-list">
+                  {allVIPUsers.map((vipUser: any) => {
+                    const now = Date.now();
+                    const expiresAt = vipUser.vipExpiresAt;
+                    const daysLeft = expiresAt ? Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24)) : null;
+                    const isSubscription = vipUser.vipGrantedBySubscription;
+                    
+                    return (
+                      <div key={vipUser.playerId} className="vip-user-item">
+                        <div className="vip-user-info">
+                          <span className="vip-user-name">
+                            {vipUser.playerName}
+                            <span className="vip-badge">👑 VIP</span>
+                            {isSubscription && <span className="vip-type-badge">Subscription</span>}
+                            {!isSubscription && <span className="vip-type-badge free">Free</span>}
+                          </span>
+                          <span className="vip-user-balance">
+                            ${(vipUser.balance / 100).toFixed(2)}
+                          </span>
+                          {expiresAt && (
+                            <span className="vip-expiry">
+                              {daysLeft !== null && daysLeft > 0 ? (
+                                `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`
+                              ) : daysLeft === 0 ? (
+                                'Expires today'
+                              ) : (
+                                'Expired'
+                              )}
+                              {' '}({new Date(expiresAt).toLocaleDateString()})
+                            </span>
+                          )}
+                        </div>
+                        <div className="vip-actions">
+                          {isSubscription ? (
+                            <span className="vip-subscription-note">
+                              Cannot revoke subscription VIP
+                            </span>
+                          ) : (
+                            <button
+                              className="btn-danger btn-small"
+                              onClick={async () => {
+                                if (!confirm(`Revoke free VIP from ${vipUser.playerName}?`)) return;
+                                try {
+                                  await adminRevokeVIP({
+                                    targetPlayerId: vipUser.playerId,
+                                  });
+                                  showMessage(`✓ VIP revoked from ${vipUser.playerName}`);
+                                } catch (e: any) {
+                                  showMessage("✗ Error: " + e.message);
+                                }
+                              }}
+                            >
+                              Revoke VIP
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Grant VIP Section */}
             <div className="vip-form">
+              <h3>Grant VIP</h3>
               <label htmlFor="vip-user-search">Search User:</label>
               <input
                 id="vip-user-search"
@@ -1535,22 +1609,7 @@ export default function Panel() {
                                   </button>
                                 </>
                               ) : (
-                                <button
-                                  className="btn-danger btn-small"
-                                  onClick={async () => {
-                                    if (!confirm(`Revoke VIP status from ${player.playerName}?`)) return;
-                                    try {
-                                      await adminRevokeVIP({
-                                        targetPlayerId: player.playerId,
-                                      });
-                                      showMessage(`✓ VIP revoked from ${player.playerName}`);
-                                    } catch (e: any) {
-                                      showMessage("✗ Error: " + e.message);
-                                    }
-                                  }}
-                                >
-                                  Revoke VIP
-                                </button>
+                                <span className="already-vip">Already VIP</span>
                               )}
                             </div>
                           </div>
@@ -1569,6 +1628,7 @@ export default function Panel() {
                 <li><strong>Subscription Price:</strong> $3 AUD per month</li>
                 <li><strong>Use This Tool For:</strong> Testing, customer support, promotions</li>
                 <li><strong>Note:</strong> Manually granted VIP will expire after the selected duration</li>
+                <li><strong>Important:</strong> You can only revoke VIP that was granted for free. Subscription VIPs must cancel their own subscription.</li>
               </ul>
             </div>
           </div>
@@ -2962,6 +3022,82 @@ export default function Panel() {
           position: absolute;
           left: 0;
           color: var(--header-bg);
+        }
+
+        /* VIP Users List Styles */
+        .vip-current-users {
+          margin-bottom: 30px;
+          padding: 20px;
+          background: var(--content-bg);
+          border: 2px solid var(--header-bg);
+        }
+
+        .vip-current-users h3 {
+          color: var(--header-bg);
+          margin-bottom: 15px;
+          border-bottom: 2px solid var(--table-border);
+          padding-bottom: 8px;
+        }
+
+        .vip-users-list {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .vip-user-item {
+          padding: 15px;
+          border: 2px solid var(--table-border);
+          background: var(--panel-bg);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .vip-user-info {
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+        }
+
+        .vip-user-name {
+          font-weight: bold;
+          font-size: 16px;
+          color: var(--content-text);
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
+        .vip-type-badge {
+          padding: 2px 8px;
+          background: #0080ff;
+          color: white;
+          font-size: 11px;
+          border-radius: 3px;
+          text-transform: uppercase;
+          font-weight: bold;
+        }
+
+        .vip-type-badge.free {
+          background: #ff8800;
+        }
+
+        .vip-user-balance {
+          font-size: 14px;
+          color: #00cc00;
+        }
+
+        .vip-subscription-note {
+          font-size: 12px;
+          color: var(--text-secondary);
+          font-style: italic;
+        }
+
+        .already-vip {
+          color: var(--text-secondary);
+          font-style: italic;
         }
       `}</style>
     </div>

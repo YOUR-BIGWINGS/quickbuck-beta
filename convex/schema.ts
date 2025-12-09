@@ -31,6 +31,7 @@ export default defineSchema({
     ), // Player role - defaults to "normal"
     isVIP: v.optional(v.boolean()), // QuickBuck+ VIP status
     vipExpiresAt: v.optional(v.number()), // When VIP expires (for tracking)
+    vipGrantedBySubscription: v.optional(v.boolean()), // true if VIP from subscription, false/undefined if admin granted
     previousTheme: v.optional(v.string()), // Store theme before VIP in case we need to reset
     limitReason: v.optional(v.string()), // Reason for limited account
     banReason: v.optional(v.string()), // Reason for ban

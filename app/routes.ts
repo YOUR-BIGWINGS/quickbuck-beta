@@ -15,6 +15,7 @@ export default [
   route("panel", "routes/panel.tsx"),
   route("pricing", "routes/pricing.tsx"),
   route("rules", "routes/rules.tsx"),
+  route("subscription", "routes/subscription.tsx"),
   route("admin/maintenance", "routes/admin/maintenance.tsx"),
   route("admin/diagnostics", "routes/admin/diagnostics.tsx"),
   route("admin/tick", "routes/admin/tick.tsx"),
