@@ -728,4 +728,78 @@ export default defineSchema({
   })
     .index("by_playerId", ["playerId"])
     .index("by_evadingUntil", ["evadingUntil"]),
+
+  // Ticket system for reporting activities to moderators
+  tickets: defineTable({
+    reporterId: v.id("players"), // Player who submitted the ticket
+    reporterName: v.string(), // Name at time of report
+    category: v.union(
+      v.literal("player_behavior"),
+      v.literal("bug_report"),
+      v.literal("content_violation"),
+      v.literal("exploit_abuse"),
+      v.literal("other")
+    ),
+    subject: v.string(), // Brief subject/title
+    description: v.string(), // Detailed description
+    targetPlayerId: v.optional(v.id("players")), // Player being reported (if applicable)
+    targetPlayerName: v.optional(v.string()), // Name of reported player
+    status: v.union(
+      v.literal("open"),
+      v.literal("in_progress"),
+      v.literal("resolved"),
+      v.literal("closed")
+    ),
+    priority: v.union(
+      v.literal("low"),
+      v.literal("medium"),
+      v.literal("high"),
+      v.literal("urgent")
+    ),
+    assignedToModId: v.optional(v.id("players")), // Mod assigned to this ticket
+    assignedToModName: v.optional(v.string()),
+    resolution: v.optional(v.string()), // Mod's resolution notes
+    resolvedByModId: v.optional(v.id("players")),
+    resolvedByModName: v.optional(v.string()),
+    resolvedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_reporterId", ["reporterId"])
+    .index("by_targetPlayerId", ["targetPlayerId"])
+    .index("by_status", ["status"])
+    .index("by_priority", ["priority"])
+    .index("by_assignedToModId", ["assignedToModId"])
+    .index("by_createdAt", ["createdAt"])
+    .index("by_status_priority", ["status", "priority"]),
+
+  // Audit log for tracking all system actions
+  auditLog: defineTable({
+    actorId: v.optional(v.id("players")), // Who performed the action (optional for system actions)
+    actorName: v.optional(v.string()), // Name at time of action
+    actorRole: v.optional(v.string()), // Role at time of action
+    targetId: v.optional(v.id("players")), // Target of the action (if applicable)
+    targetName: v.optional(v.string()), // Name of target
+    actionType: v.string(), // Type of action (e.g., "ticket_created", "player_banned", "ticket_resolved")
+    category: v.union(
+      v.literal("moderation"),
+      v.literal("ticket"),
+      v.literal("player"),
+      v.literal("company"),
+      v.literal("transaction"),
+      v.literal("system"),
+      v.literal("admin")
+    ),
+    description: v.string(), // Human-readable description
+    metadata: v.optional(v.string()), // JSON string for additional data
+    ipAddress: v.optional(v.string()), // IP address if available
+    timestamp: v.number(),
+  })
+    .index("by_actorId", ["actorId"])
+    .index("by_targetId", ["targetId"])
+    .index("by_actionType", ["actionType"])
+    .index("by_category", ["category"])
+    .index("by_timestamp", ["timestamp"])
+    .index("by_category_timestamp", ["category", "timestamp"])
+    .index("by_actionType_timestamp", ["actionType", "timestamp"]),
 });

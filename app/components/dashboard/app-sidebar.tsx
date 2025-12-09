@@ -20,6 +20,8 @@ import {
   Users,
   DollarSign,
   Crown,
+  LifeBuoy,
+  FileText,
 } from "lucide-react";
 import { Link } from "react-router";
 import { NavMain } from "./nav-main";
@@ -171,20 +173,50 @@ export function AppSidebar({
   const unreadCount = useQuery(api.messages?.getUnreadCount);
 
   const isAdmin = moderationAccess?.role === "admin";
+  const isModerator = moderationAccess?.hasAccess;
+  const role = moderationAccess?.role || "normal";
+  const isModOrHigher = ["mod", "high_mod", "admin"].includes(role);
 
-  // Add moderation panel link if user is mod or admin
-  const groups = moderationAccess?.hasAccess
+  // Build admin/moderation section
+  let adminItems = [];
+  
+  // Everyone can submit tickets
+  adminItems.push({
+    title: "Support Tickets",
+    url: "/tickets",
+    icon: LifeBuoy,
+  });
+
+  // Moderators can manage tickets
+  if (isModerator) {
+    adminItems.push({
+      title: "Mod Panel",
+      url: "/panel",
+      icon: Shield,
+    });
+    adminItems.push({
+      title: "Manage Tickets",
+      url: "/mod-tickets",
+      icon: LifeBuoy,
+    });
+  }
+
+  // Mod or higher can view audit logs
+  if (isModOrHigher) {
+    adminItems.push({
+      title: "Audit Log",
+      url: "/audit-log",
+      icon: FileText,
+    });
+  }
+
+  // Add admin section if there are items to show
+  const groups = adminItems.length > 0
     ? [
         ...sidebarGroups,
         {
-          title: "Admin",
-          items: [
-            {
-              title: "Mod Panel",
-              url: "/panel",
-              icon: Shield,
-            },
-          ],
+          title: isModerator ? "Admin" : "Support",
+          items: adminItems,
         },
       ]
     : sidebarGroups;
