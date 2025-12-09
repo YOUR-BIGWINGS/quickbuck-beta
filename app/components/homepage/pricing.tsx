@@ -1,5 +1,5 @@
 "use client";
-import { useAuth } from "@clerk/react-router";
+import { useAuth, useUser } from "@clerk/react-router";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { Check, Loader2 } from "lucide-react";
 import { useState } from "react";
@@ -15,7 +15,8 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { api } from "../../../convex/_generated/api";
 
 export default function Pricing({ loaderData }: { loaderData: any }) {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, userId } = useAuth();
+  const { user } = useUser();
   const [loadingPriceId, setLoadingPriceId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,7 +30,7 @@ export default function Pricing({ loaderData }: { loaderData: any }) {
   const upsertUser = useMutation(api.users.upsertUser);
 
   const handleSubscribe = async (priceId: string) => {
-    if (!isSignedIn) {
+    if (!isSignedIn || !userId || !user?.primaryEmailAddress?.emailAddress) {
       window.location.href = "/sign-in";
       return;
     }
@@ -55,9 +56,16 @@ export default function Pricing({ loaderData }: { loaderData: any }) {
       }
 
       // Otherwise, create new checkout for first-time subscription
-      const checkoutUrl = await createCheckout({ priceId });
+      const result = await createCheckout({
+        userId,
+        email: user.primaryEmailAddress.emailAddress,
+        successUrl: `${window.location.origin}/?success=true`,
+        cancelUrl: `${window.location.origin}/?canceled=true`,
+      });
 
-      window.location.href = checkoutUrl;
+      if (result.url) {
+        window.location.href = result.url;
+      }
     } catch (error) {
       console.error("Failed to process subscription action:", error);
       const errorMessage =
