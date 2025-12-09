@@ -29,7 +29,7 @@ export function SiteHeader() {
           aria-label="QuickBuck+"
           className="h-8 w-8 sm:h-9 sm:w-9 text-yellow-500 hover:text-yellow-600 hover:bg-yellow-50"
         >
-          <Link to="/pricing" className="flex items-center">
+          <Link to="/subscription" className="flex items-center">
             <Plus className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={3} />
           </Link>
         </Button>

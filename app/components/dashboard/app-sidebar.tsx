@@ -154,11 +154,6 @@ const sidebarGroups = [
         url: "/taxes",
         icon: DollarSign,
       },
-      {
-        title: "QuickBuck+",
-        url: "/subscription",
-        icon: Crown,
-      },
     ],
   },
 ];
