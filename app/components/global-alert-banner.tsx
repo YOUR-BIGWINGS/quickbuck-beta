@@ -56,7 +56,8 @@ export function GlobalAlertBanner() {
     }
   };
 
-  if (displayedAlerts.length === 0 || !currentAlert) {
+  // Don't render anything while loading or if no alerts
+  if (unreadAlerts === undefined || displayedAlerts.length === 0 || !currentAlert) {
     return null;
   }
 

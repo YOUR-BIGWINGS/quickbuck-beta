@@ -47,7 +47,14 @@ export default function DashboardLayout() {
 
   // Show loading state while queries are loading
   if (currentPlayer === undefined) {
-    return null;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
   }
 
   // Show banned screen if player is banned

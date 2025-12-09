@@ -23,9 +23,7 @@ export default function IntegratedPricing() {
   const plans = useQuery(api.subscriptions.getAvailablePlans);
   const subscriptionStatus = useQuery(
     api.subscriptions.checkUserSubscriptionStatus,
-    {
-      userId: isSignedIn ? userId : undefined,
-    }
+    isSignedIn && userId ? { userId } : "skip"
   );
   const userSubscription = useQuery(
     api.subscriptions.fetchUserSubscription

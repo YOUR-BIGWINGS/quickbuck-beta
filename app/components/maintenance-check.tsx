@@ -18,6 +18,11 @@ export function MaintenanceCheck() {
     currentPlayer?.role === "admin" || currentPlayer?.role === "mod";
 
   useEffect(() => {
+    // Wait for maintenance status to load
+    if (maintenanceStatus === undefined) {
+      return;
+    }
+
     // Don't redirect if:
     // 1. Maintenance is not enabled
     // 2. User is admin or mod

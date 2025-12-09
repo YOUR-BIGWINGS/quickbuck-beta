@@ -25,11 +25,11 @@ export default function SubscriptionPage() {
   const plans = useQuery(api.subscriptions.getAvailablePlans);
   const subscriptionStatus = useQuery(
     api.subscriptions.checkUserSubscriptionStatus,
-    userId ? { userId } : "skip"
+    isSignedIn && userId ? { userId } : "skip"
   );
   const userSubscription = useQuery(
     api.subscriptions.getUserSubscription,
-    userId ? { userId } : "skip"
+    isSignedIn && userId ? { userId } : "skip"
   );
 
   // Actions
@@ -100,6 +100,18 @@ export default function SubscriptionPage() {
 
   const hasActiveSubscription = subscriptionStatus?.hasActiveSubscription;
   const quickbuckPlusPlan = plans?.items?.[0];
+
+  // Show loading state while plans are loading
+  if (plans === undefined) {
+    return (
+      <div className="container mx-auto py-8 px-4 max-w-6xl flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading subscription plans...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-6xl">

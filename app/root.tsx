@@ -19,6 +19,7 @@ import { CompanyOfferNotifications } from "./components/company-offer-notificati
 import * as Sentry from "@sentry/react";
 import { initializeSentryClient } from "./lib/sentry.client";
 import { useEffect } from "react";
+import * as React from "react";
 import { Toaster } from "sonner";
 import "number-flow";
 import { ThemeProvider } from "./contexts/theme-context";
@@ -169,24 +170,79 @@ function AppContent({ loaderData }: Route.ComponentProps) {
 }
 
 export default Sentry.withErrorBoundary(AppContent, {
-  fallback: ({ error }) => {
+  fallback: ({ error, resetError }) => {
     const err = error as Error;
+    const [countdown, setCountdown] = React.useState(3);
+    const [hasAttemptedReload, setHasAttemptedReload] = React.useState(false);
+    
+    // Auto-reload logic for auth/loading errors
+    React.useEffect(() => {
+      // Check if this is likely a transient auth/loading error
+      const isTransientError = 
+        err.message?.includes('auth') ||
+        err.message?.includes('token') ||
+        err.message?.includes('user') ||
+        err.message?.includes('undefined') ||
+        err.message?.includes('null');
+      
+      if (isTransientError && !hasAttemptedReload) {
+        const timer = setInterval(() => {
+          setCountdown((prev) => {
+            if (prev <= 1) {
+              clearInterval(timer);
+              setHasAttemptedReload(true);
+              window.location.reload();
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+        
+        return () => clearInterval(timer);
+      }
+    }, [err.message, hasAttemptedReload]);
+    
+    const isTransientError = 
+      err.message?.includes('auth') ||
+      err.message?.includes('token') ||
+      err.message?.includes('user') ||
+      err.message?.includes('undefined') ||
+      err.message?.includes('null');
+    
     return (
-      <main className="pt-16 p-4 container mx-auto">
-        <h1>Application Error</h1>
-        <p>
-          We're sorry, but something went wrong. Our team has been notified and
-          will investigate.
-        </p>
-        {import.meta.env.DEV && err && (
-          <pre className="mt-4 p-4 bg-gray-100 dark:bg-gray-800 rounded overflow-auto text-sm">
-            <code>
-              {err.message}
-              {'\n\n'}
-              {err.stack}
-            </code>
-          </pre>
-        )}
+      <main className="pt-16 p-4 container mx-auto max-w-2xl">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold mb-4">Application Error</h1>
+          {isTransientError && !hasAttemptedReload ? (
+            <div className="space-y-4">
+              <p className="text-muted-foreground">
+                Reloading in {countdown} second{countdown !== 1 ? 's' : ''}...
+              </p>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+            </div>
+          ) : (
+            <>
+              <p className="mb-4 text-muted-foreground">
+                We're sorry, but something went wrong. Please try refreshing the page.
+              </p>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+              >
+                Refresh Page
+              </button>
+            </>
+          )}
+          {import.meta.env.DEV && err && (
+            <pre className="mt-6 p-4 bg-gray-100 dark:bg-gray-800 rounded overflow-auto text-sm text-left">
+              <code>
+                {err.message}
+                {'\n\n'}
+                {err.stack}
+              </code>
+            </pre>
+          )}
+        </div>
       </main>
     );
   },
