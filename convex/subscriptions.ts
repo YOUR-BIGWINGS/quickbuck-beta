@@ -66,24 +66,27 @@ export const upsertSubscription = internalMutation({
   },
 });
 
-// Internal action to check for expired VIP subscriptions
-export const checkExpiredVIPSubscriptions = internalAction({
+// Internal mutation to check for expired VIP subscriptions (called by cron)
+export const checkExpiredVIPSubscriptions = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now();
     
-    // Query all active subscriptions
-    const subscriptions = await ctx.runQuery(internal.adminSubscriptions.listAll);
+    // Query all active subscriptions that have expired
+    const subscriptions = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_status", (q) => q.eq("status", "active"))
+      .collect();
     
     let expiredCount = 0;
     
     for (const sub of subscriptions) {
       // Check if subscription is expired (currentPeriodEnd is in the past)
-      if (sub.currentPeriodEnd && sub.currentPeriodEnd < now && sub.status !== "canceled") {
+      if (sub.currentPeriodEnd && sub.currentPeriodEnd < now) {
         // Update subscription status to canceled
-        await ctx.runMutation(internal.adminSubscriptions.updateStatus, {
-          subscriptionId: sub._id,
+        await ctx.db.patch(sub._id, {
           status: "canceled",
+          updatedAt: now,
         });
         expiredCount++;
       }

@@ -9,6 +9,7 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as adminSubscriptions from "../adminSubscriptions.js";
 import type * as alerts from "../alerts.js";
 import type * as badges from "../badges.js";
 import type * as cart from "../cart.js";
@@ -23,6 +24,7 @@ import type * as gambling from "../gambling.js";
 import type * as gameConfig from "../gameConfig.js";
 import type * as gameStats from "../gameStats.js";
 import type * as http from "../http.js";
+import type * as kofiWebhook from "../kofiWebhook.js";
 import type * as leaderboard from "../leaderboard.js";
 import type * as loans from "../loans.js";
 import type * as maintenance from "../maintenance.js";
@@ -36,7 +38,6 @@ import type * as products from "../products.js";
 import type * as rebirths from "../rebirths.js";
 import type * as rules from "../rules.js";
 import type * as stocks from "../stocks.js";
-import type * as stripeWebhook from "../stripeWebhook.js";
 import type * as subscriptions from "../subscriptions.js";
 import type * as taxes from "../taxes.js";
 import type * as themes from "../themes.js";
@@ -61,6 +62,7 @@ import type {
  */
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  adminSubscriptions: typeof adminSubscriptions;
   alerts: typeof alerts;
   badges: typeof badges;
   cart: typeof cart;
@@ -75,6 +77,7 @@ declare const fullApi: ApiFromModules<{
   gameConfig: typeof gameConfig;
   gameStats: typeof gameStats;
   http: typeof http;
+  kofiWebhook: typeof kofiWebhook;
   leaderboard: typeof leaderboard;
   loans: typeof loans;
   maintenance: typeof maintenance;
@@ -88,7 +91,6 @@ declare const fullApi: ApiFromModules<{
   rebirths: typeof rebirths;
   rules: typeof rules;
   stocks: typeof stocks;
-  stripeWebhook: typeof stripeWebhook;
   subscriptions: typeof subscriptions;
   taxes: typeof taxes;
   themes: typeof themes;
