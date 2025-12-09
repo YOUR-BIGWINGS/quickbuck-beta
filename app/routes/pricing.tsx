@@ -1,9 +1,10 @@
 "use client";
 import { useAuth } from "@clerk/react-router";
 import { useAction, useMutation, useQuery } from "convex/react";
-import { Check, Loader2 } from "lucide-react";
+import { ArrowLeft, Check, Loader2 } from "lucide-react";
 import * as React from "react";
 import { useState } from "react";
+import { Link } from "react-router";
 import { Button } from "~/components/ui/button";
 import {
   Card,
@@ -97,6 +98,14 @@ export default function IntegratedPricing() {
 
   return (
     <section className="flex flex-col items-center justify-center min-h-screen px-4">
+      <div className="w-full max-w-6xl mb-6">
+        <Link to="/dashboard">
+          <Button variant="ghost" className="gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            Back to Dashboard
+          </Button>
+        </Link>
+      </div>
       <div className="text-center mb-12">
         <h1 className="text-4xl font-bold tracking-tight mb-4">
           Simple, transparent pricing
@@ -161,7 +170,7 @@ export default function IntegratedPricing() {
                   <CardDescription>{plan.description}</CardDescription>
                   <div className="mt-4">
                     <span className="text-4xl font-bold">
-                      ${(price.amount / 100).toFixed(0)}
+                      $3.50
                     </span>
                     <span className="text-muted-foreground">
                       /{price.interval || "month"}
