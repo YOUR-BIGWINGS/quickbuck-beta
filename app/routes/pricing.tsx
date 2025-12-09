@@ -35,6 +35,25 @@ export default function IntegratedPricing() {
     }
   }, [isSignedIn, upsertUser]);
 
+  // Hardcoded Ko-fi plan data
+  const plans = {
+    items: [
+      {
+        id: "kofi-premium",
+        name: "Premium",
+        description: "Full access to all features",
+        isRecurring: true,
+        prices: [
+          {
+            id: "kofi-price-monthly",
+            amount: 350, // $3.50 in cents
+            interval: "month"
+          }
+        ]
+      }
+    ]
+  };
+
   const handleSubscribe = async (priceId: string) => {
     if (!isSignedIn || !userId || !user?.primaryEmailAddress?.emailAddress) {
       window.location.href = "/sign-in";
@@ -54,7 +73,7 @@ export default function IntegratedPricing() {
       }
 
       // Redirect to Ko-fi membership page
-      const kofiUrl = import.meta.env.VITE_KOFI_URL || "https://ko-fi.com/brodie21746/membership";
+      const kofiUrl = import.meta.env.VITE_KOFI_URL || "https://ko-fi.com/brodie21746#tier17652766881070";
       window.open(kofiUrl, "_blank");
       setLoadingPriceId(null);
     } catch (error) {
@@ -68,17 +87,7 @@ export default function IntegratedPricing() {
     }
   };
 
-  if (!plans) {
-    return (
-      <section className="flex flex-col items-center justify-center min-h-screen px-4">
-        <div className="flex items-center gap-2">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span>Loading plans...</span>
-        </div>
-        {error && <p className="text-red-500 mt-4 text-center">{error}</p>}
-      </section>
-    );
-  }
+
 
   return (
     <section className="flex flex-col items-center justify-center min-h-screen px-4">
@@ -97,7 +106,7 @@ export default function IntegratedPricing() {
         <p className="text-xl text-muted-foreground">
           Choose the plan that fits your needs
         </p>
-        {isSignedIn && !subscriptionStatus?.hasActiveSubscription && (
+        {isSignedIn && userSubscription?.status !== "active" && userSubscription?.status !== "on_trial" && (
           <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg max-w-md mx-auto">
             <p className="text-blue-800 font-medium">📋 Complete your setup</p>
             <p className="text-blue-700 text-sm mt-1">
@@ -238,18 +247,6 @@ export default function IntegratedPricing() {
             <p className="text-red-800 text-center">{error}</p>
           </div>
         )}
-
-        {userSubscription &&
-          !plans?.items.some(
-            (plan: any) => plan.prices[0].id === userSubscription.polarPriceId
-          ) && (
-            <div className="mt-8 p-4 bg-amber-50 border border-amber-200 rounded-md max-w-md mx-auto">
-              <p className="text-amber-800 text-center text-sm">
-                You have an active subscription that's not shown above. Contact
-                support for assistance.
-              </p>
-            </div>
-          )}
       </div>
     </section>
   );
