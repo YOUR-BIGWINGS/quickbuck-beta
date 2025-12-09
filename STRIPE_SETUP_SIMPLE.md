@@ -1,4 +1,4 @@
-# QuickBuck+ Stripe Setup - Quick Start
+ther# QuickBuck+ Stripe Setup - Quick Start
 
 Your payment system is ready to go! Just follow these 5 simple steps:
 

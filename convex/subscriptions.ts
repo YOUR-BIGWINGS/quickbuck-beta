@@ -88,7 +88,6 @@ export const createCheckoutSession = action({
 
       // Create Stripe Price (or use existing one)
       const prices = await stripe.prices.list({
-        product: undefined,
         limit: 1,
         lookup_keys: ["quickbuck_plus_monthly"],
       });
@@ -669,25 +668,37 @@ export const checkExpiredVIPSubscriptions = internalMutation({
 // Create customer portal session for managing subscriptions
 export const createCustomerPortalUrl = action({
   args: {
-    userId: v.string(),
+    userId: v.optional(v.string()),
+    customerId: v.optional(v.string()),
     returnUrl: v.string(),
   },
   handler: async (ctx, args) => {
     const stripe = getStripe();
     
     try {
-      // Get user's subscription to find customer ID
-      const subscription = await ctx.runQuery(api.subscriptions.getUserSubscription, {
-        userId: args.userId,
-      });
+      let stripeCustomerId: string;
 
-      if (!subscription) {
-        throw new Error("No subscription found for user");
+      // If customerId is provided directly, use it
+      if (args.customerId) {
+        stripeCustomerId = args.customerId;
+      } else if (args.userId) {
+        // Otherwise, get user's subscription to find customer ID
+        const subscription = await ctx.runQuery(api.subscriptions.getUserSubscription, {
+          userId: args.userId,
+        });
+
+        if (!subscription) {
+          throw new Error("No subscription found for user");
+        }
+
+        stripeCustomerId = subscription.stripeCustomerId;
+      } else {
+        throw new Error("Either userId or customerId must be provided");
       }
 
       // Create portal session
       const session = await stripe.billingPortal.sessions.create({
-        customer: subscription.stripeCustomerId,
+        customer: stripeCustomerId,
         return_url: args.returnUrl,
       });
 
