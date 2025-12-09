@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import { query, internalMutation } from "./_generated/server";
+import { query, internalMutation, internalAction } from "./_generated/server";
+import { internal } from "./_generated/api";
 
 // Get user's subscription details
 export const getUserSubscription = query({
@@ -62,5 +63,33 @@ export const upsertSubscription = internalMutation({
         updatedAt: now,
       });
     }
+  },
+});
+
+// Internal action to check for expired VIP subscriptions
+export const checkExpiredVIPSubscriptions = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    
+    // Query all active subscriptions
+    const subscriptions = await ctx.runQuery(internal.adminSubscriptions.listAll);
+    
+    let expiredCount = 0;
+    
+    for (const sub of subscriptions) {
+      // Check if subscription is expired (currentPeriodEnd is in the past)
+      if (sub.currentPeriodEnd && sub.currentPeriodEnd < now && sub.status !== "canceled") {
+        // Update subscription status to canceled
+        await ctx.runMutation(internal.adminSubscriptions.updateStatus, {
+          subscriptionId: sub._id,
+          status: "canceled",
+        });
+        expiredCount++;
+      }
+    }
+    
+    console.log(`[CRON] Checked VIP subscriptions, expired ${expiredCount} subscription(s)`);
+    return { expiredCount };
   },
 });
