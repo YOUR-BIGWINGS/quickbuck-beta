@@ -5,8 +5,14 @@ import Stripe from "stripe";
 
 // Helper to get Stripe instance
 function getStripe() {
-  return new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-    apiVersion: "2025-11-17.clover",
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  
+  if (!secretKey) {
+    throw new Error("STRIPE_SECRET_KEY environment variable is not set. Run: npx convex env set STRIPE_SECRET_KEY your_key");
+  }
+  
+  return new Stripe(secretKey, {
+    apiVersion: "2024-12-18.acacia",
   });
 }
 
@@ -50,9 +56,9 @@ export const createCheckoutSession = action({
     cancelUrl: v.string(),
   },
   handler: async (ctx, args) => {
-    const stripe = getStripe();
-    
     try {
+      const stripe = getStripe();
+      
       // Check if user already has an active subscription
       const existingSub = await ctx.runQuery(api.subscriptions.getUserSubscription, {
         userId: args.userId,
