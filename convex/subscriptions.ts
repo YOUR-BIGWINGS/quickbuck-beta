@@ -12,7 +12,7 @@ function getStripe() {
   }
   
   return new Stripe(secretKey, {
-    apiVersion: "2024-12-18.acacia",
+    apiVersion: "2025-11-17.clover",
   });
 }
 
@@ -57,18 +57,24 @@ export const createCheckoutSession = action({
   },
   handler: async (ctx, args) => {
     try {
+      console.log("Creating checkout session for user:", args.userId);
       const stripe = getStripe();
+      console.log("Stripe instance created successfully");
       
       // Check if user already has an active subscription
+      console.log("Checking for existing subscription...");
       const existingSub = await ctx.runQuery(api.subscriptions.getUserSubscription, {
         userId: args.userId,
       });
 
       if (existingSub && existingSub.status === "active") {
+        console.log("User already has active subscription");
         throw new Error("User already has an active subscription");
       }
+      console.log("No existing subscription found, proceeding...");
 
       // Create or retrieve Stripe customer
+      console.log("Looking up Stripe customer by email:", args.email);
       let customer: Stripe.Customer;
       const customers = await stripe.customers.list({
         email: args.email,
@@ -77,35 +83,60 @@ export const createCheckoutSession = action({
 
       if (customers.data.length > 0) {
         customer = customers.data[0];
+        console.log("Found existing Stripe customer:", customer.id);
       } else {
+        console.log("Creating new Stripe customer...");
         customer = await stripe.customers.create({
           email: args.email,
           metadata: {
             userId: args.userId,
           },
         });
+        console.log("Created new Stripe customer:", customer.id);
       }
 
-      // Create Stripe Price (or use existing one)
-      const prices = await stripe.prices.list({
-        limit: 1,
-        lookup_keys: ["quickbuck_plus_monthly"],
-      });
-
+      // Get or create product and price
+      console.log("Searching for existing QuickBuck+ product...");
       let priceId: string;
-      if (prices.data.length > 0) {
-        priceId = prices.data[0].id;
-      } else {
-        // Create product and price
-        const product = await stripe.products.create({
+      
+      // Search for existing product by name
+      const products = await stripe.products.list({
+        limit: 10,
+        active: true,
+      });
+      
+      let product = products.data.find(p => p.name === QUICKBUCK_PLUS.name);
+      
+      if (!product) {
+        console.log("No existing product found, creating new product...");
+        product = await stripe.products.create({
           name: QUICKBUCK_PLUS.name,
           description: "Premium QuickBuck subscription with exclusive features",
           metadata: {
             plan: "quickbuck_plus",
           },
         });
+        console.log("Created product:", product.id);
+      } else {
+        console.log("Found existing product:", product.id);
+      }
 
-        const price = await stripe.prices.create({
+      // Now find or create the price
+      const productPrices = await stripe.prices.list({
+        product: product.id,
+        limit: 10,
+        active: true,
+      });
+
+      let price = productPrices.data.find(
+        p => p.unit_amount === QUICKBUCK_PLUS.amount && 
+        p.currency === QUICKBUCK_PLUS.currency &&
+        p.recurring?.interval === QUICKBUCK_PLUS.interval
+      );
+
+      if (!price) {
+        console.log("No existing price found, creating new price...");
+        price = await stripe.prices.create({
           product: product.id,
           unit_amount: QUICKBUCK_PLUS.amount,
           currency: QUICKBUCK_PLUS.currency,
@@ -114,11 +145,15 @@ export const createCheckoutSession = action({
           },
           lookup_key: "quickbuck_plus_monthly",
         });
-
-        priceId = price.id;
+        console.log("Created price:", price.id);
+      } else {
+        console.log("Found existing price:", price.id);
       }
 
+      priceId = price.id;
+
       // Create checkout session
+      console.log("Creating checkout session with price:", priceId);
       const session = await stripe.checkout.sessions.create({
         customer: customer.id,
         mode: "subscription",
@@ -140,6 +175,7 @@ export const createCheckoutSession = action({
           },
         },
       });
+      console.log("Checkout session created successfully:", session.id);
 
       return {
         sessionId: session.id,
@@ -147,6 +183,7 @@ export const createCheckoutSession = action({
       };
     } catch (error) {
       console.error("Error creating checkout session:", error);
+      console.error("Error details:", error instanceof Error ? error.stack : error);
       throw new Error(`Failed to create checkout session: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   },
