@@ -22,19 +22,10 @@ export default function SubscriptionPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Get subscription data
-  const plans = useQuery(api.subscriptions.getAvailablePlans);
-  const subscriptionStatus = useQuery(
-    api.subscriptions.checkUserSubscriptionStatus,
-    isSignedIn && userId ? { userId } : "skip"
-  );
   const userSubscription = useQuery(
     api.subscriptions.getUserSubscription,
     isSignedIn && userId ? { userId } : "skip"
   );
-
-  // Actions
-  const createCheckout = useAction(api.subscriptions.createCheckoutSession);
-  const createPortalUrl = useAction(api.subscriptions.createCustomerPortalUrl);
 
   const handleSubscribe = async () => {
     if (!isSignedIn || !userId || !user?.primaryEmailAddress?.emailAddress) {
@@ -42,25 +33,9 @@ export default function SubscriptionPage() {
       return;
     }
 
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const result = await createCheckout({
-        userId,
-        email: user.primaryEmailAddress.emailAddress,
-        successUrl: `${window.location.origin}/subscription?success=true`,
-        cancelUrl: `${window.location.origin}/subscription?canceled=true`,
-      });
-
-      if (result.url) {
-        window.location.href = result.url;
-      }
-    } catch (err) {
-      console.error("Error creating checkout:", err);
-      setError(err instanceof Error ? err.message : "Failed to create checkout session");
-      setIsLoading(false);
-    }
+    // Redirect to Ko-fi membership page
+    const kofiUrl = process.env.NEXT_PUBLIC_KOFI_URL || "https://ko-fi.com/yourpage/membership";
+    window.open(kofiUrl, "_blank");
   };
 
   const handleManageSubscription = async () => {
@@ -69,23 +44,7 @@ export default function SubscriptionPage() {
       return;
     }
 
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const result = await createPortalUrl({
-        userId,
-        returnUrl: `${window.location.origin}/subscription`,
-      });
-
-      if (result.url) {
-        window.location.href = result.url;
-      }
-    } catch (err) {
-      console.error("Error creating portal:", err);
-      setError(err instanceof Error ? err.message : "Failed to open customer portal");
-      setIsLoading(false);
-    }
+    setError("Subscription management coming soon!");
   };
 
   // Check for success/cancel params
@@ -98,20 +57,15 @@ export default function SubscriptionPage() {
     }
   }, []);
 
-  const hasActiveSubscription = subscriptionStatus?.hasActiveSubscription;
-  const quickbuckPlusPlan = plans?.items?.[0];
+  const hasActiveSubscription = userSubscription?.status === "active" || userSubscription?.status === "on_trial";
 
-  // Show loading state while plans are loading
-  if (plans === undefined) {
-    return (
-      <div className="container mx-auto py-8 px-4 max-w-6xl flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading subscription plans...</p>
-        </div>
-      </div>
-    );
-  }
+  // Define QuickBuck+ features
+  const quickbuckPlusFeatures = [
+    "Special gold VIP tag",
+    "Access to exclusive premium themes",
+    "Stock analysis bot with daily recommendations",
+    "Investment insights and suggestions"
+  ];
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-6xl">
@@ -190,7 +144,7 @@ export default function SubscriptionPage() {
                 <Check className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <span className="font-medium">Everything in Free</span>
               </li>
-              {quickbuckPlusPlan?.features?.map((feature: string, idx: number) => (
+              {quickbuckPlusFeatures.map((feature: string, idx: number) => (
                 <li key={idx} className="flex items-start gap-2">
                   <Check className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                   <span>{feature}</span>
@@ -206,15 +160,15 @@ export default function SubscriptionPage() {
             ) : hasActiveSubscription ? (
               <div className="w-full space-y-2">
                 <div className="text-sm text-center text-muted-foreground">
-                  {subscriptionStatus.cancelAtPeriodEnd ? (
+                  {userSubscription.cancelAtPeriodEnd ? (
                     <>
                       Subscription ends{" "}
-                      {subscriptionStatus.currentPeriodEnd ? new Date(subscriptionStatus.currentPeriodEnd).toLocaleDateString() : 'N/A'}
+                      {userSubscription.currentPeriodEnd ? new Date(userSubscription.currentPeriodEnd).toLocaleDateString() : 'N/A'}
                     </>
                   ) : (
                     <>
                       Renews{" "}
-                      {subscriptionStatus.currentPeriodEnd ? new Date(subscriptionStatus.currentPeriodEnd).toLocaleDateString() : 'N/A'}
+                      {userSubscription.currentPeriodEnd ? new Date(userSubscription.currentPeriodEnd).toLocaleDateString() : 'N/A'}
                     </>
                   )}
                 </div>

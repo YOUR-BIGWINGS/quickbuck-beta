@@ -18,36 +18,13 @@ export default function SubscriptionStatus() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const subscriptionStatus = useQuery(
-    api.subscriptions.checkUserSubscriptionStatus,
+  const userSubscription = useQuery(
+    api.subscriptions.getUserSubscription,
     isSignedIn && userId ? { userId } : "skip"
   );
-  
-  const createPortalUrl = useAction(api.subscriptions.createCustomerPortalUrl);
 
   const handleManageSubscription = async () => {
-    if (!isSignedIn || !userId) {
-      setError("Please sign in to manage subscription");
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const result = await createPortalUrl({
-        userId,
-        returnUrl: `${window.location.origin}/dashboard/settings`,
-      });
-
-      if (result.url) {
-        window.location.href = result.url;
-      }
-    } catch (err) {
-      console.error("Error creating portal:", err);
-      setError(err instanceof Error ? err.message : "Failed to open customer portal");
-      setIsLoading(false);
-    }
+    setError("Subscription management coming soon!");
   };
 
   if (!isSignedIn) {
@@ -63,7 +40,7 @@ export default function SubscriptionStatus() {
     );
   }
 
-  const hasActiveSubscription = subscriptionStatus?.hasActiveSubscription;
+  const hasActiveSubscription = userSubscription?.status === "active";
 
   return (
     <Card>
@@ -91,13 +68,13 @@ export default function SubscriptionStatus() {
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Status</span>
                 <span className="font-medium text-green-600">
-                  {subscriptionStatus.cancelAtPeriodEnd ? "Ending Soon" : "Active"}
+                  {userSubscription.cancelAtPeriodEnd ? "Ending Soon" : "Active"}
                 </span>
               </div>
-              {subscriptionStatus.currentPeriodEnd && (
+              {userSubscription.currentPeriodEnd && (
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">
-                    {subscriptionStatus.cancelAtPeriodEnd ? "Ends" : "Renews"}
+                    {userSubscription.cancelAtPeriodEnd ? "Ends" : "Renews"}
                   </span>
                   <span className="font-medium">
                     {new Date(subscriptionStatus.currentPeriodEnd).toLocaleDateString()}

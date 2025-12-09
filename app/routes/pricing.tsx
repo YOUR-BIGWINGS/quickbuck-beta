@@ -22,18 +22,10 @@ export default function IntegratedPricing() {
   const [loadingPriceId, setLoadingPriceId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const plans = useQuery(api.subscriptions.getAvailablePlans);
-  const subscriptionStatus = useQuery(
-    api.subscriptions.checkUserSubscriptionStatus,
+  const userSubscription = useQuery(
+    api.subscriptions.getUserSubscription,
     isSignedIn && userId ? { userId } : "skip"
   );
-  const userSubscription = useQuery(
-    api.subscriptions.fetchUserSubscription
-  ) as any;
-  const createCheckout = useAction(api.subscriptions.createCheckoutSession);
-  const createPortalUrl = useAction(
-    api.subscriptions.createCustomerPortalUrl
-  ) as any;
   const upsertUser = useMutation(api.users.upsertUser);
 
   // Sync user when signed in
@@ -45,7 +37,6 @@ export default function IntegratedPricing() {
 
   const handleSubscribe = async (priceId: string) => {
     if (!isSignedIn || !userId || !user?.primaryEmailAddress?.emailAddress) {
-      // Redirect to sign in
       window.location.href = "/sign-in";
       return;
     }
@@ -54,33 +45,18 @@ export default function IntegratedPricing() {
     setError(null);
 
     try {
-      // Ensure user exists in database before action
       await upsertUser();
 
-      // If user has active subscription, redirect to customer portal for plan changes
-      if (
-        userSubscription?.status === "active" &&
-        userSubscription?.customerId
-      ) {
-        const portalResult = await createPortalUrl({
-          customerId: userSubscription.customerId,
-        });
-        window.open(portalResult.url, "_blank");
+      if (userSubscription?.status === "active" || userSubscription?.status === "on_trial") {
+        setError("You already have an active subscription!");
         setLoadingPriceId(null);
         return;
       }
 
-      // Otherwise, create new checkout for first-time subscription
-      const result = await createCheckout({
-        userId,
-        email: user.primaryEmailAddress.emailAddress,
-        successUrl: `${window.location.origin}/pricing?success=true`,
-        cancelUrl: `${window.location.origin}/pricing?canceled=true`,
-      });
-
-      if (result.url) {
-        window.location.href = result.url;
-      }
+      // Redirect to Ko-fi membership page
+      const kofiUrl = process.env.NEXT_PUBLIC_KOFI_URL || "https://ko-fi.com/yourpage/membership";
+      window.open(kofiUrl, "_blank");
+      setLoadingPriceId(null);
     } catch (error) {
       console.error("Failed to process subscription action:", error);
       const errorMessage =

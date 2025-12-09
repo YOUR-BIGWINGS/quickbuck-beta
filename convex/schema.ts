@@ -335,17 +335,23 @@ export default defineSchema({
 
   subscriptions: defineTable({
     userId: v.string(), // Clerk user ID
-    stripeCustomerId: v.string(), // Stripe customer ID
-    stripeSubscriptionId: v.string(), // Stripe subscription ID
-    stripePriceId: v.string(), // Stripe price ID for QuickBuck+
+    lemonSqueezyId: v.optional(v.string()), // Lemon Squeezy subscription ID
+    lemonSqueezyCustomerId: v.optional(v.string()), // Lemon Squeezy customer ID
+    stripeCustomerId: v.string(), // Legacy: Stripe customer ID
+    stripeSubscriptionId: v.string(), // Legacy: Stripe subscription ID
+    stripePriceId: v.string(), // Legacy: Stripe price ID / Now variant ID
     status: v.union(
       v.literal("active"),
       v.literal("canceled"),
+      v.literal("cancelled"), // Lemon Squeezy spelling
       v.literal("incomplete"),
       v.literal("incomplete_expired"),
       v.literal("past_due"),
       v.literal("trialing"),
-      v.literal("unpaid")
+      v.literal("unpaid"),
+      v.literal("expired"),
+      v.literal("on_trial"),
+      v.literal("paused")
     ),
     currentPeriodStart: v.number(), // Unix timestamp
     currentPeriodEnd: v.number(), // Unix timestamp
@@ -361,6 +367,7 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_stripeCustomerId", ["stripeCustomerId"])
     .index("by_stripeSubscriptionId", ["stripeSubscriptionId"])
+    .index("by_lemonSqueezyId", ["lemonSqueezyId"])
     .index("by_status", ["status"]),
   webhookEvents: defineTable({
     type: v.string(),

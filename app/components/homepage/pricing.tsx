@@ -21,11 +21,8 @@ export default function Pricing({ loaderData }: { loaderData: any }) {
   const [error, setError] = useState<string | null>(null);
 
   const userSubscription = useQuery(
-    api.subscriptions.fetchUserSubscription
-  ) as any;
-  const createCheckout = useAction(api.subscriptions.createCheckoutSession);
-  const createPortalUrl = useAction(
-    api.subscriptions.createCustomerPortalUrl
+    api.subscriptions.getUserSubscription,
+    userId ? { userId } : "skip"
   ) as any;
   const upsertUser = useMutation(api.users.upsertUser);
 
@@ -39,33 +36,20 @@ export default function Pricing({ loaderData }: { loaderData: any }) {
     setError(null);
 
     try {
-      // Ensure user exists in database before action
+      // Ensure user exists in database
       await upsertUser();
 
-      // If user has active subscription, redirect to customer portal for plan changes
-      if (
-        userSubscription?.status === "active" &&
-        userSubscription?.customerId
-      ) {
-        const portalResult = await createPortalUrl({
-          customerId: userSubscription.customerId,
-        });
-        window.open(portalResult.url, "_blank");
+      // Check if already subscribed
+      if (userSubscription?.status === "active" || userSubscription?.status === "on_trial") {
+        setError("You already have an active subscription!");
         setLoadingPriceId(null);
         return;
       }
 
-      // Otherwise, create new checkout for first-time subscription
-      const result = await createCheckout({
-        userId,
-        email: user.primaryEmailAddress.emailAddress,
-        successUrl: `${window.location.origin}/?success=true`,
-        cancelUrl: `${window.location.origin}/?canceled=true`,
-      });
-
-      if (result.url) {
-        window.location.href = result.url;
-      }
+      // Redirect to Ko-fi membership page
+      const kofiUrl = process.env.NEXT_PUBLIC_KOFI_URL || "https://ko-fi.com/yourpage/membership";
+      window.open(kofiUrl, "_blank");
+      setLoadingPriceId(null);
     } catch (error) {
       console.error("Failed to process subscription action:", error);
       const errorMessage =
