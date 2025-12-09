@@ -31,6 +31,15 @@ export const kofiWebhook = httpAction(async (ctx, request) => {
       case "Subscription":
         await handleSubscription(ctx, kofiData);
         break;
+      
+      case "Subscription Payment":
+        // Monthly renewal payment
+        await handleSubscription(ctx, kofiData);
+        break;
+        
+      case "Subscription Cancelled":
+        await handleSubscriptionCancellation(ctx, kofiData);
+        break;
         
       case "Donation":
         // One-time donation - could grant temporary premium access
@@ -55,36 +64,104 @@ export const kofiWebhook = httpAction(async (ctx, request) => {
 });
 
 async function handleSubscription(ctx: any, kofiData: any) {
-  const email = kofiData.email;
-  const amount = parseFloat(kofiData.amount) * 100; // Convert to cents
-  const tierName = kofiData.tier_name;
-  const transactionId = kofiData.kofi_transaction_id;
-  const isFirstPayment = kofiData.is_first_subscription_payment;
-  
-  // Find user by email in users table
-  const user = await ctx.runQuery(async (ctx: any) => {
-    return await ctx.db
-      .query("users")
-      .withIndex("by_email", (q: any) => q.eq("email", email))
-      .first();
-  });
-  
-  if (!user) {
-    console.error(`No user found with email: ${email}. User must sign up with same email as Ko-fi.`);
-    return;
+  try {
+    const email = kofiData.email;
+    const amount = parseFloat(kofiData.amount) * 100; // Convert to cents
+    const tierName = kofiData.tier_name;
+    const transactionId = kofiData.kofi_transaction_id;
+    const isFirstPayment = kofiData.is_first_subscription_payment;
+    
+    if (!email) {
+      console.error("[KO-FI] No email in webhook data");
+      return;
+    }
+    
+    // Find user by email in users table
+    const user = await ctx.runQuery(async (ctx: any) => {
+      return await ctx.db
+        .query("users")
+        .withIndex("by_email", (q: any) => q.eq("email", email))
+        .first();
+    });
+    
+    if (!user) {
+      console.error(`[KO-FI] ❌ No user found with email: ${email}. User must sign up with same email as Ko-fi.`);
+      return;
+    }
+    
+    // Get the Clerk user ID from tokenIdentifier
+    const userId = user.tokenIdentifier;
+    
+    await ctx.runMutation(internal.subscriptions.upsertSubscription, {
+      userId,
+      kofiTransactionId: transactionId,
+      email,
+      amount: Math.round(amount),
+      status: "active",
+      tierName,
+    });
+    
+    console.log(`[KO-FI] ✅ Subscription ${isFirstPayment ? 'created' : 'renewed'} for user ${userId} (${email})`);
+  } catch (error) {
+    console.error("[KO-FI] Error handling subscription:", error);
   }
-  
-  // Get the Clerk user ID from tokenIdentifier
-  const userId = user.tokenIdentifier;
-  
-  await ctx.runMutation(internal.subscriptions.upsertSubscription, {
-    userId,
-    kofiTransactionId: transactionId,
-    email,
-    amount: Math.round(amount),
-    status: "active",
-    tierName,
-  });
-  
-  console.log(`Ko-fi subscription ${isFirstPayment ? 'created' : 'renewed'} for user ${userId} (${email})`);
+}
+
+async function handleSubscriptionCancellation(ctx: any, kofiData: any) {
+  try {
+    const email = kofiData.email;
+    
+    if (!email) {
+      console.error("[KO-FI] No email in cancellation webhook");
+      return;
+    }
+    
+    // Find user by email
+    const user = await ctx.runQuery(async (ctx: any) => {
+      return await ctx.db
+        .query("users")
+        .withIndex("by_email", (q: any) => q.eq("email", email))
+        .first();
+    });
+    
+    if (!user) {
+      console.error(`[KO-FI] No user found with email: ${email} for cancellation`);
+      return;
+    }
+    
+    const userId = user.tokenIdentifier;
+    
+    // Find and cancel the subscription
+    const subscription = await ctx.runQuery(async (ctx: any) => {
+      return await ctx.db
+        .query("subscriptions")
+        .withIndex("by_userId", (q: any) => q.eq("userId", userId))
+        .first();
+    });
+    
+    if (!subscription) {
+      console.error(`[KO-FI] No subscription found for user ${userId}`);
+      return;
+    }
+    
+    // Cancel the subscription (mark it to end at current period)
+    await ctx.runMutation(async (ctx: any, args: any) => {
+      const sub = await ctx.db
+        .query("subscriptions")
+        .withIndex("by_userId", (q: any) => q.eq("userId", args.userId))
+        .first();
+      
+      if (sub) {
+        await ctx.db.patch(sub._id, {
+          cancelAtPeriodEnd: true,
+          canceledAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      }
+    }, { userId });
+    
+    console.log(`[KO-FI] ⚠️ Subscription cancelled for user ${userId} (${email}), will expire at period end`);
+  } catch (error) {
+    console.error("[KO-FI] Error handling cancellation:", error);
+  }
 }

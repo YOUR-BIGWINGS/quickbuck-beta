@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { query, internalMutation, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 
-// Get user's subscription details
+// Get user's subscription details with REAL-TIME expiration validation
 export const getUserSubscription = query({
   args: {
     userId: v.string(),
@@ -13,6 +13,22 @@ export const getUserSubscription = query({
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))
       .first();
 
+    if (!subscription) {
+      return null;
+    }
+    
+    // CRITICAL: Always check if subscription is actually expired
+    const now = Date.now();
+    if (subscription.currentPeriodEnd < now) {
+      // Subscription is expired - return it but with expired status
+      // The cron will update the database, but we need real-time validation
+      return {
+        ...subscription,
+        status: "expired" as const,
+        _isExpired: true, // Flag for frontend
+      };
+    }
+    
     return subscription;
   },
 });
@@ -66,33 +82,71 @@ export const upsertSubscription = internalMutation({
   },
 });
 
-// Internal mutation to check for expired VIP subscriptions (called by cron)
+// Helper query to check if user has VALID active subscription (checks expiration)
+export const hasActiveSubscription = query({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const subscription = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .first();
+    
+    if (!subscription) {
+      return false;
+    }
+    
+    // Check if subscription is active AND not expired
+    const now = Date.now();
+    const isActive = subscription.status === "active" || subscription.status === "on_trial";
+    const isNotExpired = subscription.currentPeriodEnd > now;
+    
+    return isActive && isNotExpired;
+  },
+});
+
+// Internal mutation to check for expired VIP subscriptions (called by cron every 6 hours)
 export const checkExpiredVIPSubscriptions = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now();
     
-    // Query all active subscriptions that have expired
-    const subscriptions = await ctx.db
+    // Query all active and on_trial subscriptions (need to check both)
+    const activeSubscriptions = await ctx.db
       .query("subscriptions")
       .withIndex("by_status", (q) => q.eq("status", "active"))
       .collect();
     
+    const trialSubscriptions = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_status", (q) => q.eq("status", "on_trial"))
+      .collect();
+    
+    const allSubscriptions = [...activeSubscriptions, ...trialSubscriptions];
+    
     let expiredCount = 0;
     
-    for (const sub of subscriptions) {
+    for (const sub of allSubscriptions) {
       // Check if subscription is expired (currentPeriodEnd is in the past)
       if (sub.currentPeriodEnd && sub.currentPeriodEnd < now) {
-        // Update subscription status to canceled
+        // Update subscription status to expired
         await ctx.db.patch(sub._id, {
-          status: "canceled",
+          status: "expired",
+          cancelAtPeriodEnd: true,
+          canceledAt: now,
           updatedAt: now,
         });
+        
+        console.log(`[SUBSCRIPTION] Expired subscription for user ${sub.userId}`);
         expiredCount++;
       }
     }
     
-    console.log(`[CRON] Checked VIP subscriptions, expired ${expiredCount} subscription(s)`);
-    return { expiredCount };
+    if (expiredCount > 0) {
+      console.log(`[CRON] ✅ Expired ${expiredCount} subscription(s)`);
+    }
+    
+    return { expiredCount, checkedCount: allSubscriptions.length };
   },
 });

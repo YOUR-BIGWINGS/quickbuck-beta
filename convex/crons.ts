@@ -31,7 +31,7 @@ crons.interval(
 
 crons.interval(
   "check expired VIP subscriptions",
-  { hours: 6 }, // Run every 6 hours to catch expired subscriptions quickly
+  { hours: 1 }, // Run every hour to catch expired subscriptions immediately
   internal.subscriptions.checkExpiredVIPSubscriptions
 );
 
