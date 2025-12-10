@@ -13,7 +13,7 @@ export default function ModTicketsPage() {
 
   const user = useQuery(
     api.users.findUserByToken,
-    isSignedIn ? { tokenIdentifier: "" } : "skip"
+    isSignedIn && userId ? { tokenIdentifier: userId } : "skip"
   );
 
   const player = useQuery(

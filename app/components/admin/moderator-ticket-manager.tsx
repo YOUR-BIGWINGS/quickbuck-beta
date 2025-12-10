@@ -294,7 +294,7 @@ export function ModeratorTicketManager() {
             </p>
           ) : (
             <div className="space-y-4">
-              {tickets.map((ticket) => (
+              {tickets.map((ticket: any) => (
                 <div
                   key={ticket._id}
                   className="border rounded-lg p-4 space-y-3 hover:bg-accent/50 transition-colors"

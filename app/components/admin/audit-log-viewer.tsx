@@ -104,7 +104,7 @@ export function AuditLogViewer() {
 
     const csv = [
       ["Timestamp", "Category", "Action Type", "Actor", "Target", "Description"].join(","),
-      ...logs.map((log) =>
+      ...logs.map((log: any) =>
         [
           formatDate(log.timestamp),
           log.category,
@@ -149,7 +149,7 @@ export function AuditLogViewer() {
           </CardHeader>
         </Card>
         {Object.entries(stats.categoryCounts)
-          .sort((a, b) => b[1] - a[1])
+          .sort((a: any, b: any) => b[1] - a[1])
           .slice(0, 3)
           .map(([cat, count]) => (
             <Card key={cat}>
@@ -158,7 +158,7 @@ export function AuditLogViewer() {
                   {getCategoryIcon(cat)}
                   {cat.charAt(0).toUpperCase() + cat.slice(1)}
                 </CardDescription>
-                <CardTitle className="text-3xl">{count}</CardTitle>
+                <CardTitle className="text-3xl">{count as number}</CardTitle>
               </CardHeader>
             </Card>
           ))}
@@ -281,7 +281,7 @@ export function AuditLogViewer() {
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {Object.entries(stats.actionTypeCounts)
-                .sort((a, b) => b[1] - a[1])
+                .sort((a: any, b: any) => b[1] - a[1])
                 .slice(0, 8)
                 .map(([type, count]) => (
                   <div
@@ -292,7 +292,7 @@ export function AuditLogViewer() {
                     <span className="text-xs text-muted-foreground truncate">
                       {type.replace(/_/g, " ")}
                     </span>
-                    <span className="text-2xl font-bold">{count}</span>
+                    <span className="text-2xl font-bold">{count as number}</span>
                   </div>
                 ))}
             </div>
@@ -315,7 +315,7 @@ export function AuditLogViewer() {
             </p>
           ) : (
             <div className="space-y-3">
-              {logs.map((log) => (
+              {logs.map((log: any) => (
                 <div
                   key={log._id}
                   className="border rounded-lg p-4 space-y-2 hover:bg-accent/50 transition-colors"

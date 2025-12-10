@@ -11,6 +11,7 @@
 import type * as admin from "../admin.js";
 import type * as adminSubscriptions from "../adminSubscriptions.js";
 import type * as alerts from "../alerts.js";
+import type * as auditLog from "../auditLog.js";
 import type * as badges from "../badges.js";
 import type * as cart from "../cart.js";
 import type * as cleanup from "../cleanup.js";
@@ -42,6 +43,7 @@ import type * as subscriptions from "../subscriptions.js";
 import type * as taxes from "../taxes.js";
 import type * as themes from "../themes.js";
 import type * as tick from "../tick.js";
+import type * as tickets from "../tickets.js";
 import type * as transactions from "../transactions.js";
 import type * as upgrades from "../upgrades.js";
 import type * as users from "../users.js";
@@ -64,6 +66,7 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   adminSubscriptions: typeof adminSubscriptions;
   alerts: typeof alerts;
+  auditLog: typeof auditLog;
   badges: typeof badges;
   cart: typeof cart;
   cleanup: typeof cleanup;
@@ -95,6 +98,7 @@ declare const fullApi: ApiFromModules<{
   taxes: typeof taxes;
   themes: typeof themes;
   tick: typeof tick;
+  tickets: typeof tickets;
   transactions: typeof transactions;
   upgrades: typeof upgrades;
   users: typeof users;
