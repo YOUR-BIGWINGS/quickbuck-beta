@@ -41,8 +41,7 @@ export default function Panel() {
   );
 
   // Mod messaging - now uses messages API with isMod flag
-  // @ts-ignore - messages module exists but not yet in generated types
-  const sendMessage = useMutation(api.messages?.sendMessage);
+  const sendMessage = useMutation(api.messages.sendMessage);
 
   // Alert mutations and queries
   const sendGlobalAlert = useMutation(api.alerts.sendGlobalAlert);
@@ -129,8 +128,7 @@ export default function Panel() {
   // Search for users query (after state declaration)
   const searchQuery = activeTab === "messages" ? messageSearchQuery : vipSearchQuery;
   const searchResults = useQuery(
-    // @ts-ignore - messages module exists but not yet in generated types
-    api.messages?.searchPlayers,
+    api.messages.searchPlayers,
     searchQuery.length > 1 ? { searchQuery } : "skip"
   );
 
