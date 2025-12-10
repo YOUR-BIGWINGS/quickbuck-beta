@@ -1,38 +1,14 @@
-import { useAuth } from "@clerk/react-router";
-import { useMutation, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { ArrowLeft } from "lucide-react";
-import { useEffect } from "react";
 import { Link, Navigate } from "react-router";
 import { AuditLogViewer } from "~/components/admin/audit-log-viewer";
 import { Button } from "~/components/ui/button";
 import { api } from "../../convex/_generated/api";
 
 export default function AuditLogPage() {
-  const { isSignedIn, userId } = useAuth();
-  const upsertUser = useMutation(api.users.upsertUser);
+  const player = useQuery(api.moderation.getCurrentPlayer);
 
-  const user = useQuery(
-    api.users.findUserByToken,
-    isSignedIn && userId ? { tokenIdentifier: userId } : "skip"
-  );
-
-  const player = useQuery(
-    api.players.getPlayerByUserId,
-    user?._id ? { userId: user._id } : "skip"
-  );
-
-  // Sync user when signed in
-  useEffect(() => {
-    if (isSignedIn) {
-      upsertUser().catch(console.error);
-    }
-  }, [isSignedIn, upsertUser]);
-
-  if (!isSignedIn) {
-    return <Navigate to="/sign-in" />;
-  }
-
-  if (!player) {
+  if (player === undefined) {
     return (
       <div className="container mx-auto py-8">
         <div className="max-w-2xl mx-auto text-center">
@@ -41,6 +17,10 @@ export default function AuditLogPage() {
         </div>
       </div>
     );
+  }
+
+  if (!player) {
+    return <Navigate to="/sign-in" />;
   }
 
   const role = player.role || "normal";
