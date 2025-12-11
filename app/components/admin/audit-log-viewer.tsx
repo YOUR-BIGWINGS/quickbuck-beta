@@ -42,7 +42,7 @@ export function AuditLogViewer() {
   const [endDate, setEndDate] = useState<string>("");
   const [limit, setLimit] = useState<number>(100);
 
-  const logs = useQuery(api.auditLog.searchAuditLogs as any, {
+  const logs = useQuery(api.auditLog.searchAuditLogs, {
     category: category || undefined,
     actionType: actionType || undefined,
     searchText: searchText || undefined,
@@ -51,7 +51,7 @@ export function AuditLogViewer() {
     limit,
   });
 
-  const stats = useQuery(api.auditLog.getAuditStats as any, { days: 7 });
+  const stats = useQuery(api.auditLog.getAuditStats, { days: 7 });
 
   const getCategoryIcon = (cat: string) => {
     switch (cat) {

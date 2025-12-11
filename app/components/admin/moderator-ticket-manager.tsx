@@ -52,15 +52,15 @@ export function ModeratorTicketManager() {
   const [newPriority, setNewPriority] = useState<string>("");
   const { toast } = useToast();
 
-  const tickets = useQuery(api.tickets.getAllTickets as any, {
+  const tickets = useQuery(api.tickets.getAllTickets, {
     status: statusFilter || undefined,
     priority: priorityFilter || undefined,
     category: categoryFilter || undefined,
   });
 
-  const stats = useQuery(api.tickets.getTicketStats as any);
-  const resolveTicket = useMutation(api.tickets.resolveTicket as any);
-  const updatePriority = useMutation(api.tickets.updateTicketPriority as any);
+  const stats = useQuery(api.tickets.getTicketStats);
+  const resolveTicket = useMutation(api.tickets.resolveTicket);
+  const updatePriority = useMutation(api.tickets.updateTicketPriority);
 
   const handleResolveTicket = async () => {
     if (!selectedTicket || !resolution) {
@@ -102,7 +102,7 @@ export function ModeratorTicketManager() {
     try {
       await updatePriority({
         ticketId,
-        priority: priority as any,
+        priority: priority as "low" | "medium" | "high" | "urgent",
       });
 
       toast({
