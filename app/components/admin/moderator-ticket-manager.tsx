@@ -45,11 +45,8 @@ export function ModeratorTicketManager() {
   const [categoryFilter, setCategoryFilter] = useState<string>("");
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [resolution, setResolution] = useState("");
-  const [resolveStatus, setResolveStatus] = useState<"resolved" | "closed">(
-    "resolved"
-  );
+  const [resolveStatus, setResolveStatus] = useState<"resolved" | "closed">("resolved");
   const [isResolving, setIsResolving] = useState(false);
-  const [newPriority, setNewPriority] = useState<string>("");
   const { toast } = useToast();
 
   const tickets = useQuery(api.tickets.getAllTickets, {
@@ -81,16 +78,16 @@ export function ModeratorTicketManager() {
       });
 
       toast({
-        title: "Ticket resolved",
-        description: "The ticket has been updated successfully",
+        title: "Success",
+        description: "Ticket has been resolved",
       });
 
       setSelectedTicket(null);
       setResolution("");
     } catch (error: any) {
       toast({
-        title: "Failed to resolve ticket",
-        description: error.message || "An error occurred",
+        title: "Error",
+        description: error.message || "Failed to resolve ticket",
         variant: "destructive",
       });
     } finally {
@@ -106,13 +103,13 @@ export function ModeratorTicketManager() {
       });
 
       toast({
-        title: "Priority updated",
-        description: "Ticket priority has been updated",
+        title: "Success",
+        description: "Priority updated",
       });
     } catch (error: any) {
       toast({
-        title: "Failed to update priority",
-        description: error.message || "An error occurred",
+        title: "Error",
+        description: error.message || "Failed to update priority",
         variant: "destructive",
       });
     }
@@ -134,10 +131,7 @@ export function ModeratorTicketManager() {
   };
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<
-      string,
-      "default" | "secondary" | "destructive" | "outline"
-    > = {
+    const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       open: "default",
       in_progress: "secondary",
       resolved: "outline",
@@ -172,21 +166,8 @@ export function ModeratorTicketManager() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Ticket Management</CardTitle>
-          <CardDescription>Loading tickets...</CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
-
-  if (!tickets || !stats) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Ticket Management Error</CardTitle>
-          <CardDescription className="text-destructive">
-            Failed to load ticket data. Please refresh the page or contact support if the issue persists.
-          </CardDescription>
+          <CardTitle>Loading</CardTitle>
+          <CardDescription>Please wait...</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -194,7 +175,6 @@ export function ModeratorTicketManager() {
 
   return (
     <div className="space-y-6">
-      {/* Statistics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-3">
@@ -205,30 +185,23 @@ export function ModeratorTicketManager() {
         <Card>
           <CardHeader className="pb-3">
             <CardDescription>Open</CardDescription>
-            <CardTitle className="text-3xl text-yellow-600">
-              {stats.open}
-            </CardTitle>
+            <CardTitle className="text-3xl text-yellow-600">{stats.open}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-3">
             <CardDescription>Urgent</CardDescription>
-            <CardTitle className="text-3xl text-red-600">
-              {stats.urgent}
-            </CardTitle>
+            <CardTitle className="text-3xl text-red-600">{stats.urgent}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-3">
             <CardDescription>High Priority</CardDescription>
-            <CardTitle className="text-3xl text-orange-600">
-              {stats.high}
-            </CardTitle>
+            <CardTitle className="text-3xl text-orange-600">{stats.high}</CardTitle>
           </CardHeader>
         </Card>
       </div>
 
-      {/* Filters */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -280,9 +253,7 @@ export function ModeratorTicketManager() {
                   <SelectItem value="">All categories</SelectItem>
                   <SelectItem value="player_behavior">Player Behavior</SelectItem>
                   <SelectItem value="bug_report">Bug Report</SelectItem>
-                  <SelectItem value="content_violation">
-                    Content Violation
-                  </SelectItem>
+                  <SelectItem value="content_violation">Content Violation</SelectItem>
                   <SelectItem value="exploit_abuse">Exploit/Abuse</SelectItem>
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
@@ -292,18 +263,15 @@ export function ModeratorTicketManager() {
         </CardContent>
       </Card>
 
-      {/* Tickets List */}
       <Card>
         <CardHeader>
           <CardTitle>Tickets ({tickets.length})</CardTitle>
-          <CardDescription>
-            Manage and respond to user-submitted tickets
-          </CardDescription>
+          <CardDescription>Manage user-submitted tickets</CardDescription>
         </CardHeader>
         <CardContent>
           {tickets.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
-              No tickets match the current filters
+              No tickets found
             </p>
           ) : (
             <div className="space-y-4">
@@ -332,21 +300,17 @@ export function ModeratorTicketManager() {
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-muted-foreground">
                     <div>
-                      <span className="font-medium">Reporter:</span>{" "}
-                      {ticket.reporterName}
+                      <span className="font-medium">Reporter:</span> {ticket.reporterName}
                     </div>
                     <div>
-                      <span className="font-medium">Category:</span>{" "}
-                      {ticket.category.replace("_", " ")}
+                      <span className="font-medium">Category:</span> {ticket.category.replace("_", " ")}
                     </div>
                     <div>
-                      <span className="font-medium">Created:</span>{" "}
-                      {formatDate(ticket.createdAt)}
+                      <span className="font-medium">Created:</span> {formatDate(ticket.createdAt)}
                     </div>
                     {ticket.targetPlayerName && (
                       <div>
-                        <span className="font-medium">Target:</span>{" "}
-                        {ticket.targetPlayerName}
+                        <span className="font-medium">Target:</span> {ticket.targetPlayerName}
                       </div>
                     )}
                   </div>
@@ -356,14 +320,10 @@ export function ModeratorTicketManager() {
                       <Separator />
                       <div className="flex items-center gap-2">
                         <Select
-                          value={newPriority}
-                          onValueChange={(value) => {
-                            setNewPriority(value);
-                            handleUpdatePriority(ticket._id, value);
-                          }}
+                          onValueChange={(value) => handleUpdatePriority(ticket._id, value)}
                         >
                           <SelectTrigger className="w-[140px]">
-                            <SelectValue placeholder="Update priority" />
+                            <SelectValue placeholder="Change priority" />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="low">Low</SelectItem>
@@ -392,13 +352,10 @@ export function ModeratorTicketManager() {
                       <Separator />
                       <div className="space-y-1">
                         <p className="text-xs font-medium">Resolution:</p>
-                        <p className="text-sm text-muted-foreground">
-                          {ticket.resolution}
-                        </p>
+                        <p className="text-sm text-muted-foreground">{ticket.resolution}</p>
                         {ticket.resolvedByModName && (
                           <p className="text-xs text-muted-foreground">
-                            — {ticket.resolvedByModName} at{" "}
-                            {ticket.resolvedAt && formatDate(ticket.resolvedAt)}
+                            {ticket.resolvedByModName} at {ticket.resolvedAt && formatDate(ticket.resolvedAt)}
                           </p>
                         )}
                       </div>
@@ -411,47 +368,34 @@ export function ModeratorTicketManager() {
         </CardContent>
       </Card>
 
-      {/* Resolve Dialog */}
-      <Dialog
-        open={!!selectedTicket}
-        onOpenChange={(open) => !open && setSelectedTicket(null)}
-      >
+      <Dialog open={!!selectedTicket} onOpenChange={(open) => !open && setSelectedTicket(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Resolve Ticket</DialogTitle>
-            <DialogDescription>
-              Provide a resolution for this ticket
-            </DialogDescription>
+            <DialogDescription>Provide resolution details</DialogDescription>
           </DialogHeader>
 
           {selectedTicket && (
             <div className="space-y-4">
               <div className="p-4 bg-muted rounded-lg space-y-2">
                 <h4 className="font-semibold">{selectedTicket.subject}</h4>
-                <p className="text-sm text-muted-foreground">
-                  {selectedTicket.description}
-                </p>
+                <p className="text-sm text-muted-foreground">{selectedTicket.description}</p>
                 <div className="flex items-center gap-2 text-xs">
                   <span>Reporter: {selectedTicket.reporterName}</span>
                   <Separator orientation="vertical" className="h-4" />
-                  <span>
-                    Category: {selectedTicket.category.replace("_", " ")}
-                  </span>
+                  <span>Category: {selectedTicket.category.replace("_", " ")}</span>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label>Resolution Status</Label>
-                <Select
-                  value={resolveStatus}
-                  onValueChange={(value: any) => setResolveStatus(value)}
-                >
+                <Label>Status</Label>
+                <Select value={resolveStatus} onValueChange={(value: any) => setResolveStatus(value)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="resolved">Resolved</SelectItem>
-                    <SelectItem value="closed">Closed (No Action)</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -459,7 +403,7 @@ export function ModeratorTicketManager() {
               <div className="space-y-2">
                 <Label>Resolution Notes</Label>
                 <Textarea
-                  placeholder="Explain how this ticket was resolved or why it was closed..."
+                  placeholder="Explain the resolution..."
                   value={resolution}
                   onChange={(e) => setResolution(e.target.value)}
                   rows={4}
@@ -470,11 +414,7 @@ export function ModeratorTicketManager() {
           )}
 
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setSelectedTicket(null)}
-              disabled={isResolving}
-            >
+            <Button variant="outline" onClick={() => setSelectedTicket(null)} disabled={isResolving}>
               Cancel
             </Button>
             <Button onClick={handleResolveTicket} disabled={isResolving}>
@@ -484,7 +424,7 @@ export function ModeratorTicketManager() {
                   Resolving...
                 </>
               ) : (
-                "Submit Resolution"
+                "Submit"
               )}
             </Button>
           </DialogFooter>
