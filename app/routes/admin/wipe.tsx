@@ -121,13 +121,13 @@ export default function AdminWipePage() {
     }
   };
 
-  const filteredPlayers = players?.filter(
+  const filteredPlayers = (players ?? []).filter(
     (p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.email.toLowerCase().includes(searchQuery.toLowerCase())
+      (p.name ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.email ?? "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const selectedPlayer = players?.find((p) => p._id === selectedPlayerId);
+  const selectedPlayer = (players ?? []).find((p) => p._id === selectedPlayerId);
 
   return (
     <div className="min-h-screen bg-slate-900 text-white p-8">

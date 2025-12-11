@@ -173,31 +173,43 @@ export function ModeratorTicketManager() {
     );
   }
 
+  // Handle null case (no access)
+  if (tickets === null || stats === null) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Access Denied</CardTitle>
+          <CardDescription>You do not have permission to view tickets.</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-3">
             <CardDescription>Total Tickets</CardDescription>
-            <CardTitle className="text-3xl">{stats.total}</CardTitle>
+            <CardTitle className="text-3xl">{stats?.total ?? 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-3">
             <CardDescription>Open</CardDescription>
-            <CardTitle className="text-3xl text-yellow-600">{stats.open}</CardTitle>
+            <CardTitle className="text-3xl text-yellow-600">{stats?.open ?? 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-3">
             <CardDescription>Urgent</CardDescription>
-            <CardTitle className="text-3xl text-red-600">{stats.urgent}</CardTitle>
+            <CardTitle className="text-3xl text-red-600">{stats?.urgent ?? 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-3">
             <CardDescription>High Priority</CardDescription>
-            <CardTitle className="text-3xl text-orange-600">{stats.high}</CardTitle>
+            <CardTitle className="text-3xl text-orange-600">{stats?.high ?? 0}</CardTitle>
           </CardHeader>
         </Card>
       </div>
@@ -265,11 +277,11 @@ export function ModeratorTicketManager() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Tickets ({tickets.length})</CardTitle>
+          <CardTitle>Tickets ({tickets?.length ?? 0})</CardTitle>
           <CardDescription>Manage user-submitted tickets</CardDescription>
         </CardHeader>
         <CardContent>
-          {tickets.length === 0 ? (
+          {!tickets || tickets.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
               No tickets found
             </p>
@@ -283,16 +295,16 @@ export function ModeratorTicketManager() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 space-y-1">
                       <div className="flex items-center gap-2">
-                        {getStatusIcon(ticket.status)}
-                        <h3 className="font-semibold">{ticket.subject}</h3>
+                        {getStatusIcon(ticket.status ?? "open")}
+                        <h3 className="font-semibold">{ticket.subject ?? "No Subject"}</h3>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        {ticket.description}
+                        {ticket.description ?? ""}
                       </p>
                     </div>
                     <div className="flex flex-col gap-2">
-                      {getStatusBadge(ticket.status)}
-                      {getPriorityBadge(ticket.priority)}
+                      {getStatusBadge(ticket.status ?? "open")}
+                      {getPriorityBadge(ticket.priority ?? "medium")}
                     </div>
                   </div>
 
@@ -300,13 +312,13 @@ export function ModeratorTicketManager() {
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-muted-foreground">
                     <div>
-                      <span className="font-medium">Reporter:</span> {ticket.reporterName}
+                      <span className="font-medium">Reporter:</span> {ticket.reporterName ?? "Unknown"}
                     </div>
                     <div>
-                      <span className="font-medium">Category:</span> {ticket.category.replace("_", " ")}
+                      <span className="font-medium">Category:</span> {(ticket.category ?? "other").replace("_", " ")}
                     </div>
                     <div>
-                      <span className="font-medium">Created:</span> {formatDate(ticket.createdAt)}
+                      <span className="font-medium">Created:</span> {ticket.createdAt ? formatDate(ticket.createdAt) : "Unknown"}
                     </div>
                     {ticket.targetPlayerName && (
                       <div>
@@ -352,10 +364,10 @@ export function ModeratorTicketManager() {
                       <Separator />
                       <div className="space-y-1">
                         <p className="text-xs font-medium">Resolution:</p>
-                        <p className="text-sm text-muted-foreground">{ticket.resolution}</p>
+                        <p className="text-sm text-muted-foreground">{ticket.resolution ?? ""}</p>
                         {ticket.resolvedByModName && (
                           <p className="text-xs text-muted-foreground">
-                            {ticket.resolvedByModName} at {ticket.resolvedAt && formatDate(ticket.resolvedAt)}
+                            {ticket.resolvedByModName} at {ticket.resolvedAt ? formatDate(ticket.resolvedAt) : "Unknown"}
                           </p>
                         )}
                       </div>
@@ -378,12 +390,12 @@ export function ModeratorTicketManager() {
           {selectedTicket && (
             <div className="space-y-4">
               <div className="p-4 bg-muted rounded-lg space-y-2">
-                <h4 className="font-semibold">{selectedTicket.subject}</h4>
-                <p className="text-sm text-muted-foreground">{selectedTicket.description}</p>
+                <h4 className="font-semibold">{selectedTicket.subject ?? "No Subject"}</h4>
+                <p className="text-sm text-muted-foreground">{selectedTicket.description ?? ""}</p>
                 <div className="flex items-center gap-2 text-xs">
-                  <span>Reporter: {selectedTicket.reporterName}</span>
+                  <span>Reporter: {selectedTicket.reporterName ?? "Unknown"}</span>
                   <Separator orientation="vertical" className="h-4" />
-                  <span>Category: {selectedTicket.category.replace("_", " ")}</span>
+                  <span>Category: {(selectedTicket.category ?? "other").replace("_", " ")}</span>
                 </div>
               </div>
 

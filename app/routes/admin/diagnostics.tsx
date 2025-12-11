@@ -33,28 +33,28 @@ export default function AdminDiagnosticsPage() {
               <div>
                 <div className="grid grid-cols-3 gap-4 mb-4">
                   <div className="p-4 bg-blue-100 rounded">
-                    <p className="text-2xl font-bold">{allProducts.total}</p>
+                    <p className="text-2xl font-bold">{allProducts?.total ?? 0}</p>
                     <p className="text-sm">Total Products</p>
                   </div>
                   <div className="p-4 bg-green-100 rounded">
-                    <p className="text-2xl font-bold">{allProducts.active}</p>
+                    <p className="text-2xl font-bold">{allProducts?.active ?? 0}</p>
                     <p className="text-sm">Active & Not Archived</p>
                   </div>
                   <div className="p-4 bg-red-100 rounded">
-                    <p className="text-2xl font-bold">{allProducts.inactive}</p>
+                    <p className="text-2xl font-bold">{allProducts?.inactive ?? 0}</p>
                     <p className="text-sm">Inactive or Archived</p>
                   </div>
                 </div>
                 
-                {allProducts.active === 0 && allProducts.total > 0 && (
+                {(allProducts?.active ?? 0) === 0 && (allProducts?.total ?? 0) > 0 && (
                   <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
                     <p className="font-bold">⚠️ PROBLEM FOUND!</p>
-                    <p>All {allProducts.total} products are either INACTIVE or ARCHIVED!</p>
+                    <p>All {allProducts?.total ?? 0} products are either INACTIVE or ARCHIVED!</p>
                     <p>Bot cannot purchase from inactive/archived products.</p>
                   </div>
                 )}
                 
-                {allProducts.total === 0 && (
+                {(allProducts?.total ?? 0) === 0 && (
                   <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
                     <p className="font-bold">⚠️ PROBLEM FOUND!</p>
                     <p>NO PRODUCTS EXIST IN DATABASE!</p>
@@ -64,7 +64,7 @@ export default function AdminDiagnosticsPage() {
                 
                 <div className="space-y-2">
                   <p className="font-semibold">Sample Products:</p>
-                  {allProducts.allProducts.slice(0, 5).map((p: any) => (
+                  {(allProducts?.allProducts ?? []).slice(0, 5).map((p: any) => (
                     <div
                       key={p.id}
                       className={`p-2 rounded text-sm ${
@@ -73,8 +73,8 @@ export default function AdminDiagnosticsPage() {
                           : "bg-red-50 border border-red-200"
                       }`}
                     >
-                      <p className="font-semibold">{p.name}</p>
-                      <p>Price: ${(p.price / 100).toFixed(2)}</p>
+                      <p className="font-semibold">{p.name ?? "Unknown"}</p>
+                      <p>Price: ${((p.price ?? 0) / 100).toFixed(2)}</p>
                       <p>Stock: {p.stock ?? "Unlimited"}</p>
                       <p>
                         <span className={p.isActive ? "text-green-600" : "text-red-600"}>
@@ -106,11 +106,11 @@ export default function AdminDiagnosticsPage() {
               <div>
                 <div className="mb-4 p-4 bg-blue-50 rounded">
                   <p className="font-bold text-lg">Query Results:</p>
-                  <p>Products Found: {botQuery.totalFound}</p>
-                  <p>Eligible (valid price & stock): {botQuery.eligible}</p>
+                  <p>Products Found: {botQuery?.totalFound ?? 0}</p>
+                  <p>Eligible (valid price & stock): {botQuery?.eligible ?? 0}</p>
                 </div>
                 
-                {botQuery.totalFound === 0 && (
+                {(botQuery?.totalFound ?? 0) === 0 && (
                   <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
                     <p className="font-bold">⚠️ ROOT CAUSE IDENTIFIED!</p>
                     <p>Bot query returns 0 products!</p>
@@ -118,7 +118,7 @@ export default function AdminDiagnosticsPage() {
                   </div>
                 )}
                 
-                {botQuery.totalFound > 0 && botQuery.eligible === 0 && (
+                {(botQuery?.totalFound ?? 0) > 0 && (botQuery?.eligible ?? 0) === 0 && (
                   <div className="bg-orange-100 border border-orange-400 text-orange-700 px-4 py-3 rounded mb-4">
                     <p className="font-bold">⚠️ ROOT CAUSE IDENTIFIED!</p>
                     <p>Products found but none are eligible!</p>
@@ -127,7 +127,7 @@ export default function AdminDiagnosticsPage() {
                 )}
                 
                 <div className="space-y-2">
-                  {botQuery.products.map((p: any) => (
+                  {(botQuery?.products ?? []).map((p: any) => (
                     <div
                       key={p.id}
                       className={`p-2 rounded text-sm ${
@@ -136,8 +136,8 @@ export default function AdminDiagnosticsPage() {
                           : "bg-red-50 border border-red-200"
                       }`}
                     >
-                      <p className="font-semibold">{p.name}</p>
-                      <p>Price: ${(p.price / 100).toFixed(2)}</p>
+                      <p className="font-semibold">{p.name ?? "Unknown"}</p>
+                      <p>Price: ${((p.price ?? 0) / 100).toFixed(2)}</p>
                       <p>Stock: {p.stock ?? "Unlimited"}</p>
                       <p>
                         <span className={p.hasValidPrice ? "text-green-600" : "text-red-600"}>
@@ -167,13 +167,13 @@ export default function AdminDiagnosticsPage() {
             ) : (
               <div>
                 <p className="font-semibold mb-4">
-                  Total: {companies.count} companies
+                  Total: {companies?.count ?? 0} companies
                 </p>
                 <div className="space-y-2">
-                  {companies.companies.map((c: any) => (
+                  {(companies?.companies ?? []).map((c: any) => (
                     <div key={c.id} className="p-2 bg-muted rounded text-sm">
-                      <p className="font-semibold">{c.name}</p>
-                      <p>Balance: ${(c.balance / 100).toFixed(2)}</p>
+                      <p className="font-semibold">{c.name ?? "Unknown"}</p>
+                      <p>Balance: ${((c.balance ?? 0) / 100).toFixed(2)}</p>
                     </div>
                   ))}
                 </div>
@@ -193,10 +193,10 @@ export default function AdminDiagnosticsPage() {
             ) : (
               <div>
                 <p className="font-semibold mb-4">
-                  Total Recent: {marketplaceSales.count} sales
+                  Total Recent: {marketplaceSales?.count ?? 0} sales
                 </p>
                 <div className="space-y-2">
-                  {marketplaceSales.sales.slice(0, 10).map((s: any) => (
+                  {(marketplaceSales?.sales ?? []).slice(0, 10).map((s: any) => (
                     <div key={s.id} className="p-2 bg-muted rounded text-sm">
                       <p>
                         Quantity: {s.quantity}, Price: $
