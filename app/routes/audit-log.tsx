@@ -3,7 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import { Link, Navigate } from "react-router";
 import { AuditLogViewer } from "~/components/admin/audit-log-viewer";
 import { Button } from "~/components/ui/button";
-import { api } from "../../convex/_generated/api";
+import { api } from "convex/_generated/api";
 
 export default function AuditLogPage() {
   const player = useQuery(api.moderation.getCurrentPlayer);

@@ -26,11 +26,10 @@ export function TicketSubmissionForm() {
   const [category, setCategory] = useState<string>("");
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
-  const [targetPlayerName, setTargetPlayerName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
-  const createTicket = useMutation(api.tickets.createTicket as any);
+  const createTicket = useMutation(api.tickets.createTicket);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,7 +61,6 @@ export function TicketSubmissionForm() {
       setCategory("");
       setSubject("");
       setDescription("");
-      setTargetPlayerName("");
     } catch (error: any) {
       toast({
         title: "Failed to submit ticket",
@@ -125,19 +123,6 @@ export function TicketSubmissionForm() {
             />
             <p className="text-xs text-muted-foreground">
               {description.length}/1000 characters
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="targetPlayer">Player Name (if applicable)</Label>
-            <Input
-              id="targetPlayer"
-              placeholder="Username of player involved"
-              value={targetPlayerName}
-              onChange={(e) => setTargetPlayerName(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Leave empty if not reporting a specific player
             </p>
           </div>
 
