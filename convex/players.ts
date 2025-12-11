@@ -18,8 +18,8 @@ export async function calculateNetWorth(ctx: any, playerId: Id<"players">) {
 
   for (const holding of stockHoldings) {
     const stock = await ctx.db.get(holding.stockId);
-    if (stock) {
-      netWorth += holding.shares * stock.currentPrice;
+    if (stock && stock.currentPrice !== undefined && stock.currentPrice !== null) {
+      netWorth += (holding.shares ?? 0) * stock.currentPrice;
     }
   }
 
@@ -31,8 +31,8 @@ export async function calculateNetWorth(ctx: any, playerId: Id<"players">) {
 
   for (const holding of cryptoHoldings) {
     const crypto = await ctx.db.get(holding.cryptoId);
-    if (crypto) {
-      netWorth += holding.balance * crypto.currentPrice;
+    if (crypto && crypto.currentPrice !== undefined && crypto.currentPrice !== null) {
+      netWorth += (holding.balance ?? 0) * crypto.currentPrice;
     }
   }
 
@@ -55,17 +55,17 @@ export async function calculateNetWorth(ctx: any, playerId: Id<"players">) {
       // For public companies, use market cap from stock's current price
       const stock = stocksByCompanyId.get(company._id);
       
-      if (stock && stock.currentPrice) {
+      if (stock && stock.currentPrice !== undefined && stock.currentPrice !== null) {
         // Market cap = current price * outstanding shares
         const marketCap = stock.currentPrice * (stock.outstandingShares ?? 1000000);
         netWorth += marketCap;
-      } else if (company.marketCap) {
+      } else if (company.marketCap !== undefined && company.marketCap !== null) {
         // Fallback to stored market cap if stock not found
         netWorth += company.marketCap;
       }
     } else {
       // For private companies, use company balance as equity
-      netWorth += company.balance;
+      netWorth += (company.balance ?? 0);
     }
   }
 
@@ -78,7 +78,7 @@ export async function calculateNetWorth(ctx: any, playerId: Id<"players">) {
     .collect();
 
   for (const loan of activeLoans) {
-    netWorth -= loan.remainingBalance;
+    netWorth -= (loan.remainingBalance ?? 0);
   }
 
   return netWorth;

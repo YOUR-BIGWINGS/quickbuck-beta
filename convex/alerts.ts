@@ -104,7 +104,7 @@ export const getUnreadAlerts = query({
 
     // Filter to only unread alerts for this player
     const unreadAlerts = allAlerts.filter(
-      (alert) => !alert.readBy || !alert.readBy.includes(currentPlayer._id)
+      (alert) => !(alert.readBy ?? []).includes(currentPlayer._id)
     );
 
     return unreadAlerts;
@@ -188,7 +188,7 @@ export const markAlertAsRead = mutation({
     }
 
     // Add player to readBy array if not already there
-    const readBy = alert.readBy || [];
+    const readBy = alert.readBy ?? [];
     if (!readBy.includes(currentPlayer._id)) {
       readBy.push(currentPlayer._id);
       await ctx.db.patch(args.alertId, {

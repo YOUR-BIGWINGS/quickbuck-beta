@@ -201,7 +201,7 @@ export const makeCompanyPublic = mutation({
     }
 
     // Company must have some balance
-    if (company.balance < 10000) {
+    if ((company.balance ?? 0) < 10000) {
       throw new Error("Company must have at least $100 in balance to go public");
     }
 
@@ -214,7 +214,7 @@ export const makeCompanyPublic = mutation({
     // Check for ticker uniqueness across all stocks
     const existingStocks = await ctx.db.query("stocks").collect();
     const tickerExists = existingStocks.some(
-      (stock) => stock.symbol && stock.symbol.toUpperCase() === validatedTicker.toUpperCase()
+      (stock) => stock.symbol?.toUpperCase() === validatedTicker.toUpperCase()
     );
 
     if (tickerExists) {
@@ -302,7 +302,7 @@ export const getPlayerCompanies = query({
         // Find the stock linked to this company
         const stock = stocksByCompanyId.get(company._id);
         
-        if (stock && stock.currentPrice) {
+        if (stock && stock.currentPrice !== undefined && stock.currentPrice !== null) {
           // Calculate market cap from current stock price
           const currentMarketCap = stock.currentPrice * (stock.outstandingShares ?? 1000000);
           return {

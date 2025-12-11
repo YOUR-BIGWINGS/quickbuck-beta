@@ -163,12 +163,23 @@ export const getAllPlayersForModeration = query({
     // Enrich with user data
     const enrichedPlayers = await Promise.all(
       players.map(async (player) => {
-        const userData = await ctx.db.get(player.userId);
-        return {
-          ...player,
-          userName: userData?.name || "Unknown",
-          userEmail: userData?.email || "N/A",
-        };
+        try {
+          const userData = await ctx.db.get(player.userId);
+          return {
+            ...player,
+            userName: userData?.name ?? "Unknown",
+            userEmail: userData?.email ?? "N/A",
+            warningCount: player.warningCount ?? 0,
+          };
+        } catch (error) {
+          console.error("Error enriching player:", error);
+          return {
+            ...player,
+            userName: "Unknown",
+            userEmail: "N/A",
+            warningCount: player.warningCount ?? 0,
+          };
+        }
       })
     );
 
@@ -1423,12 +1434,20 @@ export const getAllCompaniesForModeration = query({
     // Enrich with owner data
     const enrichedCompanies = await Promise.all(
       companies.map(async (company) => {
-        const owner = await ctx.db.get(company.ownerId);
-        const ownerUser = owner ? await ctx.db.get(owner.userId) : null;
-        return {
-          ...company,
-          ownerName: ownerUser?.name || "Unknown",
-        };
+        try {
+          const owner = await ctx.db.get(company.ownerId);
+          const ownerUser = owner ? await ctx.db.get(owner.userId) : null;
+          return {
+            ...company,
+            ownerName: ownerUser?.name ?? "Unknown",
+          };
+        } catch (error) {
+          console.error("Error enriching company:", error);
+          return {
+            ...company,
+            ownerName: "Unknown",
+          };
+        }
       })
     );
 
@@ -1560,22 +1579,41 @@ export const getAllProductsForModeration = query({
     // Enrich with company data
     const enrichedProducts = await Promise.all(
       products.map(async (product) => {
-        const company = await ctx.db.get(product.companyId);
-        return {
-          _id: product._id,
-          name: product.name,
-          description: product.description,
-          price: product.price,
-          image: product.image,
-          stock: product.stock,
-          isActive: product.isActive,
-          isArchived: product.isArchived,
-          totalSold: product.totalSold,
-          totalRevenue: product.totalRevenue,
-          createdAt: product.createdAt,
-          companyId: product.companyId,
-          companyName: company?.name || "Unknown",
-        };
+        try {
+          const company = await ctx.db.get(product.companyId);
+          return {
+            _id: product._id,
+            name: product.name ?? "Unknown",
+            description: product.description ?? "",
+            price: product.price ?? 0,
+            image: product.image,
+            stock: product.stock,
+            isActive: product.isActive ?? false,
+            isArchived: product.isArchived ?? false,
+            totalSold: product.totalSold ?? 0,
+            totalRevenue: product.totalRevenue ?? 0,
+            createdAt: product.createdAt,
+            companyId: product.companyId,
+            companyName: company?.name ?? "Unknown",
+          };
+        } catch (error) {
+          console.error("Error enriching product:", error);
+          return {
+            _id: product._id,
+            name: product.name ?? "Unknown",
+            description: product.description ?? "",
+            price: product.price ?? 0,
+            image: product.image,
+            stock: product.stock,
+            isActive: product.isActive ?? false,
+            isArchived: product.isArchived ?? false,
+            totalSold: product.totalSold ?? 0,
+            totalRevenue: product.totalRevenue ?? 0,
+            createdAt: product.createdAt,
+            companyId: product.companyId,
+            companyName: "Unknown",
+          };
+        }
       })
     );
 
@@ -1801,9 +1839,13 @@ export const getAllCryptosForModeration = query({
     }
 
     // Get all cryptos
-    const cryptos = await ctx.db.query("cryptocurrencies").collect();
-
-    return cryptos;
+    try {
+      const cryptos = await ctx.db.query("cryptocurrencies").collect();
+      return cryptos ?? [];
+    } catch (error) {
+      console.error("Error fetching cryptos for moderation:", error);
+      return [];
+    }
   },
 });
 

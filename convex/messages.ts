@@ -149,7 +149,7 @@ export const getInbox = query({
 
         return {
           ...message,
-          senderBadges: badges.filter((b) => b !== null),
+          senderBadges: badges.filter((b): b is NonNullable<typeof b> => b !== null && b !== undefined),
         };
       })
     );
@@ -204,8 +204,8 @@ export const getSentMessages = query({
 
         return {
           ...message,
-          recipientName: recipientUser?.name || "Unknown",
-          recipientBadges: badges.filter((b) => b !== null),
+          recipientName: recipientUser?.name ?? "Unknown",
+          recipientBadges: badges.filter((b): b is NonNullable<typeof b> => b !== null && b !== undefined),
         };
       })
     );
@@ -355,39 +355,44 @@ export const searchPlayers = query({
     // Get player data for matching users
     const results = await Promise.all(
       matchingUsers.slice(0, 10).map(async (user) => {
-        const player = await ctx.db
-          .query("players")
-          .withIndex("by_userId", (q) => q.eq("userId", user._id))
-          .unique();
+        try {
+          const player = await ctx.db
+            .query("players")
+            .withIndex("by_userId", (q) => q.eq("userId", user._id))
+            .unique();
 
-        if (!player) return null;
+          if (!player) return null;
 
-        // Don't show banned players
-        if (player.role === "banned") return null;
+          // Don't show banned players
+          if (player.role === "banned") return null;
 
-        // Get player badges
-        const playerBadgeRecords = await ctx.db
-          .query("playerBadges")
-          .withIndex("by_playerId", (q) => q.eq("playerId", player._id))
-          .collect();
+          // Get player badges
+          const playerBadgeRecords = await ctx.db
+            .query("playerBadges")
+            .withIndex("by_playerId", (q) => q.eq("playerId", player._id))
+            .collect();
 
-        const playerBadges = await Promise.all(
-          playerBadgeRecords.map(async (pb) => await ctx.db.get(pb.badgeId))
-        );
+          const playerBadges = await Promise.all(
+            playerBadgeRecords.map(async (pb) => await ctx.db.get(pb.badgeId))
+          );
 
-        return {
-          playerId: player._id,
-          playerName: user.name || "Anonymous",
-          role: player.role,
-          balance: player.balance,
-          isVIP: player.isVIP || false,
-          vipExpiresAt: player.vipExpiresAt,
-          playerBadges: playerBadges.filter((b) => b !== null),
-        };
+          return {
+            playerId: player._id,
+            playerName: user.name ?? "Anonymous",
+            role: player.role ?? "normal",
+            balance: player.balance ?? 0,
+            isVIP: player.isVIP ?? false,
+            vipExpiresAt: player.vipExpiresAt,
+            playerBadges: playerBadges.filter((b): b is NonNullable<typeof b> => b !== null && b !== undefined),
+          };
+        } catch (error) {
+          console.error("Error enriching player in search:", error);
+          return null;
+        }
       })
     );
 
-    return results.filter((r) => r !== null);
+    return results.filter((r): r is NonNullable<typeof r> => r !== null && r !== undefined);
   },
 });
 

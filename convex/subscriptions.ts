@@ -1,6 +1,7 @@
 import { v } from "convex/values";
-import { query, internalMutation, internalAction } from "./_generated/server";
+import { query, mutation, internalMutation, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 
 // Get user's subscription details with REAL-TIME expiration validation
 export const getUserSubscription = query({
@@ -103,6 +104,161 @@ export const hasActiveSubscription = query({
     const isNotExpired = subscription.currentPeriodEnd > now;
     
     return isActive && isNotExpired;
+  },
+});
+
+// Query: Get all VIP users (for admin panel)
+export const getAllVIPUsers = query({
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) throw new Error("User not found");
+
+    const currentPlayer = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!currentPlayer) throw new Error("Player not found");
+
+    // Only admins can view all VIP users
+    if (currentPlayer.role !== "admin") {
+      throw new Error("Only admins can view VIP users");
+    }
+
+    // Get all VIP players
+    const vipPlayers = await ctx.db
+      .query("players")
+      .withIndex("by_isVIP", (q) => q.eq("isVIP", true))
+      .collect();
+
+    // Enrich with user data
+    const enrichedVIPUsers = await Promise.all(
+      vipPlayers.map(async (player) => {
+        try {
+          const userData = await ctx.db.get(player.userId);
+          return {
+            playerId: player._id,
+            playerName: userData?.name ?? "Unknown",
+            balance: player.balance ?? 0,
+            vipExpiresAt: player.vipExpiresAt,
+            vipGrantedBySubscription: player.vipGrantedBySubscription ?? false,
+          };
+        } catch (error) {
+          console.error("Error enriching VIP user:", error);
+          return {
+            playerId: player._id,
+            playerName: "Unknown",
+            balance: player.balance ?? 0,
+            vipExpiresAt: player.vipExpiresAt,
+            vipGrantedBySubscription: false,
+          };
+        }
+      })
+    );
+
+    return enrichedVIPUsers;
+  },
+});
+
+// Mutation: Admin grant VIP to a player
+export const adminGrantVIP = mutation({
+  args: {
+    targetPlayerId: v.id("players"),
+    durationMonths: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Check admin access
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) throw new Error("User not found");
+
+    const currentPlayer = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!currentPlayer) throw new Error("Player not found");
+
+    // Only admins can grant VIP
+    if (currentPlayer.role !== "admin") {
+      throw new Error("Only admins can grant VIP");
+    }
+
+    const player = await ctx.db.get(args.targetPlayerId);
+    if (!player) throw new Error("Player not found");
+
+    const now = Date.now();
+    const expiresAt = now + (args.durationMonths * 30 * 24 * 60 * 60 * 1000);
+
+    await ctx.db.patch(args.targetPlayerId, {
+      isVIP: true,
+      vipExpiresAt: expiresAt,
+      vipGrantedBySubscription: false, // Mark as manually granted
+      updatedAt: now,
+    });
+
+    return { success: true, message: `VIP granted for ${args.durationMonths} month(s)` };
+  },
+});
+
+// Mutation: Admin revoke VIP from a player
+export const adminRevokeVIP = mutation({
+  args: {
+    targetPlayerId: v.id("players"),
+  },
+  handler: async (ctx, args) => {
+    // Check admin access
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) throw new Error("User not found");
+
+    const currentPlayer = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!currentPlayer) throw new Error("Player not found");
+
+    // Only admins can revoke VIP
+    if (currentPlayer.role !== "admin") {
+      throw new Error("Only admins can revoke VIP");
+    }
+
+    const player = await ctx.db.get(args.targetPlayerId);
+    if (!player) throw new Error("Player not found");
+
+    // Only allow revoking manually granted VIP
+    if (player.vipGrantedBySubscription) {
+      throw new Error("Cannot revoke subscription-based VIP");
+    }
+
+    await ctx.db.patch(args.targetPlayerId, {
+      isVIP: false,
+      vipExpiresAt: undefined,
+      vipGrantedBySubscription: undefined,
+      updatedAt: Date.now(),
+    });
+
+    return { success: true, message: "VIP revoked" };
   },
 });
 
