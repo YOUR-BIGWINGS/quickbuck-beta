@@ -157,8 +157,8 @@ export default function Panel() {
     const query = productSearchQuery.toLowerCase();
     return products.products.filter(
       (p: any) =>
-        p.name.toLowerCase().includes(query) ||
-        p.companyName.toLowerCase().includes(query)
+        (p.name ?? "").toLowerCase().includes(query) ||
+        (p.companyName ?? "").toLowerCase().includes(query)
     );
   };
 
@@ -301,8 +301,8 @@ export default function Panel() {
     );
   }
 
-  const isAdmin = moderationAccess.role === "admin";
-  const isHighMod = moderationAccess.role === "high_mod";
+  const isAdmin = moderationAccess?.role === "admin";
+  const isHighMod = moderationAccess?.role === "high_mod";
   const hasHighModAccess = isAdmin || isHighMod; // high_mod or admin can access these features
   
   // Debug: Log admin status
@@ -674,7 +674,7 @@ export default function Panel() {
         <h1>🛡️ QUICKBUCK MODERATION PANEL 🛡️</h1>
         <div className="role-badge">
           You are logged in as:{" "}
-          <strong>{moderationAccess.role.toUpperCase()}</strong>
+          <strong>{moderationAccess?.role?.toUpperCase() || "UNKNOWN"}</strong>
         </div>
         <a href="/dashboard" className="retro-button">
           Back to Dashboard
@@ -738,7 +738,7 @@ export default function Panel() {
             <h2>Player Management</h2>
             {players === undefined ? (
               <div className="loading">Loading players...</div>
-            ) : players.length === 0 ? (
+            ) : !players || players.length === 0 ? (
               <div className="no-data">No players found</div>
             ) : (
               <table className="retro-table">
@@ -764,13 +764,13 @@ export default function Panel() {
                             title="Click to view mod actions"
                             onClick={() => handleViewLilModActions(player._id, player.userName)}
                           >
-                            {player.userName}
+                            {player.userName || "Unknown"}
                           </span>
                         ) : (
-                          player.userName
+                          player.userName || "Unknown"
                         )}
                       </td>
-                      <td>{player.userEmail}</td>
+                      <td>{player.userEmail || "—"}</td>
                       <td>
                         <span
                           className={`role-tag role-${player.role || "normal"}`}
@@ -780,7 +780,7 @@ export default function Panel() {
                             : (player.role || "normal").toUpperCase()}
                         </span>
                       </td>
-                      <td>${(player.balance / 100).toFixed(2)}</td>
+                      <td>${((player.balance ?? 0) / 100).toFixed(2)}</td>
                       <td>
                         {player.warningCount ? (
                           <span
@@ -1083,7 +1083,7 @@ export default function Panel() {
             <h2>Company Management</h2>
             {companies === undefined ? (
               <div className="loading">Loading companies...</div>
-            ) : companies.length === 0 ? (
+            ) : !companies || companies.length === 0 ? (
               <div className="no-data">No companies found</div>
             ) : (
               <table className="retro-table">
@@ -1100,10 +1100,10 @@ export default function Panel() {
                 <tbody>
                   {companies.map((company) => (
                     <tr key={company._id}>
-                      <td>{company.name}</td>
-                      <td>{company.ownerName}</td>
-                      <td>{company.ticker || "—"}</td>
-                      <td>${(company.balance / 100).toFixed(2)}</td>
+                      <td>{company.name ?? "Unknown"}</td>
+                      <td>{company.ownerName ?? "Unknown"}</td>
+                      <td>{company.ticker ?? "—"}</td>
+                      <td>${((company.balance ?? 0) / 100).toFixed(2)}</td>
                       <td>{company.isPublic ? "Yes" : "No"}</td>
                       <td>
                         <div className="action-buttons">
@@ -1224,9 +1224,9 @@ export default function Panel() {
                           }}
                         />
                       </td>
-                      <td>{product.name}</td>
-                      <td>{product.companyName}</td>
-                      <td>${(product.price / 100).toFixed(2)}</td>
+                      <td>{product.name ?? "Unknown"}</td>
+                      <td>{product.companyName ?? "Unknown"}</td>
+                      <td>${((product.price ?? 0) / 100).toFixed(2)}</td>
                       <td>{product.stock ?? "∞"}</td>
                       <td>
                         {product.isActive ? (
@@ -1276,7 +1276,7 @@ export default function Panel() {
             </div>
             {cryptos === undefined ? (
               <div className="loading">Loading cryptocurrencies...</div>
-            ) : cryptos.length === 0 ? (
+            ) : !cryptos || cryptos.length === 0 ? (
               <div className="no-data">No cryptocurrencies found</div>
             ) : (
               <table className="retro-table">
@@ -1294,13 +1294,13 @@ export default function Panel() {
                 <tbody>
                   {cryptos.map((crypto) => (
                     <tr key={crypto._id}>
-                      <td>{crypto.name}</td>
+                      <td>{crypto.name ?? "Unknown"}</td>
                       <td>
-                        <strong>{crypto.symbol}</strong>
+                        <strong>{crypto.symbol ?? "???"}</strong>
                       </td>
-                      <td>${(crypto.currentPrice / 100).toFixed(4)}</td>
-                      <td>${(crypto.marketCap / 100).toLocaleString()}</td>
-                      <td>{crypto.circulatingSupply.toLocaleString()}</td>
+                      <td>${((crypto.currentPrice ?? 0) / 100).toFixed(4)}</td>
+                      <td>${((crypto.marketCap ?? 0) / 100).toLocaleString()}</td>
+                      <td>{(crypto.circulatingSupply ?? 0).toLocaleString()}</td>
                       <td>
                         {((crypto.baseVolatility || 0) * 100).toFixed(1)}%
                       </td>
@@ -1336,7 +1336,7 @@ export default function Panel() {
 
             {getAllAlerts === undefined ? (
               <div className="loading">Loading alerts...</div>
-            ) : getAllAlerts.length === 0 ? (
+            ) : !getAllAlerts || getAllAlerts.length === 0 ? (
               <div className="no-data">No alerts sent yet</div>
             ) : (
               <div className="alerts-list">
@@ -1346,7 +1346,7 @@ export default function Panel() {
                     className={`alert-item alert-${alert.type}`}
                   >
                     <div className="alert-header">
-                      <strong>{alert.title}</strong>
+                      <strong>{alert.title ?? "Untitled"}</strong>
                       <div
                         style={{
                           display: "flex",
@@ -1366,13 +1366,13 @@ export default function Panel() {
                         </button>
                       </div>
                     </div>
-                    <p className="alert-message">{alert.message}</p>
+                    <p className="alert-message">{alert.message ?? ""}</p>
                     <div className="alert-footer">
                       <span className="alert-time">
-                        {new Date(alert.sentAt).toLocaleString()}
+                        {alert.sentAt ? new Date(alert.sentAt).toLocaleString() : "Unknown"}
                       </span>
                       <span className="alert-readers">
-                        Read by {alert.readBy?.length || 0} players
+                        Read by {alert.readBy?.length ?? 0} players
                       </span>
                     </div>
                   </div>
@@ -1401,7 +1401,7 @@ export default function Panel() {
                 <div className="search-results">
                   {searchResults === undefined ? (
                     <div className="loading">Searching...</div>
-                  ) : searchResults.length === 0 ? (
+                  ) : !searchResults || searchResults.length === 0 ? (
                     <div className="no-data">No users found</div>
                   ) : (
                     <div className="user-results-list">
@@ -1421,10 +1421,10 @@ export default function Panel() {
                           }
                         >
                           <span className="user-name">
-                            {player.playerName || "Unknown"}
+                            {player.playerName ?? "Unknown"}
                           </span>
                           <span className="user-role">
-                            {player.role}
+                            {player.role ?? "normal"}
                           </span>
                         </div>
                       ))}
@@ -1480,9 +1480,9 @@ export default function Panel() {
             {/* Current VIP Users List */}
             <div className="vip-current-users">
               <h3>Current VIP Users ({allVIPUsers?.length || 0})</h3>
-              {!allVIPUsers ? (
+              {allVIPUsers === undefined ? (
                 <div className="loading">Loading VIP users...</div>
-              ) : allVIPUsers.length === 0 ? (
+              ) : !allVIPUsers || allVIPUsers.length === 0 ? (
                 <div className="no-data">No VIP users found</div>
               ) : (
                 <div className="vip-users-list">
@@ -1496,13 +1496,13 @@ export default function Panel() {
                       <div key={vipUser.playerId} className="vip-user-item">
                         <div className="vip-user-info">
                           <span className="vip-user-name">
-                            {vipUser.playerName}
+                            {vipUser.playerName ?? "Unknown"}
                             <span className="vip-badge">👑 VIP</span>
                             {isSubscription && <span className="vip-type-badge">Subscription</span>}
                             {!isSubscription && <span className="vip-type-badge free">Free</span>}
                           </span>
                           <span className="vip-user-balance">
-                            ${(vipUser.balance / 100).toFixed(2)}
+                            ${((vipUser.balance ?? 0) / 100).toFixed(2)}
                           </span>
                           {expiresAt && (
                             <span className="vip-expiry">
@@ -1564,7 +1564,7 @@ export default function Panel() {
                 <div className="search-results">
                   {searchResults === undefined ? (
                     <div className="loading">Searching...</div>
-                  ) : searchResults.length === 0 ? (
+                  ) : !searchResults || searchResults.length === 0 ? (
                     <div className="no-data">No users found</div>
                   ) : (
                     <div className="vip-results-list">
@@ -1578,11 +1578,11 @@ export default function Panel() {
                           <div key={player.playerId} className="vip-result-item">
                             <div className="vip-player-info">
                               <span className="vip-player-name">
-                                {player.playerName || "Unknown"}
+                                {player.playerName ?? "Unknown"}
                                 {isVIP && <span className="vip-badge">👑 VIP</span>}
                               </span>
                               <span className="vip-player-balance">
-                                ${(player.balance / 100).toFixed(2)}
+                                ${((player.balance ?? 0) / 100).toFixed(2)}
                               </span>
                               {isVIP && vipExpiry && (
                                 <span className="vip-expiry">
