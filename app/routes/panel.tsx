@@ -212,6 +212,21 @@ export default function Panel() {
     );
   }
 
+  if (moderationAccess === null || !moderationAccess) {
+    return (
+      <div className="retro-panel">
+        <div className="retro-access-denied">
+          <h1>⚠️ ERROR LOADING PANEL ⚠️</h1>
+          <p>Failed to verify your access permissions.</p>
+          <p>Please refresh the page or contact support if the issue persists.</p>
+          <a href="/dashboard" className="retro-button">
+            Return to Dashboard
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   if (!moderationAccess.hasAccess) {
     return (
       <div className="retro-panel">

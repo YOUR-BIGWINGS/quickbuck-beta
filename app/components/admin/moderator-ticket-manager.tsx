@@ -168,12 +168,25 @@ export function ModeratorTicketManager() {
     return new Date(timestamp).toLocaleString();
   };
 
-  if (!tickets || !stats) {
+  if (tickets === undefined || stats === undefined) {
     return (
       <Card>
         <CardHeader>
           <CardTitle>Ticket Management</CardTitle>
           <CardDescription>Loading tickets...</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  if (!tickets || !stats) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Ticket Management Error</CardTitle>
+          <CardDescription className="text-destructive">
+            Failed to load ticket data. Please refresh the page or contact support if the issue persists.
+          </CardDescription>
         </CardHeader>
       </Card>
     );

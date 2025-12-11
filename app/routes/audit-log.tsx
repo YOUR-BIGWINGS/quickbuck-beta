@@ -19,8 +19,24 @@ export default function AuditLogPage() {
     );
   }
 
-  if (!player) {
+  if (player === null) {
     return <Navigate to="/sign-in" />;
+  }
+
+  if (!player) {
+    return (
+      <div className="container mx-auto py-8">
+        <div className="max-w-2xl mx-auto text-center">
+          <h1 className="text-3xl font-bold mb-4">Error Loading Page</h1>
+          <p className="text-muted-foreground mb-4">
+            Failed to load your player data. Please try refreshing the page.
+          </p>
+          <Link to="/dashboard">
+            <Button>Back to Dashboard</Button>
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   const role = player.role || "normal";

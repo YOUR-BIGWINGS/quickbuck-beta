@@ -60,7 +60,7 @@ export const searchAuditLogs = query({
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
     if (!user) {
       throw new Error("User not found");
@@ -96,23 +96,26 @@ export const searchAuditLogs = query({
         .order("desc")
         .collect();
     } else if (args.category) {
+      const limit = args.limit || 100;
       logs = await ctx.db
         .query("auditLog")
-        .withIndex("by_category", (q) => q.eq("category", args.category as any))
+        .withIndex("by_category", (q) => q.eq("category", args.category as "moderation" | "ticket" | "player" | "company" | "transaction" | "system" | "admin"))
         .order("desc")
-        .collect();
+        .take(limit * 2); // Take more for filtering
     } else if (args.actionType) {
+      const limit = args.limit || 100;
       logs = await ctx.db
         .query("auditLog")
-        .withIndex("by_actionType", (q) => q.eq("actionType", args.actionType as any))
+        .withIndex("by_actionType", (q) => q.eq("actionType", args.actionType!))
         .order("desc")
-        .collect();
+        .take(limit * 2); // Take more for filtering
     } else {
+      const limit = args.limit || 100;
       logs = await ctx.db
         .query("auditLog")
         .withIndex("by_timestamp")
         .order("desc")
-        .collect();
+        .take(limit * 2); // Take more for filtering
     }
 
     // Apply additional filters
@@ -155,7 +158,7 @@ export const getRecentLogs = query({
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
     if (!user) {
       throw new Error("User not found");
@@ -199,7 +202,7 @@ export const getAuditStats = query({
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
     if (!user) {
       throw new Error("User not found");
@@ -222,13 +225,14 @@ export const getAuditStats = query({
     const days = args.days || 7;
     const cutoffTime = Date.now() - days * 24 * 60 * 60 * 1000;
 
-    const logs = await ctx.db
+    // Only fetch logs within the time range
+    const allLogs = await ctx.db
       .query("auditLog")
       .withIndex("by_timestamp")
       .order("desc")
       .collect();
 
-    const recentLogs = logs.filter((log) => log.timestamp >= cutoffTime);
+    const recentLogs = allLogs.filter((log) => log.timestamp >= cutoffTime);
 
     // Calculate statistics
     const categoryCounts: Record<string, number> = {};
@@ -243,8 +247,8 @@ export const getAuditStats = query({
       totalActions: recentLogs.length,
       categoryCounts,
       actionTypeCounts,
-      oldestLogTimestamp: logs.length > 0 ? logs[logs.length - 1].timestamp : null,
-      newestLogTimestamp: logs.length > 0 ? logs[0].timestamp : null,
+      oldestLogTimestamp: allLogs.length > 0 ? allLogs[allLogs.length - 1].timestamp : null,
+      newestLogTimestamp: allLogs.length > 0 ? allLogs[0].timestamp : null,
     };
   },
 });
@@ -288,7 +292,7 @@ export const manualCleanup = mutation({
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
     if (!user) {
       throw new Error("User not found");
@@ -353,7 +357,7 @@ export const exportLogs = query({
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
     if (!user) {
       throw new Error("User not found");

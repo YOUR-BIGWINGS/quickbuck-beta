@@ -117,7 +117,7 @@ export const getResetSecretRequired = query({
  * Initialize the stock market with default stocks
  * Can only be run once by admins
  */
-export const initStockMarket = mutation({
+export const updateStockPrices = mutation({
   args: {},
   handler: async (ctx) => {
     // Get authenticated user
@@ -129,7 +129,7 @@ export const initStockMarket = mutation({
     // Get user and player
     const user = await ctx.db
       .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .first();
     
     if (!user) {
@@ -273,7 +273,7 @@ export const cleanupOldStocks = mutation({
     // Get user and player
     const user = await ctx.db
       .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .first();
     
     if (!user) {

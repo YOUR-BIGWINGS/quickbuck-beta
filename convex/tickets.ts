@@ -24,7 +24,7 @@ export const createTicket = mutation({
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
     if (!user) {
       throw new Error("User not found");
@@ -91,7 +91,7 @@ export const getMyTickets = query({
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
     if (!user) {
       return [];
@@ -130,7 +130,7 @@ export const getAllTickets = query({
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
     if (!user) {
       throw new Error("User not found");
@@ -181,7 +181,7 @@ export const assignTicket = mutation({
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
     if (!user) {
       throw new Error("User not found");
@@ -255,7 +255,7 @@ export const updateTicketPriority = mutation({
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
     if (!user) {
       throw new Error("User not found");
@@ -316,7 +316,7 @@ export const resolveTicket = mutation({
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
     if (!user) {
       throw new Error("User not found");
@@ -379,7 +379,7 @@ export const getTicketById = query({
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
     if (!user) {
       return null;
@@ -422,7 +422,7 @@ export const getTicketStats = query({
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
     if (!user) {
       throw new Error("User not found");

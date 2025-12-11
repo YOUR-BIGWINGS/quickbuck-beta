@@ -127,12 +127,25 @@ export function AuditLogViewer() {
     URL.revokeObjectURL(url);
   };
 
-  if (!logs || !stats) {
+  if (logs === undefined || stats === undefined) {
     return (
       <Card>
         <CardHeader>
           <CardTitle>Audit Log</CardTitle>
           <CardDescription>Loading audit logs...</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  if (!logs || !stats) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Audit Log Error</CardTitle>
+          <CardDescription className="text-destructive">
+            Failed to load audit log data. Please refresh the page or contact support if the issue persists.
+          </CardDescription>
         </CardHeader>
       </Card>
     );
