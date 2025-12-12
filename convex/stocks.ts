@@ -1661,3 +1661,176 @@ export const getStockOwnership = query({
     return validData;
   },
 });
+
+// ============================================================================
+// VIP STOCK ANALYSIS BOT
+// ============================================================================
+
+/**
+ * VIP-only query: Get AI-powered stock analysis and recommendations
+ * Analyzes market trends, volatility, and patterns to provide daily recommendations
+ */
+export const getVIPStockAnalysis = query({
+  args: {},
+  handler: async (ctx) => {
+    // Check authentication
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    // Get user and player
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const player = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!player) {
+      throw new Error("Player not found");
+    }
+
+    // Check VIP status
+    if (!player.isVIP) {
+      throw new Error("VIP access required for stock analysis");
+    }
+
+    // Get all stocks
+    const stocks = await ctx.db.query("stocks").collect();
+    
+    if (stocks.length === 0) {
+      return {
+        marketSummary: "No stocks available for analysis.",
+        recommendations: [],
+        generatedAt: Date.now(),
+      };
+    }
+
+    // Analyze each stock and generate recommendations
+    const recommendations = [];
+    let totalMarketChange = 0;
+    let bullishCount = 0;
+    let bearishCount = 0;
+
+    for (const stock of stocks) {
+      // Get recent history for analysis
+      const history = await ctx.db
+        .query("stockPriceHistory")
+        .withIndex("by_stockId_timestamp", (q) => q.eq("stockId", stock._id))
+        .order("desc")
+        .take(30);
+
+      if (history.length < 5) continue;
+
+      const currentPrice = stock.currentPrice ?? 10000;
+      const fairValue = stock.fairValue ?? currentPrice;
+      
+      // Calculate metrics
+      const recentPrices = history.map(h => h.close ?? currentPrice);
+      const avgPrice = recentPrices.reduce((a, b) => a + b, 0) / recentPrices.length;
+      const oldPrice = history[history.length - 1]?.close ?? currentPrice;
+      const change24h = ((currentPrice - oldPrice) / oldPrice) * 100;
+      
+      totalMarketChange += change24h;
+      
+      // Determine signal based on analysis
+      let signal: "buy" | "sell" | "hold" = "hold";
+      let reason = "";
+      let confidence = 0;
+
+      // Undervalued check (price below fair value)
+      const undervaluedPercent = ((fairValue - currentPrice) / fairValue) * 100;
+      
+      // Momentum check (recent trend)
+      const shortTermAvg = recentPrices.slice(0, 5).reduce((a, b) => a + b, 0) / 5;
+      const longTermAvg = avgPrice;
+      const momentumSignal = (shortTermAvg - longTermAvg) / longTermAvg;
+
+      // Volatility check
+      const priceVariance = recentPrices.reduce((sum, p) => sum + Math.pow(p - avgPrice, 2), 0) / recentPrices.length;
+      const volatility = Math.sqrt(priceVariance) / avgPrice;
+      const isHighVolatility = volatility > 0.05;
+
+      // Generate signal and reason
+      if (undervaluedPercent > 15 && momentumSignal > -0.02) {
+        signal = "buy";
+        confidence = Math.min(undervaluedPercent / 2, 50);
+        reason = `Trading ${undervaluedPercent.toFixed(1)}% below fair value with stabilizing momentum.`;
+        bullishCount++;
+      } else if (undervaluedPercent < -15 && momentumSignal < 0.02) {
+        signal = "sell";
+        confidence = Math.min(Math.abs(undervaluedPercent) / 2, 50);
+        reason = `Trading ${Math.abs(undervaluedPercent).toFixed(1)}% above fair value with weakening momentum.`;
+        bearishCount++;
+      } else if (momentumSignal > 0.03 && change24h > 2) {
+        signal = "buy";
+        confidence = 35;
+        reason = `Strong upward momentum with ${change24h.toFixed(1)}% gain. Consider riding the trend.`;
+        bullishCount++;
+      } else if (momentumSignal < -0.03 && change24h < -2) {
+        signal = "sell";
+        confidence = 35;
+        reason = `Bearish momentum detected with ${Math.abs(change24h).toFixed(1)}% decline.`;
+        bearishCount++;
+      } else if (isHighVolatility) {
+        signal = "hold";
+        reason = `High volatility (${(volatility * 100).toFixed(1)}%). Wait for market stabilization.`;
+      } else {
+        signal = "hold";
+        reason = "Stable price action. No strong signals at this time.";
+      }
+
+      recommendations.push({
+        symbol: stock.symbol,
+        name: stock.name,
+        sector: stock.sector,
+        price: currentPrice,
+        fairValue: fairValue,
+        change24h: change24h,
+        signal,
+        reason,
+        confidence,
+        volatility: volatility * 100,
+      });
+    }
+
+    // Sort by confidence (strongest signals first), then by absolute change
+    recommendations.sort((a, b) => {
+      if (a.signal !== "hold" && b.signal === "hold") return -1;
+      if (a.signal === "hold" && b.signal !== "hold") return 1;
+      return b.confidence - a.confidence;
+    });
+
+    // Generate market summary
+    const avgMarketChange = stocks.length > 0 ? totalMarketChange / stocks.length : 0;
+    let marketSummary = "";
+    
+    if (avgMarketChange > 1) {
+      marketSummary = `Market is bullish today with an average gain of ${avgMarketChange.toFixed(1)}%. ${bullishCount} stocks showing buy signals.`;
+    } else if (avgMarketChange < -1) {
+      marketSummary = `Market is bearish with an average decline of ${Math.abs(avgMarketChange).toFixed(1)}%. Consider defensive positions.`;
+    } else {
+      marketSummary = `Market is consolidating with mixed signals. ${bullishCount} bullish, ${bearishCount} bearish signals detected.`;
+    }
+
+    return {
+      marketSummary,
+      recommendations: recommendations.slice(0, 10), // Top 10 recommendations
+      generatedAt: Date.now(),
+      marketStats: {
+        avgChange: avgMarketChange,
+        bullishStocks: bullishCount,
+        bearishStocks: bearishCount,
+        totalAnalyzed: stocks.length,
+      },
+    };
+  },
+});

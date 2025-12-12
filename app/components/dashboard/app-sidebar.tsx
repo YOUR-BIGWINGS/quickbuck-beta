@@ -169,11 +169,14 @@ export function AppSidebar({
   const moderationAccess = useQuery(api.moderation.checkModerationAccess);
   // @ts-ignore - messages module exists but not yet in generated types
   const unreadCount = useQuery(api.messages?.getUnreadCount);
+  // Get current player to check VIP status
+  const currentPlayer = useQuery(api.moderation.getCurrentPlayer);
 
   const isAdmin = moderationAccess?.role === "admin";
   const isModerator = moderationAccess?.hasAccess;
   const role = moderationAccess?.role || "normal";
   const isModOrHigher = ["mod", "high_mod", "admin"].includes(role);
+  const isVIP = currentPlayer?.isVIP === true;
 
   // Build admin/moderation section
   let adminItems = [];
@@ -187,16 +190,34 @@ export function AppSidebar({
     });
   }
 
+  // Build VIP section
+  let vipItems = [];
+  if (isVIP) {
+    vipItems.push({
+      title: "VIP Lounge",
+      url: "/vip",
+      icon: Crown,
+    });
+  }
+
+  // Add sections dynamically
+  let groups = [...sidebarGroups];
+
+  // Add VIP section if user is VIP
+  if (vipItems.length > 0) {
+    groups.push({
+      title: "QuickBuck+",
+      items: vipItems,
+    });
+  }
+
   // Add admin section if there are items to show
-  const groups = adminItems.length > 0
-    ? [
-        ...sidebarGroups,
-        {
-          title: "Admin",
-          items: adminItems,
-        },
-      ]
-    : sidebarGroups;
+  if (adminItems.length > 0) {
+    groups.push({
+      title: "Admin",
+      items: adminItems,
+    });
+  }
 
   return (
     <Sidebar collapsible="offcanvas" variant={variant}>

@@ -36,6 +36,7 @@ export default [
     route("gamble", "routes/gamble.tsx"),
     route("upgrades", "routes/upgrades.tsx"),
     route("taxes", "routes/taxes.tsx"),
+    route("vip", "routes/vip.tsx"),
     route("accounts", "routes/dashboard/accounts.tsx"),
     route("transfers", "routes/dashboard/transfers.tsx"),
     route("transactions", "routes/dashboard/transactions.tsx"),
