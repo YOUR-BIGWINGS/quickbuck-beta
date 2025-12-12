@@ -1834,3 +1834,242 @@ export const getVIPStockAnalysis = query({
     };
   },
 });
+
+// ============================================================================
+// ADMIN STOCK MANIPULATION
+// ============================================================================
+
+/**
+ * Admin-only: Force a stock price change by a percentage
+ */
+export const adminForceStockPriceChange = mutation({
+  args: {
+    stockId: v.id("stocks"),
+    percentChange: v.number(), // positive for up, negative for down
+  },
+  handler: async (ctx, args) => {
+    // Check authentication
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    // Get user and player
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const player = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!player) {
+      throw new Error("Player not found");
+    }
+
+    // Check admin status
+    if (player.role !== "admin") {
+      throw new Error("Admin access required");
+    }
+
+    // Get the stock
+    const stock = await ctx.db.get(args.stockId);
+    if (!stock) {
+      throw new Error("Stock not found");
+    }
+
+    const currentPrice = stock.currentPrice ?? 10000;
+    const changeMultiplier = 1 + (args.percentChange / 100);
+    const newPrice = Math.max(1, Math.round(currentPrice * changeMultiplier)); // Minimum 1 cent
+
+    // Update the stock
+    await ctx.db.patch(args.stockId, {
+      currentPrice: newPrice,
+      lastPriceChange: args.percentChange / 100,
+      lastUpdated: Date.now(),
+    });
+
+    // Record in price history
+    await ctx.db.insert("stockPriceHistory", {
+      stockId: args.stockId,
+      timestamp: Date.now(),
+      open: currentPrice,
+      high: Math.max(currentPrice, newPrice),
+      low: Math.min(currentPrice, newPrice),
+      close: newPrice,
+      volume: 0,
+    });
+
+    return {
+      success: true,
+      oldPrice: currentPrice,
+      newPrice,
+      percentChange: args.percentChange,
+    };
+  },
+});
+
+/**
+ * Admin-only: Force a company stock to go private (delists stock and refunds shareholders)
+ */
+export const adminForceStockPrivate = mutation({
+  args: {
+    stockId: v.id("stocks"),
+  },
+  handler: async (ctx, args) => {
+    // Check authentication
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    // Get user and player
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const player = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!player) {
+      throw new Error("Player not found");
+    }
+
+    // Check admin status
+    if (player.role !== "admin") {
+      throw new Error("Admin access required");
+    }
+
+    // Get the stock
+    const stock = await ctx.db.get(args.stockId);
+    if (!stock) {
+      throw new Error("Stock not found");
+    }
+
+    const currentPrice = stock.currentPrice ?? 10000;
+
+    // Get all player portfolios holding this stock
+    const portfolios = await ctx.db
+      .query("playerStockPortfolios")
+      .withIndex("by_stockId", (q) => q.eq("stockId", args.stockId))
+      .collect();
+
+    let totalRefunded = 0;
+    let shareholdersRefunded = 0;
+
+    // Refund each shareholder at current market price
+    for (const portfolio of portfolios) {
+      const refundAmount = portfolio.shares * currentPrice;
+      
+      // Get the player and update their balance
+      const shareholderPlayer = await ctx.db.get(portfolio.playerId);
+      if (shareholderPlayer) {
+        await ctx.db.patch(portfolio.playerId, {
+          balance: (shareholderPlayer.balance ?? 0) + refundAmount,
+          updatedAt: Date.now(),
+        });
+        
+        totalRefunded += refundAmount;
+        shareholdersRefunded++;
+      }
+
+      // Delete the portfolio entry
+      await ctx.db.delete(portfolio._id);
+    }
+
+    // Delete the stock
+    await ctx.db.delete(args.stockId);
+
+    // Delete related price history
+    const priceHistory = await ctx.db
+      .query("stockPriceHistory")
+      .withIndex("by_stock_time", (q) => q.eq("stockId", args.stockId))
+      .collect();
+
+    for (const history of priceHistory) {
+      await ctx.db.delete(history._id);
+    }
+
+    return {
+      success: true,
+      stockSymbol: stock.symbol,
+      shareholdersRefunded,
+      totalRefunded,
+      pricePerShare: currentPrice,
+    };
+  },
+});
+
+/**
+ * Admin-only: Get all stocks for admin panel
+ */
+export const getAllStocksForAdmin = query({
+  handler: async (ctx) => {
+    // Check authentication
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    // Get user and player
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const player = await ctx.db
+      .query("players")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+
+    if (!player) {
+      throw new Error("Player not found");
+    }
+
+    // Check admin status
+    if (player.role !== "admin") {
+      throw new Error("Admin access required");
+    }
+
+    // Get all stocks
+    const stocks = await ctx.db.query("stocks").collect();
+
+    // Get shareholder counts for each stock
+    const stocksWithInfo = await Promise.all(
+      stocks.map(async (stock) => {
+        const portfolios = await ctx.db
+          .query("playerStockPortfolios")
+          .withIndex("by_stockId", (q) => q.eq("stockId", stock._id))
+          .collect();
+
+        const totalShares = portfolios.reduce((sum, p) => sum + p.shares, 0);
+        const shareholderCount = portfolios.length;
+
+        return {
+          ...stock,
+          totalSharesHeld: totalShares,
+          shareholderCount,
+        };
+      })
+    );
+
+    return stocksWithInfo;
+  },
+});

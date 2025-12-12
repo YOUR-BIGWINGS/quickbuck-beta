@@ -57,8 +57,13 @@ export default function Panel() {
   const adminRevokeVIP = useMutation(api.subscriptions.adminRevokeVIP);
   const allVIPUsers = useQuery(api.subscriptions.getAllVIPUsers);
 
+  // Stock admin mutations and queries (admin only)
+  const adminStocks = useQuery(api.stocks.getAllStocksForAdmin);
+  const adminForceStockPriceChange = useMutation(api.stocks.adminForceStockPriceChange);
+  const adminForceStockPrivate = useMutation(api.stocks.adminForceStockPrivate);
+
   const [activeTab, setActiveTab] = useState<
-    "players" | "companies" | "products" | "crypto" | "alerts" | "messages" | "vip"
+    "players" | "companies" | "products" | "crypto" | "alerts" | "messages" | "vip" | "stocks" | "roles"
   >("players");
   const [actionMessage, setActionMessage] = useState<string>("");
   const [showAlertModal, setShowAlertModal] = useState(false);
@@ -108,6 +113,19 @@ export default function Panel() {
   const [vipDurationMonths, setVipDurationMonths] = useState(1);
   const [messageText, setMessageText] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+
+  // Stock admin state
+  const [stockPriceChangeModal, setStockPriceChangeModal] = useState<{
+    stockId: Id<"stocks">;
+    stockSymbol: string;
+    currentPrice: number;
+  } | null>(null);
+  const [priceChangePercent, setPriceChangePercent] = useState("");
+  const [stockSearchQuery, setStockSearchQuery] = useState("");
+
+  // Role management state
+  const [roleSearchQuery, setRoleSearchQuery] = useState("");
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("all");
 
   // Lil mod action tracking state
   const [viewLilModActionsModal, setViewLilModActionsModal] = useState<{
@@ -242,10 +260,13 @@ export default function Panel() {
 
         <style>{`
           .retro-panel {
-            min-height: 100vh;
+            min-height: calc(100vh - var(--header-height, 48px));
+            height: 100%;
+            width: 100%;
             background: #c0c0c0;
             font-family: "MS Sans Serif", "Tahoma", sans-serif;
             padding: 20px;
+            box-sizing: border-box;
           }
 
           .retro-access-denied {
@@ -731,6 +752,22 @@ export default function Panel() {
             VIP Management
           </button>
         )}
+        {isAdmin && (
+          <button
+            className={`retro-tab ${activeTab === "stocks" ? "active" : ""}`}
+            onClick={() => setActiveTab("stocks")}
+          >
+            Stocks
+          </button>
+        )}
+        {isAdmin && (
+          <button
+            className={`retro-tab ${activeTab === "roles" ? "active" : ""}`}
+            onClick={() => setActiveTab("roles")}
+          >
+            Roles
+          </button>
+        )}
       </div>
 
       <div className="retro-content">
@@ -848,32 +885,6 @@ export default function Panel() {
                                 Ban
                               </button>
                               {hasHighModAccess && (
-                                <>
-                                  <button
-                                    onClick={() => handleAssignProbationaryMod(player._id)}
-                                    className="btn-small btn-success"
-                                    style={{ backgroundColor: "#4a7c59" }}
-                                  >
-                                    → Lil Mod
-                                  </button>
-                                  <button
-                                    onClick={() => handleAssignMod(player._id)}
-                                    className="btn-small btn-success"
-                                  >
-                                    → Mod
-                                  </button>
-                                </>
-                              )}
-                              {isAdmin && (
-                                <button
-                                  onClick={() => handleAssignHighMod(player._id)}
-                                  className="btn-small btn-success"
-                                  style={{ backgroundColor: "#006400" }}
-                                >
-                                  → High Mod
-                                </button>
-                              )}
-                              {hasHighModAccess && (
                                 <button
                                   onClick={() =>
                                     handleSetPlayerBalance(player._id)
@@ -983,50 +994,19 @@ export default function Panel() {
                                 📋 View Actions
                               </button>
                               {hasHighModAccess && (
-                                <>
-                                  <button
-                                    onClick={() => handleRemoveProbationaryMod(player._id)}
-                                    className="btn-small btn-warn"
-                                  >
-                                    Demote
-                                  </button>
-                                  <button
-                                    onClick={() => handleAssignMod(player._id)}
-                                    className="btn-small btn-success"
-                                  >
-                                    → Mod
-                                  </button>
-                                  <button
-                                    onClick={() =>
-                                      handleSetPlayerBalance(player._id)
-                                    }
-                                    className="btn-small btn-info"
-                                  >
-                                    Set $
-                                  </button>
-                                </>
+                                <button
+                                  onClick={() =>
+                                    handleSetPlayerBalance(player._id)
+                                  }
+                                  className="btn-small btn-info"
+                                >
+                                  Set $
+                                </button>
                               )}
                             </>
                           )}
                           {player.role === "mod" && (
                             <>
-                              {hasHighModAccess && (
-                                <button
-                                  onClick={() => handleRemoveMod(player._id)}
-                                  className="btn-small btn-warn"
-                                >
-                                  Demote
-                                </button>
-                              )}
-                              {isAdmin && (
-                                <button
-                                  onClick={() => handleAssignHighMod(player._id)}
-                                  className="btn-small btn-success"
-                                  style={{ backgroundColor: "#006400" }}
-                                >
-                                  → High Mod
-                                </button>
-                              )}
                               {hasHighModAccess && (
                                 <button
                                   onClick={() =>
@@ -1041,14 +1021,6 @@ export default function Panel() {
                           )}
                           {player.role === "high_mod" && (
                             <>
-                              {isAdmin && (
-                                <button
-                                  onClick={() => handleRemoveMod(player._id)}
-                                  className="btn-small btn-warn"
-                                >
-                                  Demote
-                                </button>
-                              )}
                               {hasHighModAccess && (
                                 <button
                                   onClick={() =>
@@ -1647,6 +1619,372 @@ export default function Panel() {
             </div>
           </div>
         )}
+
+        {/* Stocks Tab (Admin Only) */}
+        {activeTab === "stocks" && isAdmin && (
+          <div className="stocks-section">
+            <h2>Stock Market Administration</h2>
+            <p className="section-description">
+              Force price changes or delist stocks from the market. Use with caution.
+            </p>
+
+            {/* Search */}
+            <div className="stock-search-box">
+              <input
+                type="text"
+                placeholder="Search stocks by name or symbol..."
+                value={stockSearchQuery}
+                onChange={(e) => setStockSearchQuery(e.target.value)}
+                className="retro-input"
+              />
+            </div>
+
+            {adminStocks === undefined ? (
+              <div className="loading">Loading stocks...</div>
+            ) : !adminStocks || adminStocks.length === 0 ? (
+              <div className="no-data">No stocks found</div>
+            ) : (
+              <table className="retro-table">
+                <thead>
+                  <tr>
+                    <th>Symbol</th>
+                    <th>Name</th>
+                    <th>Price</th>
+                    <th>Sector</th>
+                    <th>Shareholders</th>
+                    <th>Shares Held</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adminStocks
+                    .filter((stock: any) => {
+                      if (!stockSearchQuery) return true;
+                      const query = stockSearchQuery.toLowerCase();
+                      return (
+                        (stock.symbol?.toLowerCase() || "").includes(query) ||
+                        (stock.name?.toLowerCase() || "").includes(query)
+                      );
+                    })
+                    .map((stock: any) => (
+                      <tr key={stock._id}>
+                        <td><strong>{stock.symbol || "—"}</strong></td>
+                        <td>{stock.name || "Unknown"}</td>
+                        <td>${((stock.currentPrice ?? 0) / 100).toFixed(2)}</td>
+                        <td>{stock.sector || "—"}</td>
+                        <td>{stock.shareholderCount || 0}</td>
+                        <td>{stock.totalSharesHeld || 0}</td>
+                        <td>
+                          <div className="action-buttons">
+                            <button
+                              className="btn-small btn-success"
+                              onClick={() => {
+                                setStockPriceChangeModal({
+                                  stockId: stock._id,
+                                  stockSymbol: stock.symbol || "Unknown",
+                                  currentPrice: stock.currentPrice ?? 0,
+                                });
+                                setPriceChangePercent("10");
+                              }}
+                            >
+                              ↑ Force Up
+                            </button>
+                            <button
+                              className="btn-small btn-warn"
+                              onClick={() => {
+                                setStockPriceChangeModal({
+                                  stockId: stock._id,
+                                  stockSymbol: stock.symbol || "Unknown",
+                                  currentPrice: stock.currentPrice ?? 0,
+                                });
+                                setPriceChangePercent("-10");
+                              }}
+                            >
+                              ↓ Force Down
+                            </button>
+                            <button
+                              className="btn-small btn-danger"
+                              onClick={async () => {
+                                if (!confirm(
+                                  `Are you sure you want to DELIST ${stock.symbol}?\n\n` +
+                                  `This will:\n` +
+                                  `• Remove the stock from the market\n` +
+                                  `• Refund ${stock.shareholderCount || 0} shareholders at $${((stock.currentPrice ?? 0) / 100).toFixed(2)}/share\n` +
+                                  `• Delete all price history\n\n` +
+                                  `THIS ACTION CANNOT BE UNDONE!`
+                                )) return;
+                                
+                                try {
+                                  const result = await adminForceStockPrivate({
+                                    stockId: stock._id,
+                                  });
+                                  showMessage(
+                                    `✓ ${stock.symbol} delisted! ` +
+                                    `${result.shareholdersRefunded} shareholders refunded $${(result.totalRefunded / 100).toFixed(2)} total`
+                                  );
+                                } catch (e: any) {
+                                  showMessage("✗ Error: " + e.message);
+                                }
+                              }}
+                            >
+                              🗑️ Delist
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {/* Roles Tab (Admin Only) */}
+        {activeTab === "roles" && isAdmin && (
+          <div className="roles-section">
+            <h2>Role Management</h2>
+            <p className="section-description">
+              Promote or demote players to different moderation roles.
+            </p>
+
+            {/* Filters */}
+            <div className="role-filters">
+              <input
+                type="text"
+                placeholder="Search players..."
+                value={roleSearchQuery}
+                onChange={(e) => setRoleSearchQuery(e.target.value)}
+                className="retro-input"
+              />
+              <select
+                value={selectedRoleFilter}
+                onChange={(e) => setSelectedRoleFilter(e.target.value)}
+                className="retro-select"
+              >
+                <option value="all">All Roles</option>
+                <option value="normal">Normal</option>
+                <option value="lil_mod">Lil Mod</option>
+                <option value="mod">Moderator</option>
+                <option value="high_mod">High Moderator</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+
+            {players === undefined ? (
+              <div className="loading">Loading players...</div>
+            ) : !players || players.length === 0 ? (
+              <div className="no-data">No players found</div>
+            ) : (
+              <table className="retro-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Current Role</th>
+                    <th>Promote / Demote</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {players
+                    .filter((player: any) => {
+                      // Filter by search
+                      if (roleSearchQuery) {
+                        const query = roleSearchQuery.toLowerCase();
+                        const nameMatch = (player.userName?.toLowerCase() || "").includes(query);
+                        const emailMatch = (player.userEmail?.toLowerCase() || "").includes(query);
+                        if (!nameMatch && !emailMatch) return false;
+                      }
+                      // Filter by role
+                      if (selectedRoleFilter !== "all") {
+                        const playerRole = player.role || "normal";
+                        if (playerRole !== selectedRoleFilter) return false;
+                      }
+                      return true;
+                    })
+                    .map((player: any) => {
+                      const currentRole = player.role || "normal";
+                      const isBannedOrLimited = currentRole === "banned" || currentRole === "limited";
+                      
+                      return (
+                        <tr key={player._id}>
+                          <td>{player.userName || "Unknown"}</td>
+                          <td>{player.userEmail || "—"}</td>
+                          <td>
+                            <span className={`role-tag role-${currentRole}`}>
+                              {currentRole === "lil_mod" ? "LIL MOD" : currentRole.toUpperCase()}
+                            </span>
+                          </td>
+                          <td>
+                            {isBannedOrLimited ? (
+                              <span className="role-blocked">
+                                Cannot promote {currentRole} players
+                              </span>
+                            ) : currentRole === "admin" ? (
+                              <span className="role-admin-note">Admin - No changes</span>
+                            ) : (
+                              <div className="role-buttons">
+                                {currentRole === "normal" && (
+                                  <>
+                                    <button
+                                      className="btn-small"
+                                      style={{ backgroundColor: "#4a7c59" }}
+                                      onClick={() => handleAssignProbationaryMod(player._id)}
+                                    >
+                                      → Lil Mod
+                                    </button>
+                                    <button
+                                      className="btn-small btn-success"
+                                      onClick={() => handleAssignMod(player._id)}
+                                    >
+                                      → Mod
+                                    </button>
+                                    <button
+                                      className="btn-small"
+                                      style={{ backgroundColor: "#006400" }}
+                                      onClick={() => handleAssignHighMod(player._id)}
+                                    >
+                                      → High Mod
+                                    </button>
+                                  </>
+                                )}
+                                {currentRole === "lil_mod" && (
+                                  <>
+                                    <button
+                                      className="btn-small btn-warn"
+                                      onClick={() => handleRemoveProbationaryMod(player._id)}
+                                    >
+                                      ← Normal
+                                    </button>
+                                    <button
+                                      className="btn-small btn-success"
+                                      onClick={() => handleAssignMod(player._id)}
+                                    >
+                                      → Mod
+                                    </button>
+                                    <button
+                                      className="btn-small"
+                                      style={{ backgroundColor: "#006400" }}
+                                      onClick={() => handleAssignHighMod(player._id)}
+                                    >
+                                      → High Mod
+                                    </button>
+                                  </>
+                                )}
+                                {currentRole === "mod" && (
+                                  <>
+                                    <button
+                                      className="btn-small btn-warn"
+                                      onClick={() => handleRemoveMod(player._id)}
+                                    >
+                                      ← Normal
+                                    </button>
+                                    <button
+                                      className="btn-small"
+                                      style={{ backgroundColor: "#006400" }}
+                                      onClick={() => handleAssignHighMod(player._id)}
+                                    >
+                                      → High Mod
+                                    </button>
+                                  </>
+                                )}
+                                {currentRole === "high_mod" && (
+                                  <button
+                                    className="btn-small btn-warn"
+                                    onClick={() => handleRemoveMod(player._id)}
+                                  >
+                                    ← Normal
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            )}
+
+            <div className="role-info-box">
+              <h3>ℹ️ Role Hierarchy</h3>
+              <ul>
+                <li><strong>Normal:</strong> Regular player with no moderation access</li>
+                <li><strong>Lil Mod:</strong> Probationary moderator with limited access (actions are logged)</li>
+                <li><strong>Moderator:</strong> Full moderator with standard moderation tools</li>
+                <li><strong>High Moderator:</strong> Senior moderator with advanced tools (balance editing, permanent deletes)</li>
+                <li><strong>Admin:</strong> Full system access</li>
+              </ul>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Stock Price Change Modal */}
+      <div className={`warning-modal-overlay ${stockPriceChangeModal ? "visible" : ""}`}>
+        <div className="warning-modal-box">
+          <h3>📈 Force Price Change</h3>
+          <p>
+            Stock: <strong>{stockPriceChangeModal?.stockSymbol}</strong>
+          </p>
+          <p>
+            Current Price: <strong>${((stockPriceChangeModal?.currentPrice ?? 0) / 100).toFixed(2)}</strong>
+          </p>
+          <label htmlFor="price-change-percent">Price Change (%):</label>
+          <input
+            id="price-change-percent"
+            type="number"
+            value={priceChangePercent}
+            onChange={(e) => setPriceChangePercent(e.target.value)}
+            placeholder="Enter percentage (e.g., 10 or -10)"
+            className="retro-input"
+            style={{ width: "100%", marginTop: "5px" }}
+          />
+          <p style={{ fontSize: "12px", color: "#666", marginTop: "5px" }}>
+            New Price: $
+            {(
+              ((stockPriceChangeModal?.currentPrice ?? 0) *
+                (1 + (parseFloat(priceChangePercent) || 0) / 100)) /
+              100
+            ).toFixed(2)}
+          </p>
+          <div className="warning-modal-buttons">
+            <button
+              className="btn-cancel"
+              onClick={() => {
+                setStockPriceChangeModal(null);
+                setPriceChangePercent("");
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              className="btn-submit"
+              onClick={async () => {
+                if (!stockPriceChangeModal) return;
+                const percent = parseFloat(priceChangePercent);
+                if (isNaN(percent)) {
+                  showMessage("✗ Please enter a valid percentage");
+                  return;
+                }
+                try {
+                  const result = await adminForceStockPriceChange({
+                    stockId: stockPriceChangeModal.stockId,
+                    percentChange: percent,
+                  });
+                  showMessage(
+                    `✓ ${stockPriceChangeModal.stockSymbol} price changed from $${(result.oldPrice / 100).toFixed(2)} to $${(result.newPrice / 100).toFixed(2)} (${percent > 0 ? "+" : ""}${percent}%)`
+                  );
+                  setStockPriceChangeModal(null);
+                  setPriceChangePercent("");
+                } catch (e: any) {
+                  showMessage("✗ Error: " + e.message);
+                }
+              }}
+            >
+              Apply Change
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Warning Modal */}
@@ -2146,11 +2484,15 @@ export default function Panel() {
         }
 
         .retro-panel {
-          min-height: 100vh;
+          min-height: calc(100vh - var(--header-height, 48px));
+          height: 100%;
+          width: 100%;
           background: var(--panel-bg);
           color: var(--panel-text);
           font-family: "MS Sans Serif", "Tahoma", sans-serif;
           padding: 20px;
+          box-sizing: border-box;
+          overflow-y: auto;
         }
 
         .retro-header {
@@ -2237,8 +2579,9 @@ export default function Panel() {
           background: var(--content-bg);
           border: 3px ridge var(--content-border);
           padding: 20px;
-          min-height: 500px;
+          min-height: calc(100vh - 280px);
           color: var(--content-text);
+          overflow-y: auto;
         }
 
         .retro-content h2 {
@@ -3112,6 +3455,92 @@ export default function Panel() {
         .already-vip {
           color: var(--text-secondary);
           font-style: italic;
+        }
+
+        /* Stocks Section Styles */
+        .stocks-section h2,
+        .roles-section h2 {
+          color: var(--header-bg);
+          border-bottom: 2px solid var(--header-bg);
+          padding-bottom: 5px;
+          margin-bottom: 15px;
+        }
+
+        .section-description {
+          margin-bottom: 20px;
+          padding: 10px;
+          background: var(--alert-info-bg);
+          border: 2px solid #0080ff;
+          color: var(--content-text);
+        }
+
+        .stock-search-box,
+        .role-filters {
+          margin-bottom: 20px;
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .retro-input,
+        .retro-select {
+          padding: 8px;
+          border: 2px solid var(--table-border);
+          background: var(--content-bg);
+          color: var(--content-text);
+          font-family: "Courier New", monospace;
+          min-width: 200px;
+        }
+
+        .retro-select {
+          cursor: pointer;
+        }
+
+        /* Role Management Styles */
+        .role-buttons {
+          display: flex;
+          gap: 5px;
+          flex-wrap: wrap;
+        }
+
+        .role-blocked {
+          color: var(--text-secondary);
+          font-style: italic;
+          font-size: 12px;
+        }
+
+        .role-admin-note {
+          color: var(--header-bg);
+          font-weight: bold;
+          font-size: 12px;
+        }
+
+        .role-info-box {
+          margin-top: 30px;
+          padding: 15px;
+          background: var(--alert-info-bg);
+          border: 2px solid #0080ff;
+        }
+
+        .role-info-box h3 {
+          color: var(--header-bg);
+          margin-bottom: 10px;
+        }
+
+        .role-info-box ul {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+        }
+
+        .role-info-box li {
+          padding: 5px 0;
+          border-bottom: 1px dotted var(--table-border);
+          color: var(--content-text);
+        }
+
+        .role-info-box li:last-child {
+          border-bottom: none;
         }
       `}</style>
     </div>
