@@ -77,7 +77,7 @@ export default function SubscriptionStatus() {
                     {userSubscription.cancelAtPeriodEnd ? "Ends" : "Renews"}
                   </span>
                   <span className="font-medium">
-                    {new Date(subscriptionStatus.currentPeriodEnd).toLocaleDateString()}
+                    {new Date(userSubscription.currentPeriodEnd).toLocaleDateString()}
                   </span>
                 </div>
               )}

@@ -128,25 +128,25 @@ export const getAllPlayersForModeration = query({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) return [];
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
 
-    if (!user) throw new Error("User not found");
+    if (!user) return [];
 
     const currentPlayer = await ctx.db
       .query("players")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .unique();
 
-    if (!currentPlayer) throw new Error("Player not found");
+    if (!currentPlayer) return [];
 
     const hasAccess = await hasPermission(ctx, currentPlayer._id, "mod");
     if (!hasAccess) {
-      throw new Error("Insufficient permissions");
+      return [];
     }
 
     let players: Doc<"players">[];
@@ -1408,25 +1408,25 @@ export const setCompanyBalance = mutation({
 export const getAllCompaniesForModeration = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) return [];
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
 
-    if (!user) throw new Error("User not found");
+    if (!user) return [];
 
     const currentPlayer = await ctx.db
       .query("players")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .unique();
 
-    if (!currentPlayer) throw new Error("Player not found");
+    if (!currentPlayer) return [];
 
     const hasAccess = await hasPermission(ctx, currentPlayer._id, "mod");
     if (!hasAccess) {
-      throw new Error("Insufficient permissions");
+      return [];
     }
 
     const companies = await ctx.db.query("companies").collect();
@@ -1462,25 +1462,25 @@ export const getPlayerCompanies = query({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) return [];
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
 
-    if (!user) throw new Error("User not found");
+    if (!user) return [];
 
     const currentPlayer = await ctx.db
       .query("players")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .unique();
 
-    if (!currentPlayer) throw new Error("Player not found");
+    if (!currentPlayer) return [];
 
     const hasAccess = await hasPermission(ctx, currentPlayer._id, "mod");
     if (!hasAccess) {
-      throw new Error("Insufficient permissions");
+      return [];
     }
 
     // Get all companies owned by this player
@@ -1500,25 +1500,25 @@ export const getPlayerProducts = query({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) return [];
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
 
-    if (!user) throw new Error("User not found");
+    if (!user) return [];
 
     const currentPlayer = await ctx.db
       .query("players")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .unique();
 
-    if (!currentPlayer) throw new Error("Player not found");
+    if (!currentPlayer) return [];
 
     const hasAccess = await hasPermission(ctx, currentPlayer._id, "mod");
     if (!hasAccess) {
-      throw new Error("Insufficient permissions");
+      return [];
     }
 
     // Get all companies owned by this player
@@ -1552,25 +1552,25 @@ export const getPlayerProducts = query({
 export const getAllProductsForModeration = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) return { products: [], total: 0 };
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
 
-    if (!user) throw new Error("User not found");
+    if (!user) return { products: [], total: 0 };
 
     const currentPlayer = await ctx.db
       .query("players")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .unique();
 
-    if (!currentPlayer) throw new Error("Player not found");
+    if (!currentPlayer) return { products: [], total: 0 };
 
     const hasAccess = await hasPermission(ctx, currentPlayer._id, "mod");
     if (!hasAccess) {
-      throw new Error("Insufficient permissions");
+      return { products: [], total: 0 };
     }
 
     // Fetch all products without pagination
@@ -1819,23 +1819,23 @@ export const getAllCryptosForModeration = query({
   handler: async (ctx) => {
     // Check mod access
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) return [];
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
-    if (!user) throw new Error("User not found");
+    if (!user) return [];
 
     const player = await ctx.db
       .query("players")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .unique();
-    if (!player) throw new Error("Player not found");
+    if (!player) return [];
 
     const role = player.role || "normal";
-    if (role !== "mod" && role !== "admin") {
-      throw new Error("Not authorized");
+    if (role !== "mod" && role !== "admin" && role !== "high_mod") {
+      return [];
     }
 
     // Get all cryptos

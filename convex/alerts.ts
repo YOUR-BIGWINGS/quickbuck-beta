@@ -116,7 +116,7 @@ export const getAllAlerts = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Not authenticated");
+      return [];
     }
 
     const user = await ctx.db
@@ -125,7 +125,7 @@ export const getAllAlerts = query({
       .unique();
 
     if (!user) {
-      throw new Error("User not found");
+      return [];
     }
 
     const currentPlayer = await ctx.db
@@ -134,13 +134,13 @@ export const getAllAlerts = query({
       .unique();
 
     if (!currentPlayer) {
-      throw new Error("Player not found");
+      return [];
     }
 
     // Check mod permission (allows both mods and admins)
     const hasModAccess = await hasPermission(ctx, currentPlayer._id, "mod");
     if (!hasModAccess) {
-      throw new Error("Only mods and admins can view all alerts");
+      return [];
     }
 
     // Get all alerts, ordered newest first

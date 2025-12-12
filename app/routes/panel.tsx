@@ -148,14 +148,15 @@ export default function Panel() {
   };
 
   const getFilteredProducts = () => {
-    if (!products?.products) return [];
+    const productList = products && 'products' in products ? products.products : [];
+    if (!productList || productList.length === 0) return [];
 
     if (!productSearchQuery.trim()) {
-      return products.products;
+      return productList;
     }
 
     const query = productSearchQuery.toLowerCase();
-    return products.products.filter(
+    return productList.filter(
       (p: any) =>
         (p.name ?? "").toLowerCase().includes(query) ||
         (p.companyName ?? "").toLowerCase().includes(query)
@@ -169,7 +170,7 @@ export default function Panel() {
     if (selectedProducts.size === filtered.length) {
       setSelectedProducts(new Set());
     } else {
-      const allIds = new Set(filtered.map((p: any) => p._id));
+      const allIds = new Set(filtered.map((p: any) => p._id)) as Set<Id<"products">>;
       setSelectedProducts(allIds);
     }
   };
@@ -1171,7 +1172,7 @@ export default function Panel() {
             </div>
             {products === undefined ? (
               <div className="loading">Loading products...</div>
-            ) : !products.products || products.products.length === 0 ? (
+            ) : !(products && 'products' in products && products.products) || products.products.length === 0 ? (
               <div className="no-data">No products found</div>
             ) : getFilteredProducts().length === 0 ? (
               <div className="no-data">No products match your search</div>

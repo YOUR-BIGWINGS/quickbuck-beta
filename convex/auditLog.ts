@@ -55,7 +55,7 @@ export const searchAuditLogs = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Unauthorized");
+      return [];
     }
 
     const user = await ctx.db
@@ -63,7 +63,7 @@ export const searchAuditLogs = query({
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
     if (!user) {
-      throw new Error("User not found");
+      return [];
     }
 
     const player = await ctx.db
@@ -71,13 +71,13 @@ export const searchAuditLogs = query({
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .unique();
     if (!player) {
-      throw new Error("Player not found");
+      return [];
     }
 
     // Check if user is a moderator or admin
     const role = player.role || "normal";
     if (!["mod", "high_mod", "admin"].includes(role)) {
-      throw new Error("Insufficient permissions - requires mod or higher");
+      return [];
     }
 
     let logs;
@@ -153,7 +153,7 @@ export const getRecentLogs = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Unauthorized");
+      return [];
     }
 
     const user = await ctx.db
@@ -161,7 +161,7 @@ export const getRecentLogs = query({
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
     if (!user) {
-      throw new Error("User not found");
+      return [];
     }
 
     const player = await ctx.db
@@ -169,13 +169,13 @@ export const getRecentLogs = query({
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .unique();
     if (!player) {
-      throw new Error("Player not found");
+      return [];
     }
 
     // Check if user is a moderator or admin
     const role = player.role || "normal";
     if (!["mod", "high_mod", "admin"].includes(role)) {
-      throw new Error("Insufficient permissions");
+      return [];
     }
 
     const limit = args.limit || 100;
@@ -197,7 +197,7 @@ export const getAuditStats = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Unauthorized");
+      return null;
     }
 
     const user = await ctx.db
@@ -205,7 +205,7 @@ export const getAuditStats = query({
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
     if (!user) {
-      throw new Error("User not found");
+      return null;
     }
 
     const player = await ctx.db
@@ -213,13 +213,13 @@ export const getAuditStats = query({
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .unique();
     if (!player) {
-      throw new Error("Player not found");
+      return null;
     }
 
     // Check if user is a moderator or admin
     const role = player.role || "normal";
     if (!["mod", "high_mod", "admin"].includes(role)) {
-      throw new Error("Insufficient permissions");
+      return null;
     }
 
     const days = args.days || 7;

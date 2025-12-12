@@ -125,7 +125,7 @@ export const getAllTickets = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Unauthorized");
+      return null;
     }
 
     const user = await ctx.db
@@ -133,7 +133,7 @@ export const getAllTickets = query({
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
     if (!user) {
-      throw new Error("User not found");
+      return null;
     }
 
     const player = await ctx.db
@@ -141,13 +141,13 @@ export const getAllTickets = query({
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .unique();
     if (!player) {
-      throw new Error("Player not found");
+      return null;
     }
 
     // Check if user is a moderator or admin
     const role = player.role || "normal";
     if (!["lil_mod", "mod", "high_mod", "admin"].includes(role)) {
-      throw new Error("Insufficient permissions");
+      return null;
     }
 
     let tickets = await ctx.db.query("tickets").order("desc").collect();
@@ -417,7 +417,7 @@ export const getTicketStats = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Unauthorized");
+      return null;
     }
 
     const user = await ctx.db
@@ -425,7 +425,7 @@ export const getTicketStats = query({
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.subject))
       .unique();
     if (!user) {
-      throw new Error("User not found");
+      return null;
     }
 
     const player = await ctx.db
@@ -433,13 +433,13 @@ export const getTicketStats = query({
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .unique();
     if (!player) {
-      throw new Error("Player not found");
+      return null;
     }
 
     // Check if user is a moderator or admin
     const role = player.role || "normal";
     if (!["lil_mod", "mod", "high_mod", "admin"].includes(role)) {
-      throw new Error("Insufficient permissions");
+      return null;
     }
 
     const allTickets = await ctx.db.query("tickets").collect();

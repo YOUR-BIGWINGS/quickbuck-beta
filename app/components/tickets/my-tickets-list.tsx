@@ -87,7 +87,7 @@ export function MyTicketsList() {
           </p>
         ) : (
           <div className="space-y-4">
-            {tickets.map((ticket) => (
+            {tickets.map((ticket: any) => (
               <div key={ticket._id} className="border rounded-lg p-4 space-y-3">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 space-y-1">
