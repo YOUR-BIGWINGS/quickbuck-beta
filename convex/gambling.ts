@@ -11,10 +11,10 @@ async function getGamblingLuckBonus(ctx: any, playerId: Id<"players">): Promise<
   const playerUpgrades = await ctx.db
     .query("upgrades")
     .withIndex("by_playerId", (q: any) => q.eq("playerId", playerId))
-    .filter((q) => q.eq(q.field("isActive"), true))
+    .filter((q: any) => q.eq(q.field("isActive"), true))
     .collect();
   
-  const hasGamblingLuck = playerUpgrades.some(u => u.upgradeType === "gambling_luck");
+  const hasGamblingLuck = playerUpgrades.some((u: any) => u.upgradeType === "gambling_luck");
   return hasGamblingLuck ? 0.05 : 0; // 5% boost if upgrade is active
 }
 
