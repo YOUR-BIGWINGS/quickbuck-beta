@@ -85,7 +85,7 @@ export function AuditLogViewer() {
     };
     return (
       <Badge className={colors[cat] || "bg-gray-500"}>
-        {cat.toUpperCase()}
+        {(cat || "unknown").toUpperCase()}
       </Badge>
     );
   };
@@ -95,18 +95,18 @@ export function AuditLogViewer() {
   };
 
   const handleExport = () => {
-    if (!logs) return;
+    if (!logs || logs.length === 0) return;
 
     const csv = [
       ["Timestamp", "Category", "Action Type", "Actor", "Target", "Description"].join(","),
       ...logs.map((log: any) =>
         [
-          formatDate(log.timestamp),
-          log.category,
-          log.actionType,
+          log.timestamp ? formatDate(log.timestamp) : "",
+          log.category ?? "",
+          log.actionType ?? "",
           log.actorName || "System",
           log.targetName || "-",
-          `"${log.description.replace(/"/g, '""')}"`,
+          `"${(log.description ?? "").replace(/"/g, '""')}"`,
         ].join(",")
       ),
     ].join("\n");
@@ -139,14 +139,14 @@ export function AuditLogViewer() {
         <Card>
           <CardHeader className="pb-3">
             <CardDescription>Total Actions (7d)</CardDescription>
-            <CardTitle className="text-3xl">{stats.totalActions}</CardTitle>
+            <CardTitle className="text-3xl">{stats?.totalActions ?? 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-3">
             <CardDescription>Moderation</CardDescription>
             <CardTitle className="text-3xl text-red-600">
-              {stats.categoryCounts?.moderation || 0}
+              {stats?.categoryCounts?.moderation ?? 0}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -154,7 +154,7 @@ export function AuditLogViewer() {
           <CardHeader className="pb-3">
             <CardDescription>Tickets</CardDescription>
             <CardTitle className="text-3xl text-blue-600">
-              {stats.categoryCounts?.ticket || 0}
+              {stats?.categoryCounts?.ticket ?? 0}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -162,7 +162,7 @@ export function AuditLogViewer() {
           <CardHeader className="pb-3">
             <CardDescription>Admin</CardDescription>
             <CardTitle className="text-3xl text-orange-600">
-              {stats.categoryCounts?.admin || 0}
+              {stats?.categoryCounts?.admin ?? 0}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -235,11 +235,11 @@ export function AuditLogViewer() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Audit Logs ({logs.length})</CardTitle>
+          <CardTitle>Audit Logs ({logs?.length ?? 0})</CardTitle>
           <CardDescription>Recent system actions and events</CardDescription>
         </CardHeader>
         <CardContent>
-          {logs.length === 0 ? (
+          {!logs || logs.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
               No logs found
             </p>
@@ -252,18 +252,18 @@ export function AuditLogViewer() {
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-center gap-2">
-                      {getCategoryIcon(log.category)}
-                      {getCategoryBadge(log.category)}
+                      {getCategoryIcon(log.category ?? "")}
+                      {getCategoryBadge(log.category ?? "")}
                       <span className="text-xs text-muted-foreground">
-                        {formatDate(log.timestamp)}
+                        {log.timestamp ? formatDate(log.timestamp) : "Unknown"}
                       </span>
                     </div>
                     <Badge variant="outline" className="text-xs">
-                      {log.actionType}
+                      {log.actionType ?? "Unknown"}
                     </Badge>
                   </div>
                   
-                  <p className="text-sm">{log.description}</p>
+                  <p className="text-sm">{log.description ?? ""}</p>
                   
                   {(log.actorName || log.targetName) && (
                     <div className="flex items-center gap-4 text-xs text-muted-foreground">
