@@ -18,9 +18,11 @@ import {
   CloudLightning,
   Settings2,
   Upload,
-  RotateCcw
+  RotateCcw,
+  MessageSquare,
+  Send
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router";
 import { api } from "../../convex/_generated/api";
 import { Button } from "~/components/ui/button";
@@ -40,6 +42,7 @@ import { Slider } from "~/components/ui/slider";
 import { useTheme } from "~/contexts/theme-context";
 import { vipThemes, type ThemePreset } from "~/lib/theme-config";
 import { cn } from "~/lib/utils";
+import { ScrollArea } from "~/components/ui/scroll-area";
 
 // Format price in dollars
 function formatPrice(cents: number | undefined): string {
@@ -72,6 +75,9 @@ export default function VIPPage() {
   const { preset, setPreset, applyCustomThemeSettings } = useTheme();
   const [showCustomEditor, setShowCustomEditor] = useState(false);
   const [customSettings, setCustomSettings] = useState(defaultCustomSettings);
+  const [message, setMessage] = useState("");
+  const [loungeError, setLoungeError] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // Get current player to check VIP status
   const currentPlayer = useQuery(api.moderation.getCurrentPlayer);
@@ -92,6 +98,12 @@ export default function VIPPage() {
   // Mutation to save custom theme settings
   const saveCustomSettings = useMutation(api.themes.saveUserCustomThemeSettings);
 
+  // VIP Lounge queries and mutations
+  // @ts-ignore - vipLounge API may not be generated yet
+  const loungeMessages = useQuery(api.vipLounge?.getVIPLoungeMessages, currentPlayer?.isVIP ? { limit: 100 } : "skip");
+  // @ts-ignore - vipLounge API may not be generated yet
+  const sendLoungeMessage = useMutation(api.vipLounge?.sendVIPMessage);
+
   // Load saved custom settings
   useEffect(() => {
     if (savedCustomSettings) {
@@ -107,6 +119,13 @@ export default function VIPPage() {
       });
     }
   }, [savedCustomSettings]);
+
+  // Auto-scroll to bottom when new lounge messages arrive
+  useEffect(() => {
+    if (scrollRef.current && activeTab === "lounge") {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [loungeMessages, activeTab]);
 
   // VIP themes - hardcoded animated themes
   const vipThemesList = vipThemes.map(theme => ({
@@ -170,6 +189,23 @@ export default function VIPPage() {
     }
   };
 
+  const handleSendLoungeMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!message.trim()) {
+      setLoungeError("Message cannot be empty");
+      return;
+    }
+
+    try {
+      setLoungeError(null);
+      await sendLoungeMessage({ content: message });
+      setMessage("");
+    } catch (err: any) {
+      setLoungeError(err.message || "Failed to send message");
+    }
+  };
+
   // Loading state
   if (currentPlayer === undefined) {
     return (
@@ -226,10 +262,14 @@ export default function VIPPage() {
 
       {/* Tabs for VIP Features */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:w-auto lg:inline-grid">
+        <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid">
           <TabsTrigger value="analysis" className="gap-2">
             <Bot className="h-4 w-4" />
             Stock Analysis
+          </TabsTrigger>
+          <TabsTrigger value="lounge" className="gap-2">
+            <MessageSquare className="h-4 w-4" />
+            VIP Lounge
           </TabsTrigger>
           <TabsTrigger value="themes" className="gap-2">
             <Palette className="h-4 w-4" />
@@ -337,6 +377,93 @@ export default function VIPPage() {
                   </p>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* VIP Lounge Chat Tab */}
+        <TabsContent value="lounge" className="space-y-6">
+          <Card className="h-[calc(100vh-300px)] flex flex-col">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-primary" />
+                VIP Lounge Chat
+              </CardTitle>
+              <CardDescription>
+                Connect with fellow QuickBuck+ members
+              </CardDescription>
+            </CardHeader>
+            
+            <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
+              <ScrollArea ref={scrollRef} className="flex-1 px-4">
+                <div className="space-y-4 py-4">
+                  {loungeMessages === undefined ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                        <p className="text-sm text-muted-foreground">Loading messages...</p>
+                      </div>
+                    </div>
+                  ) : loungeMessages.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground">
+                        No messages yet. Be the first to say hello!
+                      </p>
+                    </div>
+                  ) : (
+                    loungeMessages.map((msg: any) => (
+                      <div key={msg._id} className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-sm flex items-center gap-1">
+                            {msg.playerName}
+                            <Crown className="h-3 w-3 text-yellow-500" />
+                          </span>
+                          {msg.senderBadges && msg.senderBadges.length > 0 && (
+                            <div className="flex gap-1">
+                              {msg.senderBadges.map((badge: any) => (
+                                <span
+                                  key={badge._id}
+                                  className="text-xs"
+                                  title={badge.description}
+                                  dangerouslySetInnerHTML={{ __html: badge.icon }}
+                                />
+                              ))}
+                            </div>
+                          )}
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(msg.sentAt).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </div>
+                        <p className="text-sm pl-1">{msg.content}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+
+              <div className="border-t p-4">
+                <form onSubmit={handleSendLoungeMessage} className="flex gap-2">
+                  <Input
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    placeholder="Type your message..."
+                    maxLength={500}
+                    className="flex-1"
+                  />
+                  <Button type="submit" size="icon" disabled={!message.trim()}>
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </form>
+                {loungeError && (
+                  <p className="text-sm text-destructive mt-2">{loungeError}</p>
+                )}
+                <p className="text-xs text-muted-foreground mt-2">
+                  {message.length}/500 characters
+                </p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

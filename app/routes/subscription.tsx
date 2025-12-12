@@ -63,6 +63,7 @@ export default function SubscriptionPage() {
   // Define QuickBuck+ features
   const quickbuckPlusFeatures = [
     "Special gold VIP tag",
+    "VIP chat lounge with other members",
     "Access to exclusive premium themes",
     "Stock analysis bot with daily recommendations",
     "Investment insights and suggestions",

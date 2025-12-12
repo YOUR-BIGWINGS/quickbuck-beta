@@ -653,6 +653,14 @@ export default defineSchema({
     .index("by_badgeId", ["badgeId"])
     .index("by_player_badge", ["playerId", "badgeId"]),
 
+  // VIP Lounge Messages (chat for all VIP users)
+  vipLoungeMessages: defineTable({
+    playerId: v.id("players"),
+    playerName: v.string(),
+    content: v.string(),
+    sentAt: v.number(),
+  }).index("by_sentAt", ["sentAt"]),
+
   // Custom Themes (admin-created themes)
   customThemes: defineTable({
     id: v.string(), // unique theme id (e.g., "custom-purple-haze")
