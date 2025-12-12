@@ -6,6 +6,18 @@ import { applyRebirthBoost } from "./rebirths";
 // VIP casino luck bonus - 5% increased payouts
 const VIP_LUCK_BONUS = 0.05;
 
+// Helper to get total gambling luck bonus for a player
+async function getGamblingLuckBonus(ctx: any, playerId: Id<"players">): Promise<number> {
+  const playerUpgrades = await ctx.db
+    .query("upgrades")
+    .withIndex("by_playerId", (q: any) => q.eq("playerId", playerId))
+    .filter((q) => q.eq(q.field("isActive"), true))
+    .collect();
+  
+  const hasGamblingLuck = playerUpgrades.some(u => u.upgradeType === "gambling_luck");
+  return hasGamblingLuck ? 0.05 : 0; // 5% boost if upgrade is active
+}
+
 // ===============================
 // BLACKJACK STATE MANAGEMENT
 // ===============================
@@ -578,6 +590,12 @@ export const standBlackjack = mutation({
       payout = Math.floor(payout * (1 + VIP_LUCK_BONUS));
     }
 
+    // Apply gambling luck upgrade (+5% to payouts, but not for push)
+    const luckBonus = await getGamblingLuckBonus(ctx, player._id);
+    if (payout > 0 && result === "win" && gameState !== "push" && luckBonus > 0) {
+      payout = Math.floor(payout * (1 + luckBonus));
+    }
+
     // Award payout (with rebirth boost for R3+, but not for push)
     if (payout > 0 && result === "win" && gameState !== "push") {
       payout = await applyRebirthBoost(ctx, player._id, payout);
@@ -757,6 +775,12 @@ export const playDice = mutation({
       payout = Math.floor(payout * (1 + VIP_LUCK_BONUS));
     }
 
+    // Apply gambling luck upgrade (+5% to payouts)
+    const luckBonus = await getGamblingLuckBonus(ctx, player._id);
+    if (payout > 0 && luckBonus > 0) {
+      payout = Math.floor(payout * (1 + luckBonus));
+    }
+
     // Award payout (with rebirth boost for R3+)
     if (payout > 0) {
       const boostedPayout = await applyRebirthBoost(ctx, player._id, payout);
@@ -909,6 +933,12 @@ export const playRoulette = mutation({
     // Apply VIP luck bonus (+5% to payouts)
     if (payout > 0 && player.isVIP) {
       payout = Math.floor(payout * (1 + VIP_LUCK_BONUS));
+    }
+
+    // Apply gambling luck upgrade (+5% to payouts)
+    const luckBonus = await getGamblingLuckBonus(ctx, player._id);
+    if (payout > 0 && luckBonus > 0) {
+      payout = Math.floor(payout * (1 + luckBonus));
     }
 
     // Award payout (with rebirth boost for R3+)

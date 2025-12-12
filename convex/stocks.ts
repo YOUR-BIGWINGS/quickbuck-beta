@@ -891,9 +891,31 @@ export const sellStock = mutation({
     // Sync company market cap if stock is linked to a company
     await syncCompanyMarketCap(ctx, stock, newMarketCap);
     
+    // Calculate profit and apply stock returns boost upgrade
+    const soldInvestment = Math.round((portfolio.totalInvested * args.shares) / portfolio.shares);
+    let profit = totalProceeds - soldInvestment;
+    let boostedProfit = profit;
+    
+    if (profit > 0) {
+      // Check for stock returns boost upgrade
+      const playerUpgrades = await ctx.db
+        .query("upgrades")
+        .withIndex("by_playerId", (q: any) => q.eq("playerId", player._id))
+        .filter((q) => q.eq(q.field("isActive"), true))
+        .collect();
+      
+      const hasStockBoost = playerUpgrades.some(u => u.upgradeType === "stock_returns_boost");
+      if (hasStockBoost) {
+        boostedProfit = Math.floor(profit * 1.5); // 50% boost
+      }
+    }
+    
+    // Calculate final proceeds (investment + boosted profit or loss)
+    const finalProceeds = soldInvestment + boostedProfit;
+    
     // Add proceeds to balance
     await ctx.db.patch(player._id, {
-      balance: player.balance + totalProceeds,
+      balance: player.balance + finalProceeds,
       updatedAt: now,
     });
     
@@ -904,8 +926,7 @@ export const sellStock = mutation({
       // Delete portfolio entry if no shares left
       await ctx.db.delete(portfolio._id);
     } else {
-      // Update portfolio
-      const soldInvestment = Math.round((portfolio.totalInvested * args.shares) / portfolio.shares);
+      // Update portfolio (soldInvestment already calculated above)
       const newTotalInvested = portfolio.totalInvested - soldInvestment;
       
       await ctx.db.patch(portfolio._id, {
@@ -922,21 +943,22 @@ export const sellStock = mutation({
       type: "sell",
       shares: args.shares,
       pricePerShare: bidPrice,
-      totalValue: totalProceeds,
+      totalValue: finalProceeds, // Use final proceeds with boost
       priceImpact: impact,
       timestamp: now,
     });
     
     // Record in general transactions table
+    const profitText = boostedProfit !== profit ? ` (profit boosted by +50%)` : '';
     await ctx.db.insert("transactions", {
       fromAccountId: player._id,
       fromAccountType: "player",
       toAccountId: player._id, // self-reference for stock sales
       toAccountType: "player",
-      amount: totalProceeds,
+      amount: finalProceeds, // Use final proceeds with boost
       assetType: "stock",
       assetId: args.stockId,
-      description: `Sold ${args.shares} shares of ${stock.symbol} at $${(bidPrice / 100).toFixed(2)}`,
+      description: `Sold ${args.shares} shares of ${stock.symbol} at $${(bidPrice / 100).toFixed(2)}${profitText}`,
       createdAt: now,
     });
     
@@ -944,10 +966,10 @@ export const sellStock = mutation({
       success: true,
       shares: args.shares,
       pricePerShare: bidPrice,
-      totalProceeds,
+      totalProceeds: finalProceeds, // Return final proceeds with boost
       newPrice,
       priceImpact: impact,
-      newBalance: player.balance + totalProceeds,
+      newBalance: player.balance + finalProceeds, // Use final proceeds with boost
     };
   },
 });

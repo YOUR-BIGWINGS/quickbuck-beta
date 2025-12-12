@@ -129,7 +129,19 @@ export const orderProductBatch = mutation({
     // This prevents the exploit where price is increased after creation
     // Handle legacy products with productionCost field
     const productionCostPercentage = product.productionCostPercentage ?? 0.35; // Default to 35%
-    const productionCost = Math.floor(product.price * productionCostPercentage);
+    let productionCost = Math.floor(product.price * productionCostPercentage);
+
+    // Check for production cost reduction upgrade
+    const companyUpgrades = await ctx.db
+      .query("upgrades")
+      .withIndex("by_playerId", (q: any) => q.eq("playerId", company.ownerId))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+    
+    const hasCostReduction = companyUpgrades.some(u => u.upgradeType === "production_cost_reduction");
+    if (hasCostReduction) {
+      productionCost = Math.floor(productionCost * 0.8); // 20% reduction
+    }
 
     // Calculate total production cost for this batch
     const totalCost = productionCost * args.quantity;
@@ -378,9 +390,21 @@ export const bulkOrderProducts = mutation({
 
       // Calculate production cost and quantity
       const productionCostPercentage = product.productionCostPercentage ?? 0.35;
-      const productionCost = Math.floor(
+      let productionCost = Math.floor(
         product.price * productionCostPercentage
       );
+
+      // Check for production cost reduction upgrade
+      const companyUpgrades = await ctx.db
+        .query("upgrades")
+        .withIndex("by_playerId", (q: any) => q.eq("playerId", company.ownerId))
+        .filter((q) => q.eq(q.field("isActive"), true))
+        .collect();
+      
+      const hasCostReduction = companyUpgrades.some(u => u.upgradeType === "production_cost_reduction");
+      if (hasCostReduction) {
+        productionCost = Math.floor(productionCost * 0.8); // 20% reduction
+      }
 
       if (productionCost <= 0) {
         throw new Error(`Invalid production cost for product ${product.name}`);

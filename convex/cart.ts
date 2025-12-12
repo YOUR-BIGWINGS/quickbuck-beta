@@ -272,7 +272,19 @@ export const checkout = mutation({
     // Check if player has rebirth 5 discount
     const rebirthCount = player.rebirthCount || 0;
     const hasRebirthDiscount = rebirthCount >= 5;
-    const discountRate = hasRebirthDiscount ? 0.05 : 0; // 5% discount for rebirth 5+
+    let discountRate = hasRebirthDiscount ? 0.05 : 0; // 5% discount for rebirth 5+
+
+    // Check for marketplace discount upgrade
+    const playerUpgrades = await ctx.db
+      .query("upgrades")
+      .withIndex("by_playerId", (q: any) => q.eq("playerId", args.userId))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+    
+    const hasMarketplaceDiscount = playerUpgrades.some(u => u.upgradeType === "marketplace_discount");
+    if (hasMarketplaceDiscount) {
+      discountRate += 0.1; // Additional 10% discount
+    }
 
     // Verify stock and calculate total
     let total = 0;

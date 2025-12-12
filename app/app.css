@@ -470,7 +470,7 @@
     right: 0;
     bottom: 0;
     background: transparent;
-    animation: lightning 8s ease-in-out infinite;
+    animation: lightning 16s ease-in-out infinite;
     pointer-events: none;
     z-index: 1;
   }
@@ -553,71 +553,78 @@
   @keyframes lightning {
     0%, 100% {
       background: transparent;
-      filter: blur(0px);
+      filter: blur(45px);
+      opacity: 0;
     }
-    4% {
+    8% {
+      background: transparent;
+      filter: blur(45px);
+      opacity: 0;
+    }
+    10% {
       background: 
-        radial-gradient(ellipse at 15% 10%, rgba(255, 255, 255, 0.25) 0%, rgba(200, 220, 255, 0.15) 35%, transparent 60%),
-        radial-gradient(ellipse at 12% 15%, rgba(200, 220, 255, 0.18) 0%, transparent 50%);
-      filter: blur(30px);
+        radial-gradient(ellipse at 15% 10%, rgba(160, 180, 210, 0.12) 0%, rgba(140, 165, 200, 0.08) 40%, transparent 70%),
+        radial-gradient(ellipse at 12% 15%, rgba(150, 170, 205, 0.1) 0%, transparent 60%);
+      filter: blur(45px);
+      opacity: 1;
     }
-    5% {
+    13% {
       background: transparent;
-      filter: blur(0px);
+      filter: blur(45px);
+      opacity: 0;
     }
-    6% {
-      background: radial-gradient(ellipse at 18% 8%, rgba(255, 255, 255, 0.2) 0%, rgba(220, 230, 255, 0.12) 40%, transparent 65%);
-      filter: blur(35px);
-    }
-    7%, 24% {
+    32%, 33% {
       background: transparent;
-      filter: blur(0px);
+      filter: blur(45px);
+      opacity: 0;
     }
-    25% {
+    35% {
       background: 
-        radial-gradient(ellipse at 85% 25%, rgba(255, 255, 255, 0.28) 0%, rgba(180, 200, 255, 0.16) 38%, transparent 65%),
-        radial-gradient(ellipse at 80% 30%, rgba(180, 200, 255, 0.2) 0%, transparent 55%);
-      filter: blur(32px);
+        radial-gradient(ellipse at 85% 25%, rgba(170, 190, 220, 0.14) 0%, rgba(145, 170, 210, 0.09) 42%, transparent 72%),
+        radial-gradient(ellipse at 80% 30%, rgba(155, 180, 215, 0.11) 0%, transparent 65%);
+      filter: blur(45px);
+      opacity: 1;
     }
-    26% {
+    38% {
       background: transparent;
-      filter: blur(0px);
+      filter: blur(45px);
+      opacity: 0;
     }
-    27% {
-      background: radial-gradient(ellipse at 88% 20%, rgba(255, 255, 255, 0.22) 0%, rgba(200, 215, 255, 0.14) 42%, transparent 70%);
-      filter: blur(38px);
-    }
-    28%, 49% {
+    57%, 58% {
       background: transparent;
-      filter: blur(0px);
+      filter: blur(45px);
+      opacity: 0;
     }
-    50% {
+    60% {
       background: 
-        radial-gradient(ellipse at 45% 85%, rgba(255, 255, 255, 0.26) 0%, rgba(200, 220, 255, 0.17) 40%, transparent 68%),
-        radial-gradient(ellipse at 50% 80%, rgba(200, 220, 255, 0.22) 0%, transparent 58%);
-      filter: blur(33px);
+        radial-gradient(ellipse at 45% 85%, rgba(165, 185, 215, 0.13) 0%, rgba(140, 165, 205, 0.085) 44%, transparent 74%),
+        radial-gradient(ellipse at 50% 80%, rgba(150, 175, 210, 0.115) 0%, transparent 68%);
+      filter: blur(45px);
+      opacity: 1;
     }
-    51% {
+    63% {
       background: transparent;
-      filter: blur(0px);
+      filter: blur(45px);
+      opacity: 0;
     }
-    52% {
-      background: radial-gradient(ellipse at 42% 90%, rgba(255, 255, 255, 0.18) 0%, rgba(210, 225, 255, 0.12) 45%, transparent 72%);
-      filter: blur(40px);
-    }
-    53%, 74% {
+    82%, 83% {
       background: transparent;
-      filter: blur(0px);
+      filter: blur(45px);
+      opacity: 0;
     }
-    75% {
+    85% {
       background: 
-        radial-gradient(ellipse at 70% 50%, rgba(255, 255, 255, 0.3) 0%, rgba(180, 200, 255, 0.19) 36%, transparent 62%),
-        radial-gradient(ellipse at 65% 55%, rgba(180, 200, 255, 0.23) 0%, transparent 52%);
-      filter: blur(28px);
+        radial-gradient(ellipse at 70% 50%, rgba(175, 195, 225, 0.15) 0%, rgba(150, 175, 215, 0.095) 40%, transparent 70%),
+        radial-gradient(ellipse at 65% 55%, rgba(160, 185, 220, 0.125) 0%, transparent 62%);
+      filter: blur(45px);
+      opacity: 1;
     }
-    76% {
+    88% {
       background: transparent;
+      filter: blur(45px);
+      opacity: 0;
     }
+  }
     77% {
       background: radial-gradient(ellipse at 75% 45%, rgba(255, 255, 255, 0.5) 0%, transparent 30%);
     }

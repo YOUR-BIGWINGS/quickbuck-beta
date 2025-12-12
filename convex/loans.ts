@@ -63,7 +63,16 @@ export const createLoan = mutation({
       return recentLoans[0]._id;
     }
 
-    const interestRate = 5; // 5% daily interest
+    // Check for interest rate boost upgrade
+    const playerUpgrades = await ctx.db
+      .query("upgrades")
+      .withIndex("by_playerId", (q: any) => q.eq("playerId", args.playerId))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+    
+    const hasInterestBoost = playerUpgrades.some(u => u.upgradeType === "interest_boost");
+    const baseInterestRate = 5; // 5% daily interest
+    const interestRate = hasInterestBoost ? baseInterestRate + 1 : baseInterestRate; // +10% of base 5% = +0.5%, so 5.5% total
 
     // Create loan FIRST before crediting balance (atomic-like operation)
     // This ensures loan record exists before any balance modification

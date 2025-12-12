@@ -522,8 +522,17 @@ export const buyCrypto = mutation({
       throw new Error("Insufficient balance");
     }
 
+    // Check for crypto trading fee elimination upgrade
+    const playerUpgrades = await ctx.db
+      .query("upgrades")
+      .withIndex("by_playerId", (q: any) => q.eq("playerId", player._id))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+    
+    const hasZeroFees = playerUpgrades.some(u => u.upgradeType === "crypto_trading_fee");
+
     // Calculate creator profit (2% of transaction value)
-    const CREATOR_PROFIT_PERCENT = 0.02;
+    const CREATOR_PROFIT_PERCENT = hasZeroFees ? 0 : 0.02; // Zero fees if upgrade is active
     let creatorProfit = 0;
     
     // Give profit to creator if this crypto has a creator and buyer isn't the creator
@@ -724,8 +733,17 @@ export const sellCrypto = mutation({
       });
     }
 
+    // Check for crypto trading fee elimination upgrade
+    const playerUpgrades = await ctx.db
+      .query("upgrades")
+      .withIndex("by_playerId", (q: any) => q.eq("playerId", player._id))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+    
+    const hasZeroFees = playerUpgrades.some(u => u.upgradeType === "crypto_trading_fee");
+
     // Calculate creator profit (2% of transaction value)
-    const CREATOR_PROFIT_PERCENT = 0.02;
+    const CREATOR_PROFIT_PERCENT = hasZeroFees ? 0 : 0.02; // Zero fees if upgrade is active
     let creatorProfit = 0;
     
     // Give profit to creator if this crypto has a creator and seller isn't the creator
