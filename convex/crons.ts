@@ -35,12 +35,6 @@ crons.interval(
   internal.subscriptions.checkExpiredVIPSubscriptions
 );
 
-crons.interval(
-  "cleanup old audit logs",
-  { hours: 24 }, // Run once per day to clean up logs older than 3 days
-  internal.auditLog.cleanupOldLogs
-);
-
 console.log("[CRONS] ✅ Cron jobs registered successfully");
 
 export default crons;

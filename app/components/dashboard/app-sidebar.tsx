@@ -20,8 +20,6 @@ import {
   Users,
   DollarSign,
   Crown,
-  LifeBuoy,
-  FileText,
 } from "lucide-react";
 import { Link } from "react-router";
 import { NavMain } from "./nav-main";
@@ -179,34 +177,13 @@ export function AppSidebar({
 
   // Build admin/moderation section
   let adminItems = [];
-  
-  // Everyone can submit tickets
-  adminItems.push({
-    title: "Support Tickets",
-    url: "/tickets",
-    icon: LifeBuoy,
-  });
 
-  // Moderators can manage tickets
+  // Moderators can access panel
   if (isModerator) {
     adminItems.push({
       title: "Mod Panel",
       url: "/panel",
       icon: Shield,
-    });
-    adminItems.push({
-      title: "Manage Tickets",
-      url: "/mod-tickets",
-      icon: LifeBuoy,
-    });
-  }
-
-  // Mod or higher can view audit logs
-  if (isModOrHigher) {
-    adminItems.push({
-      title: "Audit Log",
-      url: "/audit-log",
-      icon: FileText,
     });
   }
 
@@ -215,7 +192,7 @@ export function AppSidebar({
     ? [
         ...sidebarGroups,
         {
-          title: isModerator ? "Admin" : "Support",
+          title: "Admin",
           items: adminItems,
         },
       ]

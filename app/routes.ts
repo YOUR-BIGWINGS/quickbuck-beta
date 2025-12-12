@@ -23,9 +23,6 @@ export default [
   layout("routes/dashboard/layout.tsx", [
     route("dashboard", "routes/dashboard/index.tsx"),
     route("panel", "routes/panel.tsx"),
-    route("tickets", "routes/tickets.tsx"),
-    route("mod-tickets", "routes/mod-tickets.tsx"),
-    route("audit-log", "routes/audit-log.tsx"),
     route("leaderboard", "routes/leaderboard.tsx"),
     route("messages", "routes/messages.tsx"),
     route("marketplace", "routes/marketplace.tsx"),
