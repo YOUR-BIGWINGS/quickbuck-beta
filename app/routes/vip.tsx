@@ -64,9 +64,10 @@ export default function VIPPage() {
   // Get premium themes (custom themes from admin)
   const customThemes = useQuery(api.themes.getCustomThemes);
 
-  // Combine built-in themes with custom themes for display
+  // VIP themes only include custom themes specifically coded for VIP users
+  // (does NOT include normal built-in themes like default/dark-default/quickbuck-pro)
   const allPremiumThemes = [
-    // Custom themes from database (VIP exclusive)
+    // Custom themes from database (VIP exclusive only)
     ...(customThemes || []).map((ct: any) => ({
       _id: ct._id,
       id: ct.id,
