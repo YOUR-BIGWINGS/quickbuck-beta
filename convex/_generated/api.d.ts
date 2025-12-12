@@ -45,6 +45,7 @@ import type * as tick from "../tick.js";
 import type * as transactions from "../transactions.js";
 import type * as upgrades from "../upgrades.js";
 import type * as users from "../users.js";
+import type * as vipLounge from "../vipLounge.js";
 
 import type {
   ApiFromModules,
@@ -98,6 +99,7 @@ declare const fullApi: ApiFromModules<{
   transactions: typeof transactions;
   upgrades: typeof upgrades;
   users: typeof users;
+  vipLounge: typeof vipLounge;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 
