@@ -1,9 +1,10 @@
 "use client";
 import { useAuth, useUser } from "@clerk/react-router";
 import { useAction, useQuery } from "convex/react";
-import { Check, Crown, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, Crown, Loader2, Sparkles } from "lucide-react";
 import * as React from "react";
 import { useState } from "react";
+import { Link } from "react-router";
 import { Button } from "~/components/ui/button";
 import {
   Card,
@@ -69,6 +70,14 @@ export default function SubscriptionPage() {
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-6xl">
+      <div className="mb-6">
+        <Button variant="ghost" asChild>
+          <Link to="/dashboard">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Dashboard
+          </Link>
+        </Button>
+      </div>
       <div className="text-center mb-12">
         <h1 className="text-4xl font-bold mb-4 flex items-center justify-center gap-2">
           <Crown className="h-8 w-8 text-yellow-500" />
@@ -221,7 +230,7 @@ export default function SubscriptionPage() {
             <CardContent>
               <p className="text-muted-foreground">
                 QuickBuck+ is billed monthly at 3 AUD. Your subscription automatically renews
-                each month until you cancel. All payments are processed securely through Stripe.
+                each month until you cancel. All payments are processed securely through Ko-fi.
               </p>
             </CardContent>
           </Card>
@@ -232,7 +241,7 @@ export default function SubscriptionPage() {
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground">
-                Yes! You can cancel your subscription at any time through the customer portal.
+                Yes! You can cancel your subscription at any time through your Ko-fi account.
                 You'll retain access to premium features until the end of your billing period.
               </p>
             </CardContent>
@@ -244,8 +253,8 @@ export default function SubscriptionPage() {
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground">
-                Absolutely. We use Stripe, a PCI Level 1 certified payment processor. We never
-                store your credit card information on our servers.
+                Absolutely. We use Ko-fi, a trusted payment platform with secure payment processing.
+                We never store your payment information on our servers.
               </p>
             </CardContent>
           </Card>
@@ -256,8 +265,8 @@ export default function SubscriptionPage() {
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground">
-                We accept all major credit and debit cards including Visa, Mastercard, American
-                Express, and more through Stripe.
+                Ko-fi accepts all major credit and debit cards including Visa, Mastercard, American
+                Express, and also supports PayPal for your convenience.
               </p>
             </CardContent>
           </Card>
