@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@clerk/react-router";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { 
   Crown, 
   TrendingUp, 
@@ -13,9 +13,14 @@ import {
   Minus,
   Sparkles,
   AlertTriangle,
-  Check
+  Check,
+  Zap,
+  CloudLightning,
+  Settings2,
+  Upload,
+  RotateCcw
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { api } from "../../convex/_generated/api";
 import { Button } from "~/components/ui/button";
@@ -29,8 +34,11 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Badge } from "~/components/ui/badge";
 import { Skeleton } from "~/components/ui/skeleton";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
+import { Slider } from "~/components/ui/slider";
 import { useTheme } from "~/contexts/theme-context";
-import { themes, applyThemeColors, type ThemePreset } from "~/lib/theme-config";
+import { vipThemes, type ThemePreset } from "~/lib/theme-config";
 import { cn } from "~/lib/utils";
 
 // Format price in dollars
@@ -46,10 +54,24 @@ function formatPercent(value: number | undefined): string {
   return `${sign}${value.toFixed(2)}%`;
 }
 
+// Default custom theme settings
+const defaultCustomSettings = {
+  backgroundUrl: "",
+  backgroundColor: "#0a0a0a",
+  cardBackground: "rgba(30, 30, 30, 0.8)",
+  cardOpacity: 80,
+  borderColor: "rgba(100, 100, 100, 0.5)",
+  textColor: "#ffffff",
+  accentColor: "#6366f1",
+  blurAmount: 12,
+};
+
 export default function VIPPage() {
   const { userId } = useAuth();
   const [activeTab, setActiveTab] = useState("analysis");
-  const { preset, setPreset } = useTheme();
+  const { preset, setPreset, applyCustomThemeSettings } = useTheme();
+  const [showCustomEditor, setShowCustomEditor] = useState(false);
+  const [customSettings, setCustomSettings] = useState(defaultCustomSettings);
 
   // Get current player to check VIP status
   const currentPlayer = useQuery(api.moderation.getCurrentPlayer);
@@ -61,26 +83,91 @@ export default function VIPPage() {
     currentPlayer?.isVIP ? {} : "skip"
   );
 
-  // Get premium themes (custom themes from admin)
-  const customThemes = useQuery(api.themes.getCustomThemes);
+  // Get saved custom theme settings
+  const savedCustomSettings = useQuery(
+    api.themes.getUserCustomThemeSettings,
+    currentPlayer?.isVIP ? {} : "skip"
+  );
+  
+  // Mutation to save custom theme settings
+  const saveCustomSettings = useMutation(api.themes.saveUserCustomThemeSettings);
 
-  // VIP themes only include custom themes specifically coded for VIP users
-  // (does NOT include normal built-in themes like default/dark-default/quickbuck-pro)
-  const allPremiumThemes = [
-    // Custom themes from database (VIP exclusive only)
-    ...(customThemes || []).map((ct: any) => ({
-      _id: ct._id,
-      id: ct.id,
-      name: ct.name,
-      mode: ct.mode,
-      primaryColor: ct.primaryColor,
-      secondaryColor: ct.secondaryColor,
-      isCustom: true,
-    })),
-  ];
+  // Load saved custom settings
+  useEffect(() => {
+    if (savedCustomSettings) {
+      setCustomSettings({
+        backgroundUrl: savedCustomSettings.backgroundUrl || "",
+        backgroundColor: savedCustomSettings.backgroundColor,
+        cardBackground: savedCustomSettings.cardBackground,
+        cardOpacity: savedCustomSettings.cardOpacity,
+        borderColor: savedCustomSettings.borderColor,
+        textColor: savedCustomSettings.textColor,
+        accentColor: savedCustomSettings.accentColor,
+        blurAmount: savedCustomSettings.blurAmount,
+      });
+    }
+  }, [savedCustomSettings]);
+
+  // VIP themes - hardcoded animated themes
+  const vipThemesList = vipThemes.map(theme => ({
+    id: theme.id,
+    name: theme.name,
+    mode: theme.mode,
+    primaryColor: theme.colors.primary,
+    secondaryColor: theme.colors.secondary,
+    description: theme.id === "crimson-pulse" 
+      ? "Pulsing crimson borders on glassy black"
+      : theme.id === "storm"
+      ? "Foggy atmosphere with lightning flashes"
+      : "Fully customizable theme",
+    icon: theme.id === "crimson-pulse" 
+      ? Zap 
+      : theme.id === "storm" 
+      ? CloudLightning 
+      : Settings2,
+    isAnimated: theme.id !== "full-custom",
+  }));
 
   const handleApplyTheme = (themeId: string) => {
     setPreset(themeId as ThemePreset);
+    if (themeId === "full-custom") {
+      setShowCustomEditor(true);
+      applyCustomThemeSettings(customSettings);
+    } else {
+      setShowCustomEditor(false);
+    }
+  };
+
+  const handleCustomSettingChange = (key: keyof typeof customSettings, value: string | number) => {
+    const newSettings = { ...customSettings, [key]: value };
+    setCustomSettings(newSettings);
+    if (preset === "full-custom") {
+      applyCustomThemeSettings(newSettings);
+    }
+  };
+
+  const handleSaveCustomSettings = async () => {
+    try {
+      await saveCustomSettings({
+        backgroundUrl: customSettings.backgroundUrl || undefined,
+        backgroundColor: customSettings.backgroundColor,
+        cardBackground: customSettings.cardBackground,
+        cardOpacity: customSettings.cardOpacity,
+        borderColor: customSettings.borderColor,
+        textColor: customSettings.textColor,
+        accentColor: customSettings.accentColor,
+        blurAmount: customSettings.blurAmount,
+      });
+    } catch (error) {
+      console.error("Failed to save custom settings:", error);
+    }
+  };
+
+  const handleResetCustomSettings = () => {
+    setCustomSettings(defaultCustomSettings);
+    if (preset === "full-custom") {
+      applyCustomThemeSettings(defaultCustomSettings);
+    }
   };
 
   // Loading state
@@ -260,36 +347,190 @@ export default function VIPPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Palette className="h-5 w-5 text-primary" />
-                Premium Themes
+                Premium Animated Themes
               </CardTitle>
               <CardDescription>
-                Exclusive themes only available to QuickBuck+ members
+                Exclusive animated themes only available to QuickBuck+ members
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              {customThemes === undefined ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {[1, 2, 3, 4, 5, 6].map((i) => (
-                    <Skeleton key={i} className="h-32 rounded-lg" />
-                  ))}
-                </div>
-              ) : allPremiumThemes.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Palette className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No premium themes available yet.</p>
-                  <p className="text-sm mt-1">Check back soon for exclusive themes!</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {allPremiumThemes.map((theme: any) => (
-                    <ThemeCard 
-                      key={theme._id || theme.id} 
-                      theme={theme} 
-                      isActive={preset === theme.id}
-                      onApply={() => handleApplyTheme(theme.id)}
-                    />
-                  ))}
-                </div>
+            <CardContent className="space-y-6">
+              {/* VIP Theme Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {vipThemesList.map((theme) => (
+                  <VIPThemeCard
+                    key={theme.id}
+                    theme={theme}
+                    isActive={preset === theme.id}
+                    onApply={() => handleApplyTheme(theme.id)}
+                  />
+                ))}
+              </div>
+
+              {/* Full Custom Theme Editor */}
+              {(showCustomEditor || preset === "full-custom") && (
+                <Card className="border-2 border-dashed border-primary/50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Settings2 className="h-5 w-5" />
+                      Customize Your Theme
+                    </CardTitle>
+                    <CardDescription>
+                      Adjust colors, transparency, and upload a custom background
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Background Settings */}
+                    <div className="space-y-4">
+                      <h4 className="font-medium text-sm">Background</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="bgUrl">Background Image URL</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              id="bgUrl"
+                              placeholder="https://example.com/image.jpg"
+                              value={customSettings.backgroundUrl}
+                              onChange={(e) => handleCustomSettingChange("backgroundUrl", e.target.value)}
+                            />
+                            <Button variant="outline" size="icon" title="Upload coming soon">
+                              <Upload className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="bgColor">Background Color</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              id="bgColor"
+                              type="color"
+                              className="w-12 h-10 p-1 cursor-pointer"
+                              value={customSettings.backgroundColor}
+                              onChange={(e) => handleCustomSettingChange("backgroundColor", e.target.value)}
+                            />
+                            <Input
+                              value={customSettings.backgroundColor}
+                              onChange={(e) => handleCustomSettingChange("backgroundColor", e.target.value)}
+                              className="flex-1"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card/Asset Settings */}
+                    <div className="space-y-4">
+                      <h4 className="font-medium text-sm">Cards & Assets</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Card Opacity: {customSettings.cardOpacity}%</Label>
+                          <Slider
+                            value={[customSettings.cardOpacity]}
+                            onValueChange={(values: number[]) => handleCustomSettingChange("cardOpacity", values[0])}
+                            min={20}
+                            max={100}
+                            step={5}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Blur Amount: {customSettings.blurAmount}px</Label>
+                          <Slider
+                            value={[customSettings.blurAmount]}
+                            onValueChange={(values: number[]) => handleCustomSettingChange("blurAmount", values[0])}
+                            min={0}
+                            max={30}
+                            step={2}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="borderColor">Border Color</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id="borderColor"
+                            type="color"
+                            className="w-12 h-10 p-1 cursor-pointer"
+                            value={customSettings.borderColor.startsWith("rgba") ? "#646464" : customSettings.borderColor}
+                            onChange={(e) => handleCustomSettingChange("borderColor", e.target.value)}
+                          />
+                          <Input
+                            value={customSettings.borderColor}
+                            onChange={(e) => handleCustomSettingChange("borderColor", e.target.value)}
+                            className="flex-1"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Color Settings */}
+                    <div className="space-y-4">
+                      <h4 className="font-medium text-sm">Colors</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="textColor">Text Color</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              id="textColor"
+                              type="color"
+                              className="w-12 h-10 p-1 cursor-pointer"
+                              value={customSettings.textColor}
+                              onChange={(e) => handleCustomSettingChange("textColor", e.target.value)}
+                            />
+                            <Input
+                              value={customSettings.textColor}
+                              onChange={(e) => handleCustomSettingChange("textColor", e.target.value)}
+                              className="flex-1"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="accentColor">Accent Color</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              id="accentColor"
+                              type="color"
+                              className="w-12 h-10 p-1 cursor-pointer"
+                              value={customSettings.accentColor}
+                              onChange={(e) => handleCustomSettingChange("accentColor", e.target.value)}
+                            />
+                            <Input
+                              value={customSettings.accentColor}
+                              onChange={(e) => handleCustomSettingChange("accentColor", e.target.value)}
+                              className="flex-1"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="cardBg">Card Background</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              id="cardBg"
+                              type="color"
+                              className="w-12 h-10 p-1 cursor-pointer"
+                              value={customSettings.cardBackground.startsWith("rgba") ? "#1e1e1e" : customSettings.cardBackground}
+                              onChange={(e) => handleCustomSettingChange("cardBackground", e.target.value)}
+                            />
+                            <Input
+                              value={customSettings.cardBackground}
+                              onChange={(e) => handleCustomSettingChange("cardBackground", e.target.value)}
+                              className="flex-1"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-3 pt-4">
+                      <Button onClick={handleSaveCustomSettings} className="flex-1">
+                        Save Settings
+                      </Button>
+                      <Button variant="outline" onClick={handleResetCustomSettings}>
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        Reset
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
               )}
             </CardContent>
           </Card>
@@ -299,13 +540,30 @@ export default function VIPPage() {
   );
 }
 
-// Theme Card Component
-function ThemeCard({ theme, isActive, onApply }: { theme: any; isActive: boolean; onApply: () => void }) {
+// VIP Theme Card Component
+function VIPThemeCard({ theme, isActive, onApply }: { 
+  theme: { 
+    id: string; 
+    name: string; 
+    mode: string; 
+    primaryColor: string; 
+    secondaryColor: string; 
+    description: string;
+    icon: any;
+    isAnimated: boolean;
+  }; 
+  isActive: boolean; 
+  onApply: () => void 
+}) {
+  const Icon = theme.icon;
+  
   return (
     <div 
       className={cn(
         "relative group border rounded-lg overflow-hidden transition-all cursor-pointer",
-        isActive ? "ring-2 ring-primary" : "hover:ring-2 hover:ring-primary/50"
+        isActive ? "ring-2 ring-primary" : "hover:ring-2 hover:ring-primary/50",
+        theme.id === "crimson-pulse" && "border-red-900/50",
+        theme.id === "storm" && "border-blue-500/30"
       )}
       onClick={onApply}
     >
@@ -318,36 +576,57 @@ function ThemeCard({ theme, isActive, onApply }: { theme: any; isActive: boolean
 
       {/* Theme Preview */}
       <div 
-        className="h-24 p-3"
-        style={{ 
-          background: theme.mode === "dark" ? "#0a0a0a" : "#ffffff",
-          borderBottom: `3px solid ${theme.primaryColor}`
-        }}
+        className={cn(
+          "h-28 p-4 flex flex-col justify-between relative overflow-hidden",
+          theme.id === "crimson-pulse" && "bg-gradient-to-br from-[#0a0a0a] via-[#1a0a0a] to-[#0a0a0a]",
+          theme.id === "storm" && "bg-[#0d1117]",
+          theme.id === "full-custom" && "bg-gradient-to-br from-gray-900 to-gray-800"
+        )}
       >
-        <div className="flex gap-2">
+        {/* Animated preview elements */}
+        {theme.id === "crimson-pulse" && (
+          <div className="absolute inset-0 border-2 border-red-900 animate-pulse" 
+               style={{ boxShadow: "inset 0 0 20px rgba(220, 20, 60, 0.3)" }} />
+        )}
+        {theme.id === "storm" && (
+          <>
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-900/20 to-transparent animate-pulse" />
+            <div className="absolute top-1/4 left-1/3 w-1 h-8 bg-white/20 rotate-12 animate-ping" 
+                 style={{ animationDuration: "3s" }} />
+          </>
+        )}
+        
+        <div className="flex items-center gap-2 relative z-10">
+          <Icon className={cn(
+            "h-5 w-5",
+            theme.id === "crimson-pulse" && "text-red-500",
+            theme.id === "storm" && "text-blue-400",
+            theme.id === "full-custom" && "text-indigo-400"
+          )} />
+          <span className="font-bold text-white">{theme.name}</span>
+        </div>
+        
+        <div className="flex gap-2 relative z-10">
           <div 
-            className="w-8 h-8 rounded"
+            className="w-6 h-6 rounded border border-white/20"
             style={{ backgroundColor: theme.primaryColor }}
           />
           <div 
-            className="w-8 h-8 rounded"
+            className="w-6 h-6 rounded border border-white/20"
             style={{ backgroundColor: theme.secondaryColor }}
           />
         </div>
-        <div 
-          className="mt-2 h-2 w-16 rounded"
-          style={{ backgroundColor: theme.mode === "dark" ? "#2a2a2a" : "#e5e5e5" }}
-        />
+
+        {theme.isAnimated && (
+          <Badge variant="secondary" className="absolute bottom-2 right-2 text-xs bg-white/10 text-white">
+            Animated
+          </Badge>
+        )}
       </div>
       
       {/* Theme Info */}
       <div className="p-3 bg-card">
-        <div className="flex items-center justify-between">
-          <span className="font-medium text-sm">{theme.name}</span>
-          <Badge variant="outline" className="text-xs">
-            {theme.mode}
-          </Badge>
-        </div>
+        <p className="text-xs text-muted-foreground">{theme.description}</p>
       </div>
 
       {/* Hover Overlay */}

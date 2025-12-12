@@ -153,6 +153,118 @@ const quickbuckProColors: ThemeColors = {
   sidebarRing: "#788bff",
 };
 
+// ========================================
+// VIP THEMES (animated/special themes)
+// ========================================
+
+// Crimson Pulse - Glassy black with pulsing maroon/crimson borders
+const crimsonPulseColors: ThemeColors = {
+  primary: "#dc143c", // Crimson
+  primaryForeground: "#ffffff",
+  background: "#0a0a0a",
+  foreground: "#e8e8e8",
+  card: "rgba(20, 5, 5, 0.85)",
+  cardForeground: "#e8e8e8",
+  popover: "rgba(20, 5, 5, 0.95)",
+  popoverForeground: "#e8e8e8",
+  secondary: "#2a1515",
+  secondaryForeground: "#e8e8e8",
+  muted: "#1a0a0a",
+  mutedForeground: "#a88888",
+  accent: "#8b0000",
+  accentForeground: "#ffffff",
+  destructive: "#ff4444",
+  destructiveForeground: "#ffffff",
+  border: "rgba(139, 0, 0, 0.6)",
+  input: "rgba(20, 5, 5, 0.6)",
+  ring: "#dc143c",
+  chart1: "#dc143c",
+  chart2: "#8b0000",
+  chart3: "#ff6b6b",
+  chart4: "#c41e3a",
+  chart5: "#ff1744",
+  sidebar: "rgba(10, 5, 5, 0.95)",
+  sidebarForeground: "#e8e8e8",
+  sidebarPrimary: "#dc143c",
+  sidebarPrimaryForeground: "#ffffff",
+  sidebarAccent: "#2a1515",
+  sidebarAccentForeground: "#e8e8e8",
+  sidebarBorder: "rgba(139, 0, 0, 0.6)",
+  sidebarRing: "#dc143c",
+};
+
+// Storm - Foggy background with lightning, glassy translucent assets
+const stormColors: ThemeColors = {
+  primary: "#64b5f6", // Light blue
+  primaryForeground: "#0d1117",
+  background: "#0d1117",
+  foreground: "#e6edf3",
+  card: "rgba(20, 30, 45, 0.65)",
+  cardForeground: "#e6edf3",
+  popover: "rgba(20, 30, 45, 0.9)",
+  popoverForeground: "#e6edf3",
+  secondary: "#1e3a50",
+  secondaryForeground: "#e6edf3",
+  muted: "#162030",
+  mutedForeground: "#8899aa",
+  accent: "#2196f3",
+  accentForeground: "#ffffff",
+  destructive: "#f44336",
+  destructiveForeground: "#ffffff",
+  border: "rgba(100, 150, 200, 0.3)",
+  input: "rgba(20, 35, 50, 0.7)",
+  ring: "#64b5f6",
+  chart1: "#64b5f6",
+  chart2: "#90caf9",
+  chart3: "#42a5f5",
+  chart4: "#1e88e5",
+  chart5: "#bbdefb",
+  sidebar: "rgba(15, 25, 35, 0.85)",
+  sidebarForeground: "#e6edf3",
+  sidebarPrimary: "#64b5f6",
+  sidebarPrimaryForeground: "#0d1117",
+  sidebarAccent: "#1e3a50",
+  sidebarAccentForeground: "#e6edf3",
+  sidebarBorder: "rgba(100, 150, 200, 0.3)",
+  sidebarRing: "#64b5f6",
+};
+
+// Full Custom - Base colors (will be overridden by user settings via CSS vars)
+const fullCustomColors: ThemeColors = {
+  primary: "#6366f1", // Indigo default
+  primaryForeground: "#ffffff",
+  background: "#0a0a0a",
+  foreground: "#ffffff",
+  card: "rgba(30, 30, 30, 0.8)",
+  cardForeground: "#ffffff",
+  popover: "rgba(30, 30, 30, 0.95)",
+  popoverForeground: "#ffffff",
+  secondary: "#2a2a2a",
+  secondaryForeground: "#ffffff",
+  muted: "#1a1a1a",
+  mutedForeground: "#888888",
+  accent: "#6366f1",
+  accentForeground: "#ffffff",
+  destructive: "#ef4444",
+  destructiveForeground: "#ffffff",
+  border: "rgba(100, 100, 100, 0.5)",
+  input: "rgba(30, 30, 30, 0.6)",
+  ring: "#6366f1",
+  chart1: "#6366f1",
+  chart2: "#8b5cf6",
+  chart3: "#a855f7",
+  chart4: "#d946ef",
+  chart5: "#ec4899",
+  sidebar: "rgba(20, 20, 20, 0.9)",
+  sidebarForeground: "#ffffff",
+  sidebarPrimary: "#6366f1",
+  sidebarPrimaryForeground: "#ffffff",
+  sidebarAccent: "#2a2a2a",
+  sidebarAccentForeground: "#ffffff",
+  sidebarBorder: "rgba(100, 100, 100, 0.5)",
+  sidebarRing: "#6366f1",
+};
+
 export const themes: Theme[] = [
   {
     id: "default",
@@ -174,10 +286,44 @@ export const themes: Theme[] = [
   },
 ];
 
+// VIP-only themes (animated, special effects)
+export const vipThemes: Theme[] = [
+  {
+    id: "crimson-pulse",
+    name: "Crimson Pulse",
+    mode: "dark",
+    colors: crimsonPulseColors,
+  },
+  {
+    id: "storm",
+    name: "Storm",
+    mode: "dark",
+    colors: stormColors,
+  },
+  {
+    id: "full-custom",
+    name: "Full Custom",
+    mode: "dark",
+    colors: fullCustomColors,
+  },
+];
+
+// VIP theme IDs for checking
+export const VIP_THEME_IDS = ["crimson-pulse", "storm", "full-custom"];
+
+// Check if a theme is VIP-only
+export const isVipTheme = (themeId: string): boolean => {
+  return VIP_THEME_IDS.includes(themeId);
+};
+
 export const getThemeById = (id: ThemePreset, customThemes?: Theme[]): Theme | undefined => {
   // First check built-in themes
   const builtInTheme = themes.find((theme) => theme.id === id);
   if (builtInTheme) return builtInTheme;
+  
+  // Check VIP themes
+  const vipTheme = vipThemes.find((theme) => theme.id === id);
+  if (vipTheme) return vipTheme;
   
   // Then check custom themes if provided
   if (customThemes) {

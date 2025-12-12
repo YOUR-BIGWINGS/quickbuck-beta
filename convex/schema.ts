@@ -667,6 +667,22 @@ export default defineSchema({
     .index("by_theme_id", ["id"])
     .index("by_mode", ["mode"]),
 
+  // VIP User Custom Theme Settings (for Full Custom theme)
+  userCustomThemeSettings: defineTable({
+    playerId: v.id("players"),
+    backgroundUrl: v.optional(v.string()), // URL to custom background image
+    backgroundColor: v.string(), // Fallback background color
+    cardBackground: v.string(), // Card/asset background color with alpha
+    cardOpacity: v.number(), // 0-100 transparency percentage
+    borderColor: v.string(), // Border color for cards/assets
+    textColor: v.string(), // Main text color
+    accentColor: v.string(), // Accent/primary color
+    blurAmount: v.number(), // Backdrop blur amount in pixels
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_playerId", ["playerId"]),
+
   // Player Tags (admin-created custom tags for players)
   playerTags: defineTable({
     playerId: v.id("players"),

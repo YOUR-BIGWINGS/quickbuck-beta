@@ -357,6 +357,259 @@
     user-select: none;
   }
   
+  /* ========================================
+     VIP THEME: CRIMSON PULSE
+     Glassy black background with pulsing maroon/crimson borders
+     ======================================== */
+  .theme-crimson-pulse {
+    --vip-bg: linear-gradient(135deg, #0a0a0a 0%, #1a0a0a 50%, #0a0a0a 100%);
+    --vip-glass: rgba(20, 5, 5, 0.85);
+    --vip-glass-border: rgba(139, 0, 0, 0.6);
+    --vip-pulse-color: #dc143c;
+    --vip-pulse-glow: 0 0 20px rgba(220, 20, 60, 0.4);
+  }
+  
+  .theme-crimson-pulse body,
+  body.theme-crimson-pulse {
+    background: var(--vip-bg) !important;
+    background-attachment: fixed !important;
+  }
+  
+  .theme-crimson-pulse [data-slot="card"],
+  .theme-crimson-pulse .card,
+  body.theme-crimson-pulse [data-slot="card"],
+  body.theme-crimson-pulse .card {
+    background: var(--vip-glass) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid var(--vip-glass-border) !important;
+    animation: crimsonPulse 2s ease-in-out infinite !important;
+  }
+  
+  .theme-crimson-pulse [data-slot="sidebar"],
+  body.theme-crimson-pulse [data-slot="sidebar"] {
+    background: rgba(10, 5, 5, 0.95) !important;
+    backdrop-filter: blur(16px) !important;
+    border-right: 1px solid var(--vip-glass-border) !important;
+    animation: crimsonPulse 2s ease-in-out infinite !important;
+  }
+  
+  .theme-crimson-pulse button,
+  .theme-crimson-pulse [role="button"],
+  body.theme-crimson-pulse button,
+  body.theme-crimson-pulse [role="button"] {
+    border-color: rgba(139, 0, 0, 0.5) !important;
+  }
+  
+  .theme-crimson-pulse input,
+  .theme-crimson-pulse select,
+  .theme-crimson-pulse textarea,
+  body.theme-crimson-pulse input,
+  body.theme-crimson-pulse select,
+  body.theme-crimson-pulse textarea {
+    background: rgba(20, 5, 5, 0.6) !important;
+    border: 1px solid var(--vip-glass-border) !important;
+  }
+  
+  @keyframes crimsonPulse {
+    0%, 100% {
+      border-color: rgba(139, 0, 0, 0.6);
+      box-shadow: 0 0 10px rgba(139, 0, 0, 0.2), inset 0 0 20px rgba(139, 0, 0, 0.05);
+    }
+    50% {
+      border-color: rgba(220, 20, 60, 0.9);
+      box-shadow: 0 0 25px rgba(220, 20, 60, 0.5), inset 0 0 30px rgba(220, 20, 60, 0.1);
+    }
+  }
+  
+  /* ========================================
+     VIP THEME: STORM
+     Foggy animated background with lightning pulses, glassy translucent assets
+     ======================================== */
+  .theme-storm {
+    --storm-bg: #0d1117;
+    --storm-fog: rgba(30, 40, 55, 0.4);
+    --storm-glass: rgba(20, 30, 45, 0.65);
+    --storm-glass-border: rgba(100, 150, 200, 0.3);
+    --storm-lightning: rgba(255, 255, 255, 0.9);
+  }
+  
+  .theme-storm body,
+  body.theme-storm {
+    background: var(--storm-bg) !important;
+    position: relative;
+    overflow-x: hidden;
+  }
+  
+  .theme-storm body::before,
+  body.theme-storm::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+      radial-gradient(ellipse at 20% 80%, rgba(60, 80, 100, 0.3) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(70, 90, 120, 0.25) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 50%, rgba(50, 70, 90, 0.2) 0%, transparent 70%);
+    animation: fogDrift 20s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 0;
+  }
+  
+  .theme-storm body::after,
+  body.theme-storm::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: transparent;
+    animation: lightning 8s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 1;
+  }
+  
+  .theme-storm [data-slot="sidebar-inset"],
+  body.theme-storm [data-slot="sidebar-inset"] {
+    position: relative;
+    z-index: 2;
+  }
+  
+  .theme-storm [data-slot="card"],
+  .theme-storm .card,
+  body.theme-storm [data-slot="card"],
+  body.theme-storm .card {
+    background: var(--storm-glass) !important;
+    backdrop-filter: blur(16px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+    border: 1px solid var(--storm-glass-border) !important;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3) !important;
+    position: relative;
+    z-index: 2;
+  }
+  
+  .theme-storm [data-slot="sidebar"],
+  body.theme-storm [data-slot="sidebar"] {
+    background: rgba(15, 25, 35, 0.85) !important;
+    backdrop-filter: blur(20px) !important;
+    border-right: 1px solid var(--storm-glass-border) !important;
+    position: relative;
+    z-index: 3;
+  }
+  
+  .theme-storm button,
+  .theme-storm [role="button"],
+  body.theme-storm button,
+  body.theme-storm [role="button"] {
+    background: rgba(30, 50, 70, 0.6) !important;
+    backdrop-filter: blur(8px) !important;
+    border-color: var(--storm-glass-border) !important;
+  }
+  
+  .theme-storm button:hover,
+  .theme-storm [role="button"]:hover,
+  body.theme-storm button:hover,
+  body.theme-storm [role="button"]:hover {
+    background: rgba(40, 60, 80, 0.7) !important;
+    box-shadow: 0 0 15px rgba(100, 150, 200, 0.3) !important;
+  }
+  
+  .theme-storm input,
+  .theme-storm select,
+  .theme-storm textarea,
+  body.theme-storm input,
+  body.theme-storm select,
+  body.theme-storm textarea {
+    background: rgba(20, 35, 50, 0.7) !important;
+    backdrop-filter: blur(8px) !important;
+    border: 1px solid var(--storm-glass-border) !important;
+  }
+  
+  @keyframes fogDrift {
+    0%, 100% {
+      transform: translateX(0) translateY(0);
+      opacity: 0.6;
+    }
+    25% {
+      transform: translateX(-30px) translateY(20px);
+      opacity: 0.8;
+    }
+    50% {
+      transform: translateX(20px) translateY(-15px);
+      opacity: 0.5;
+    }
+    75% {
+      transform: translateX(-15px) translateY(-25px);
+      opacity: 0.7;
+    }
+  }
+  
+  @keyframes lightning {
+    0%, 95%, 100% {
+      background: transparent;
+    }
+    96% {
+      background: radial-gradient(ellipse at 30% 20%, rgba(255, 255, 255, 0.15) 0%, transparent 40%);
+    }
+    97% {
+      background: transparent;
+    }
+    98% {
+      background: radial-gradient(ellipse at 70% 30%, rgba(200, 220, 255, 0.2) 0%, transparent 35%);
+    }
+    99% {
+      background: transparent;
+    }
+  }
+  
+  /* ========================================
+     VIP THEME: FULL CUSTOM
+     User-customizable background, colors, and transparency
+     ======================================== */
+  .theme-full-custom {
+    --custom-bg-color: var(--user-bg-color, #0a0a0a);
+    --custom-card-bg: var(--user-card-bg, rgba(30, 30, 30, 0.8));
+    --custom-card-opacity: var(--user-card-opacity, 0.8);
+    --custom-border-color: var(--user-border-color, rgba(100, 100, 100, 0.5));
+    --custom-text-color: var(--user-text-color, #ffffff);
+    --custom-accent-color: var(--user-accent-color, #6366f1);
+  }
+  
+  .theme-full-custom body,
+  body.theme-full-custom {
+    background-color: var(--custom-bg-color) !important;
+    background-image: var(--user-bg-image, none) !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-attachment: fixed !important;
+    color: var(--custom-text-color) !important;
+  }
+  
+  .theme-full-custom [data-slot="card"],
+  .theme-full-custom .card,
+  body.theme-full-custom [data-slot="card"],
+  body.theme-full-custom .card {
+    background: var(--custom-card-bg) !important;
+    backdrop-filter: blur(var(--user-blur, 12px)) !important;
+    -webkit-backdrop-filter: blur(var(--user-blur, 12px)) !important;
+    border: 1px solid var(--custom-border-color) !important;
+  }
+  
+  .theme-full-custom [data-slot="sidebar"],
+  body.theme-full-custom [data-slot="sidebar"] {
+    background: var(--custom-card-bg) !important;
+    backdrop-filter: blur(var(--user-blur, 16px)) !important;
+    border-right: 1px solid var(--custom-border-color) !important;
+  }
+  
+  .theme-full-custom button[data-variant="default"],
+  body.theme-full-custom button[data-variant="default"] {
+    background: var(--custom-accent-color) !important;
+  }
+
   /* Responsive page padding */
   @media (max-width: 640px) {
     [data-slot="sidebar-inset"] > div[class*="p-6"] {

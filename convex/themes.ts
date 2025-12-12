@@ -253,6 +253,107 @@ export const updateCustomTheme = mutation({
   },
 });
 
+// ========================================
+// VIP USER CUSTOM THEME SETTINGS
+// ========================================
+
+// Helper to get current VIP player
+async function getCurrentVIPPlayer(ctx: any): Promise<{ playerId: any; isVIP: boolean } | null> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) return null;
+
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_token", (q: any) => q.eq("tokenIdentifier", identity.subject))
+    .unique();
+
+  if (!user) return null;
+
+  const player = await ctx.db
+    .query("players")
+    .withIndex("by_userId", (q: any) => q.eq("userId", user._id))
+    .unique();
+
+  if (!player) return null;
+
+  return { playerId: player._id, isVIP: player.isVIP === true };
+}
+
+// Query: Get user's custom theme settings
+export const getUserCustomThemeSettings = query({
+  handler: async (ctx) => {
+    const playerInfo = await getCurrentVIPPlayer(ctx);
+    if (!playerInfo || !playerInfo.isVIP) {
+      return null;
+    }
+
+    const settings = await ctx.db
+      .query("userCustomThemeSettings")
+      .withIndex("by_playerId", (q) => q.eq("playerId", playerInfo.playerId))
+      .unique();
+
+    return settings;
+  },
+});
+
+// Mutation: Save user's custom theme settings
+export const saveUserCustomThemeSettings = mutation({
+  args: {
+    backgroundUrl: v.optional(v.string()),
+    backgroundColor: v.string(),
+    cardBackground: v.string(),
+    cardOpacity: v.number(),
+    borderColor: v.string(),
+    textColor: v.string(),
+    accentColor: v.string(),
+    blurAmount: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const playerInfo = await getCurrentVIPPlayer(ctx);
+    if (!playerInfo || !playerInfo.isVIP) {
+      throw new Error("VIP access required to save custom theme settings");
+    }
+
+    // Check if settings already exist
+    const existing = await ctx.db
+      .query("userCustomThemeSettings")
+      .withIndex("by_playerId", (q) => q.eq("playerId", playerInfo.playerId))
+      .unique();
+
+    if (existing) {
+      // Update existing
+      await ctx.db.patch(existing._id, {
+        backgroundUrl: args.backgroundUrl,
+        backgroundColor: args.backgroundColor,
+        cardBackground: args.cardBackground,
+        cardOpacity: args.cardOpacity,
+        borderColor: args.borderColor,
+        textColor: args.textColor,
+        accentColor: args.accentColor,
+        blurAmount: args.blurAmount,
+        updatedAt: Date.now(),
+      });
+    } else {
+      // Create new
+      await ctx.db.insert("userCustomThemeSettings", {
+        playerId: playerInfo.playerId,
+        backgroundUrl: args.backgroundUrl,
+        backgroundColor: args.backgroundColor,
+        cardBackground: args.cardBackground,
+        cardOpacity: args.cardOpacity,
+        borderColor: args.borderColor,
+        textColor: args.textColor,
+        accentColor: args.accentColor,
+        blurAmount: args.blurAmount,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    }
+
+    return { success: true };
+  },
+});
+
 // Mutation: Upsert a theme (create new or update existing by originalThemeId)
 // Used when editing built-in themes - creates a custom override
 export const upsertTheme = mutation({

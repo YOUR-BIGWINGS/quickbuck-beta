@@ -14,7 +14,19 @@ import {
   themes,
   getThemeById,
   applyThemeColors,
+  VIP_THEME_IDS,
 } from "~/lib/theme-config";
+
+interface CustomThemeSettings {
+  backgroundUrl?: string;
+  backgroundColor: string;
+  cardBackground: string;
+  cardOpacity: number;
+  borderColor: string;
+  textColor: string;
+  accentColor: string;
+  blurAmount: number;
+}
 
 interface ThemeContextValue {
   preset: ThemePreset;
@@ -22,9 +34,48 @@ interface ThemeContextValue {
   setPreset: (preset: ThemePreset, themeColors?: any, themeMode?: ThemeMode) => void;
   toggleMode: () => void;
   setMode: (mode: ThemeMode) => void;
+  applyCustomThemeSettings: (settings: CustomThemeSettings) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
+
+// Helper to apply VIP theme CSS class
+function applyVipThemeClass(themeId: string) {
+  const root = document.documentElement;
+  const body = document.body;
+  
+  // Remove all VIP theme classes
+  VIP_THEME_IDS.forEach(id => {
+    root.classList.remove(`theme-${id}`);
+    body.classList.remove(`theme-${id}`);
+  });
+  
+  // Add the new VIP theme class if it's a VIP theme
+  if (VIP_THEME_IDS.includes(themeId)) {
+    root.classList.add(`theme-${themeId}`);
+    body.classList.add(`theme-${themeId}`);
+  }
+}
+
+// Helper to apply custom theme CSS variables for Full Custom theme
+function applyCustomThemeCssVars(settings: CustomThemeSettings) {
+  const root = document.documentElement;
+  
+  // Set custom CSS variables
+  root.style.setProperty('--user-bg-color', settings.backgroundColor);
+  root.style.setProperty('--user-card-bg', settings.cardBackground);
+  root.style.setProperty('--user-card-opacity', String(settings.cardOpacity / 100));
+  root.style.setProperty('--user-border-color', settings.borderColor);
+  root.style.setProperty('--user-text-color', settings.textColor);
+  root.style.setProperty('--user-accent-color', settings.accentColor);
+  root.style.setProperty('--user-blur', `${settings.blurAmount}px`);
+  
+  if (settings.backgroundUrl) {
+    root.style.setProperty('--user-bg-image', `url(${settings.backgroundUrl})`);
+  } else {
+    root.style.setProperty('--user-bg-image', 'none');
+  }
+}
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [preset, setPresetState] = useState<ThemePreset>("default");
@@ -36,6 +87,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       const storedPreset = localStorage.getItem("themePreset") as ThemePreset;
       const storedColors = localStorage.getItem("themeColors");
       const storedMode = localStorage.getItem("theme") as ThemeMode;
+      const storedCustomSettings = localStorage.getItem("customThemeSettings");
       const initialPreset = storedPreset || "default";
 
       // Get the theme and use its defined mode (not user preference)
@@ -46,6 +98,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         setModeState(lockedMode);
         localStorage.setItem("theme", lockedMode);
         applyThemeColors(theme.colors, lockedMode);
+        applyVipThemeClass(initialPreset);
+        
+        // Apply custom settings for Full Custom theme
+        if (initialPreset === "full-custom" && storedCustomSettings) {
+          try {
+            const customSettings = JSON.parse(storedCustomSettings);
+            applyCustomThemeCssVars(customSettings);
+          } catch (e) {
+            console.error("Error parsing custom theme settings:", e);
+          }
+        }
       } else if (storedColors && storedMode) {
         // Custom theme - use stored colors and mode
         try {
@@ -53,6 +116,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
           setPresetState(initialPreset);
           setModeState(storedMode);
           applyThemeColors(colors, storedMode);
+          applyVipThemeClass(initialPreset);
         } catch (parseError) {
           console.error("Error parsing stored theme colors:", parseError);
           // Fallback to default theme
@@ -62,6 +126,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
           setModeState(lockedMode);
           localStorage.setItem("theme", lockedMode);
           applyThemeColors(defaultTheme.colors, lockedMode);
+          applyVipThemeClass(defaultTheme.id);
         }
       } else {
         // Fallback to default theme
@@ -71,6 +136,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         setModeState(lockedMode);
         localStorage.setItem("theme", lockedMode);
         applyThemeColors(defaultTheme.colors, lockedMode);
+        applyVipThemeClass(defaultTheme.id);
       }
     } catch (error) {
       console.error("Error loading theme:", error);
@@ -89,6 +155,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         // Store colors for custom themes so they persist on page reload
         localStorage.setItem("themeColors", JSON.stringify(themeColors));
         applyThemeColors(themeColors, themeMode);
+        applyVipThemeClass(newPreset);
       } else {
         // Otherwise look up the theme
         const theme = getThemeById(newPreset);
@@ -100,10 +167,20 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
           // Clear stored colors for built-in themes (not needed)
           localStorage.removeItem("themeColors");
           applyThemeColors(theme.colors, lockedMode);
+          applyVipThemeClass(newPreset);
         }
       }
     } catch (error) {
       console.error("Error setting theme preset:", error);
+    }
+  }, []);
+
+  const applyCustomThemeSettings = useCallback((settings: CustomThemeSettings) => {
+    try {
+      localStorage.setItem("customThemeSettings", JSON.stringify(settings));
+      applyCustomThemeCssVars(settings);
+    } catch (error) {
+      console.error("Error applying custom theme settings:", error);
     }
   }, []);
 
@@ -122,7 +199,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ preset, mode, setPreset, toggleMode, setMode }}>
+    <ThemeContext.Provider value={{ preset, mode, setPreset, toggleMode, setMode, applyCustomThemeSettings }}>
       {children}
     </ThemeContext.Provider>
   );
