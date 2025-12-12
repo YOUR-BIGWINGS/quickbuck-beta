@@ -722,7 +722,10 @@ export default function LeaderboardPage() {
                       filteredPlayers.map((player, index) => (
                         <TableRow
                           key={player._id}
-                          className="transition-colors hover:bg-muted/50"
+                          className={cn(
+                            "transition-colors hover:bg-muted/50",
+                            player.isVIP && "bg-yellow-500/10 hover:bg-yellow-500/20 border-l-2 border-yellow-500"
+                          )}
                         >
                           <TableCell className="font-medium">
                             {index + 1}

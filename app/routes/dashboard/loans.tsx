@@ -58,7 +58,9 @@ export default function LoansPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const MAX_LOAN_AMOUNT = 500000000; // $5,000,000 in cents
+  // VIP users get $10M max, regular users get $5M
+  const MAX_LOAN_AMOUNT = player?.isVIP ? 1000000000 : 500000000;
+  const MAX_LOAN_DISPLAY = player?.isVIP ? "$10,000,000" : "$5,000,000";
   const INTEREST_RATE = 5; // 5% per day
 
   // Calculate projected cost
@@ -95,7 +97,7 @@ export default function LoansPage() {
 
     const amountCents = Math.round(amountDollars * 100);
     if (amountCents > MAX_LOAN_AMOUNT) {
-      setError("Maximum loan amount is $5,000,000");
+      setError(`Maximum loan amount is ${MAX_LOAN_DISPLAY}`);
       return;
     }
 
@@ -217,14 +219,14 @@ export default function LoansPage() {
               <form onSubmit={handleBorrow} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="loan-amount">
-                    Loan Amount (max $5,000,000)
+                    Loan Amount (max {MAX_LOAN_DISPLAY})
                   </Label>
                   <Input
                     id="loan-amount"
                     type="number"
                     step="0.01"
                     min="0.01"
-                    max="5000000"
+                    max={MAX_LOAN_AMOUNT / 100}
                     placeholder="0.00"
                     value={loanAmount}
                     onChange={(e) => setLoanAmount(e.target.value)}

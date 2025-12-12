@@ -3,6 +3,9 @@ import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { applyRebirthBoost } from "./rebirths";
 
+// VIP casino luck bonus - 5% increased payouts
+const VIP_LUCK_BONUS = 0.05;
+
 // ===============================
 // BLACKJACK STATE MANAGEMENT
 // ===============================
@@ -219,6 +222,11 @@ export const playSlots = mutation({
       payout = Math.floor(args.betAmount * multiplier);
     }
 
+    // Apply VIP luck bonus (+5% to payouts)
+    if (payout > 0 && player.isVIP) {
+      payout = Math.floor(payout * (1 + VIP_LUCK_BONUS));
+    }
+
     // Award payout (with rebirth boost for R3+)
     if (payout > 0) {
       const boostedPayout = await applyRebirthBoost(ctx, player._id, payout);
@@ -341,6 +349,10 @@ export const startBlackjack = mutation({
     if (playerValue === 21) {
       gameState = "blackjack";
       payout = Math.floor(args.betAmount * 2.5); // 2.5x for blackjack
+      // Apply VIP luck bonus (+5% to payouts)
+      if (player.isVIP) {
+        payout = Math.floor(payout * (1 + VIP_LUCK_BONUS));
+      }
       payout = await applyRebirthBoost(ctx, player._id, payout); // Apply rebirth boost
       
       const updatedPlayer = await ctx.db.get(player._id);
@@ -561,6 +573,11 @@ export const standBlackjack = mutation({
       result = "win";
     }
 
+    // Apply VIP luck bonus (+5% to payouts, but not for push)
+    if (payout > 0 && result === "win" && gameState !== "push" && player.isVIP) {
+      payout = Math.floor(payout * (1 + VIP_LUCK_BONUS));
+    }
+
     // Award payout (with rebirth boost for R3+, but not for push)
     if (payout > 0 && result === "win" && gameState !== "push") {
       payout = await applyRebirthBoost(ctx, player._id, payout);
@@ -735,6 +752,11 @@ export const playDice = mutation({
       payout = Math.floor(args.betAmount * multiplier);
     }
 
+    // Apply VIP luck bonus (+5% to payouts)
+    if (payout > 0 && player.isVIP) {
+      payout = Math.floor(payout * (1 + VIP_LUCK_BONUS));
+    }
+
     // Award payout (with rebirth boost for R3+)
     if (payout > 0) {
       const boostedPayout = await applyRebirthBoost(ctx, player._id, payout);
@@ -882,6 +904,11 @@ export const playRoulette = mutation({
       result = "win";
       multiplier = 3;
       payout = args.betAmount * multiplier;
+    }
+
+    // Apply VIP luck bonus (+5% to payouts)
+    if (payout > 0 && player.isVIP) {
+      payout = Math.floor(payout * (1 + VIP_LUCK_BONUS));
     }
 
     // Award payout (with rebirth boost for R3+)

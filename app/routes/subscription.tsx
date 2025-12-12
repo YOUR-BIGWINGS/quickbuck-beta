@@ -65,7 +65,11 @@ export default function SubscriptionPage() {
     "Special gold VIP tag",
     "Access to exclusive premium themes",
     "Stock analysis bot with daily recommendations",
-    "Investment insights and suggestions"
+    "Investment insights and suggestions",
+    "+10% tax evasion success chance",
+    "Gold leaderboard highlight",
+    "$10M max loan limit (vs $5M)",
+    "+5% casino luck bonus"
   ];
 
   return (
@@ -214,6 +218,100 @@ export default function SubscriptionPage() {
               </Button>
             )}
           </CardFooter>
+        </Card>
+      </div>
+
+      {/* Feature Comparison Section */}
+      <div className="mt-16 max-w-4xl mx-auto">
+        <h2 className="text-2xl font-bold mb-6 text-center">
+          Feature Comparison
+        </h2>
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-4 font-medium">Feature</th>
+                    <th className="text-center p-4 font-medium">Free</th>
+                    <th className="text-center p-4 font-medium bg-primary/5">
+                      <span className="flex items-center justify-center gap-1">
+                        <Crown className="h-4 w-4 text-yellow-500" />
+                        QuickBuck+
+                      </span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b">
+                    <td className="p-4">Stock Trading</td>
+                    <td className="text-center p-4"><Check className="h-5 w-5 text-green-500 mx-auto" /></td>
+                    <td className="text-center p-4 bg-primary/5"><Check className="h-5 w-5 text-green-500 mx-auto" /></td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="p-4">Company Management</td>
+                    <td className="text-center p-4"><Check className="h-5 w-5 text-green-500 mx-auto" /></td>
+                    <td className="text-center p-4 bg-primary/5"><Check className="h-5 w-5 text-green-500 mx-auto" /></td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="p-4">Marketplace Access</td>
+                    <td className="text-center p-4"><Check className="h-5 w-5 text-green-500 mx-auto" /></td>
+                    <td className="text-center p-4 bg-primary/5"><Check className="h-5 w-5 text-green-500 mx-auto" /></td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="p-4">Gambling Features</td>
+                    <td className="text-center p-4"><Check className="h-5 w-5 text-green-500 mx-auto" /></td>
+                    <td className="text-center p-4 bg-primary/5"><Check className="h-5 w-5 text-green-500 mx-auto" /></td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="p-4">Loans & Banking</td>
+                    <td className="text-center p-4"><Check className="h-5 w-5 text-green-500 mx-auto" /></td>
+                    <td className="text-center p-4 bg-primary/5"><Check className="h-5 w-5 text-green-500 mx-auto" /></td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="p-4 font-medium text-yellow-600">Gold VIP Tag</td>
+                    <td className="text-center p-4"><span className="text-muted-foreground">—</span></td>
+                    <td className="text-center p-4 bg-primary/5"><Check className="h-5 w-5 text-primary mx-auto" /></td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="p-4 font-medium text-yellow-600">Premium Themes</td>
+                    <td className="text-center p-4"><span className="text-muted-foreground">—</span></td>
+                    <td className="text-center p-4 bg-primary/5"><Check className="h-5 w-5 text-primary mx-auto" /></td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="p-4 font-medium text-yellow-600">Stock Analysis Bot</td>
+                    <td className="text-center p-4"><span className="text-muted-foreground">—</span></td>
+                    <td className="text-center p-4 bg-primary/5"><Check className="h-5 w-5 text-primary mx-auto" /></td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="p-4 font-medium text-yellow-600">Investment Insights</td>
+                    <td className="text-center p-4"><span className="text-muted-foreground">—</span></td>
+                    <td className="text-center p-4 bg-primary/5"><Check className="h-5 w-5 text-primary mx-auto" /></td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="p-4 font-medium text-yellow-600">Tax Evasion Bonus</td>
+                    <td className="text-center p-4"><span className="text-muted-foreground">60%</span></td>
+                    <td className="text-center p-4 bg-primary/5"><span className="font-medium text-primary">70%</span></td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="p-4 font-medium text-yellow-600">Leaderboard Highlight</td>
+                    <td className="text-center p-4"><span className="text-muted-foreground">—</span></td>
+                    <td className="text-center p-4 bg-primary/5"><span className="font-medium text-yellow-500">Gold</span></td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="p-4 font-medium text-yellow-600">Max Loan Amount</td>
+                    <td className="text-center p-4"><span className="text-muted-foreground">$5M</span></td>
+                    <td className="text-center p-4 bg-primary/5"><span className="font-medium text-primary">$10M</span></td>
+                  </tr>
+                  <tr>
+                    <td className="p-4 font-medium text-yellow-600">Casino Luck Bonus</td>
+                    <td className="text-center p-4"><span className="text-muted-foreground">—</span></td>
+                    <td className="text-center p-4 bg-primary/5"><span className="font-medium text-primary">+5%</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
         </Card>
       </div>
 

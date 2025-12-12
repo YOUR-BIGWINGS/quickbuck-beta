@@ -2497,7 +2497,8 @@ export default function Panel() {
           padding: 20px;
           box-sizing: border-box;
           overflow-y: auto;
-          z-index: 9999;
+          z-index: 99999;
+          isolation: isolate;
         }
 
         .retro-header {
@@ -2748,7 +2749,7 @@ export default function Panel() {
           background: rgba(0, 0, 0, 0.5);
           align-items: center;
           justify-content: center;
-          z-index: 9999;
+          z-index: 999999;
         }
 
         .warning-modal-overlay.visible {
@@ -2918,7 +2919,7 @@ export default function Panel() {
           background: rgba(0, 0, 0, 0.5);
           align-items: center;
           justify-content: center;
-          z-index: 9999;
+          z-index: 999999;
         }
 
         .alert-modal-overlay.visible {

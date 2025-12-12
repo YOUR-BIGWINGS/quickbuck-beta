@@ -548,23 +548,150 @@
   }
   
   @keyframes lightning {
-    0%, 95%, 100% {
+    0%, 100% {
       background: transparent;
     }
-    96% {
-      background: radial-gradient(ellipse at 30% 20%, rgba(255, 255, 255, 0.15) 0%, transparent 40%);
+    4% {
+      background: 
+        radial-gradient(ellipse at 15% 10%, rgba(255, 255, 255, 0.5) 0%, transparent 25%),
+        radial-gradient(ellipse at 12% 15%, rgba(200, 220, 255, 0.3) 0%, transparent 20%);
     }
-    97% {
+    5% {
       background: transparent;
     }
-    98% {
-      background: radial-gradient(ellipse at 70% 30%, rgba(200, 220, 255, 0.2) 0%, transparent 35%);
+    6% {
+      background: radial-gradient(ellipse at 18% 8%, rgba(255, 255, 255, 0.4) 0%, transparent 30%);
     }
-    99% {
+    7%, 24% {
+      background: transparent;
+    }
+    25% {
+      background: 
+        radial-gradient(ellipse at 85% 25%, rgba(255, 255, 255, 0.55) 0%, transparent 28%),
+        radial-gradient(ellipse at 80% 30%, rgba(180, 200, 255, 0.35) 0%, transparent 22%);
+    }
+    26% {
+      background: transparent;
+    }
+    27% {
+      background: radial-gradient(ellipse at 88% 20%, rgba(255, 255, 255, 0.45) 0%, transparent 25%);
+    }
+    28%, 49% {
+      background: transparent;
+    }
+    50% {
+      background: 
+        radial-gradient(ellipse at 45% 85%, rgba(255, 255, 255, 0.5) 0%, transparent 30%),
+        radial-gradient(ellipse at 50% 80%, rgba(200, 220, 255, 0.4) 0%, transparent 25%);
+    }
+    51% {
+      background: transparent;
+    }
+    52% {
+      background: radial-gradient(ellipse at 42% 90%, rgba(255, 255, 255, 0.35) 0%, transparent 28%);
+    }
+    53%, 74% {
+      background: transparent;
+    }
+    75% {
+      background: 
+        radial-gradient(ellipse at 70% 50%, rgba(255, 255, 255, 0.6) 0%, transparent 25%),
+        radial-gradient(ellipse at 65% 55%, rgba(180, 200, 255, 0.4) 0%, transparent 20%);
+    }
+    76% {
+      background: transparent;
+    }
+    77% {
+      background: radial-gradient(ellipse at 75% 45%, rgba(255, 255, 255, 0.5) 0%, transparent 30%);
+    }
+    78% {
       background: transparent;
     }
   }
   
+  /* Additional lightning bolts with different timing */
+  .theme-storm body::after,
+  body.theme-storm::after {
+    animation: lightning 6s ease-in-out infinite !important;
+  }
+  
+  /* Second lightning layer for more random effect */
+  .theme-storm::before,
+  body.theme-storm > *:first-child::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: transparent;
+    animation: lightning2 9s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 1;
+  }
+  
+  @keyframes lightning2 {
+    0%, 100% {
+      background: transparent;
+    }
+    12% {
+      background: 
+        radial-gradient(ellipse at 5% 60%, rgba(255, 255, 255, 0.45) 0%, transparent 25%),
+        radial-gradient(ellipse at 10% 55%, rgba(200, 220, 255, 0.3) 0%, transparent 20%);
+    }
+    13% {
+      background: transparent;
+    }
+    14% {
+      background: radial-gradient(ellipse at 8% 65%, rgba(255, 255, 255, 0.35) 0%, transparent 28%);
+    }
+    15%, 37% {
+      background: transparent;
+    }
+    38% {
+      background: 
+        radial-gradient(ellipse at 95% 70%, rgba(255, 255, 255, 0.5) 0%, transparent 30%),
+        radial-gradient(ellipse at 90% 75%, rgba(180, 200, 255, 0.35) 0%, transparent 22%);
+    }
+    39% {
+      background: transparent;
+    }
+    40% {
+      background: radial-gradient(ellipse at 92% 68%, rgba(255, 255, 255, 0.4) 0%, transparent 25%);
+    }
+    41%, 62% {
+      background: transparent;
+    }
+    63% {
+      background: 
+        radial-gradient(ellipse at 30% 35%, rgba(255, 255, 255, 0.55) 0%, transparent 28%),
+        radial-gradient(ellipse at 35% 40%, rgba(200, 220, 255, 0.4) 0%, transparent 23%);
+    }
+    64% {
+      background: transparent;
+    }
+    65% {
+      background: radial-gradient(ellipse at 28% 32%, rgba(255, 255, 255, 0.45) 0%, transparent 30%);
+    }
+    66%, 87% {
+      background: transparent;
+    }
+    88% {
+      background: 
+        radial-gradient(ellipse at 60% 15%, rgba(255, 255, 255, 0.5) 0%, transparent 25%),
+        radial-gradient(ellipse at 55% 20%, rgba(180, 200, 255, 0.35) 0%, transparent 20%);
+    }
+    89% {
+      background: transparent;
+    }
+    90% {
+      background: radial-gradient(ellipse at 62% 12%, rgba(255, 255, 255, 0.4) 0%, transparent 28%);
+    }
+    91% {
+      background: transparent;
+    }
+  }
+
   /* ========================================
      VIP THEME: FULL CUSTOM
      User-customizable background, colors, and transparency

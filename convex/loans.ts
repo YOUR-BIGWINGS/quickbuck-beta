@@ -1,6 +1,10 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
+// Loan limits
+const MAX_LOAN_AMOUNT = 500000000; // $5,000,000 in cents
+const VIP_MAX_LOAN_AMOUNT = 1000000000; // $10,000,000 in cents for VIP users
+
 // Mutation: Create loan
 export const createLoan = mutation({
   args: {
@@ -9,18 +13,22 @@ export const createLoan = mutation({
     idempotencyKey: v.optional(v.string()), // For request deduplication
   },
   handler: async (ctx, args) => {
-    if (args.amount <= 0 || args.amount > 500000000) { // Max $5,000,000
-      throw new Error("Loan amount must be between $0 and $5,000,000");
+    const player = await ctx.db.get(args.playerId);
+    if (!player) {
+      throw new Error("Player not found");
+    }
+
+    // Determine max loan based on VIP status
+    const maxLoan = player.isVIP ? VIP_MAX_LOAN_AMOUNT : MAX_LOAN_AMOUNT;
+    const maxLoanDisplay = player.isVIP ? "$10,000,000" : "$5,000,000";
+
+    if (args.amount <= 0 || args.amount > maxLoan) {
+      throw new Error(`Loan amount must be between $0 and ${maxLoanDisplay}`);
     }
 
     // EXPLOIT FIX: Check if amount would cause overflow
     if (!Number.isSafeInteger(args.amount)) {
       throw new Error("Loan amount is not a safe integer");
-    }
-
-    const player = await ctx.db.get(args.playerId);
-    if (!player) {
-      throw new Error("Player not found");
     }
 
     // RACE CONDITION FIX: Check total outstanding debt to prevent excessive loans
@@ -33,8 +41,8 @@ export const createLoan = mutation({
     
     const totalOutstandingDebt = activeLoans.reduce((sum, loan) => sum + loan.remainingBalance, 0);
     
-    if (totalOutstandingDebt + args.amount > 500000000) {
-      throw new Error("Total outstanding debt would exceed maximum loan limit of $5,000,000");
+    if (totalOutstandingDebt + args.amount > maxLoan) {
+      throw new Error(`Total outstanding debt would exceed maximum loan limit of ${maxLoanDisplay}`);
     }
 
     // ENHANCED DEDUPLICATION: Check for duplicate request within last 2 seconds

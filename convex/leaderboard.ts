@@ -182,6 +182,7 @@ export const getAllPlayersSorted = query({
           userName: user?.name || "Anonymous",
           userImage: user?.image,
           rank: offset + index + 1,
+          isVIP: player.isVIP ?? false,
         };
       })
     );

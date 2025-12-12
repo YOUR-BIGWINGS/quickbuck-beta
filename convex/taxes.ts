@@ -14,6 +14,7 @@ const WEALTH_TAX_TIERS = [
 
 const TRANSACTION_TAX_RATE = 0.02; // 2% on all purchases and sales
 const EVASION_SUCCESS_RATE = 0.6; // 60% success rate (40% caught rate)
+const VIP_EVASION_BONUS = 0.1; // +10% for VIP users
 const EVASION_FINE_RATE = 0.5; // 50% of net worth if caught
 const EVASION_PROTECTION_DURATION = 7 * 24 * 60 * 60 * 1000; // 1 week in milliseconds
 
@@ -159,9 +160,14 @@ export const attemptTaxEvasion = mutation({
       throw new Error("You are already evading taxes!");
     }
 
-    // Roll the dice - 60% success, 40% caught
+    // Calculate success rate (VIP gets +10% bonus)
+    const baseRate = EVASION_SUCCESS_RATE;
+    const vipBonus = player.isVIP ? VIP_EVASION_BONUS : 0;
+    const finalSuccessRate = baseRate + vipBonus;
+
+    // Roll the dice
     const random = Math.random();
-    const success = random < EVASION_SUCCESS_RATE;
+    const success = random < finalSuccessRate;
 
     if (success) {
       // Successfully evaded!
