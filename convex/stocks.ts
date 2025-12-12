@@ -1724,7 +1724,7 @@ export const getVIPStockAnalysis = query({
       // Get recent history for analysis
       const history = await ctx.db
         .query("stockPriceHistory")
-        .withIndex("by_stockId_timestamp", (q) => q.eq("stockId", stock._id))
+        .withIndex("by_stock_time", (q) => q.eq("stockId", stock._id))
         .order("desc")
         .take(30);
 
