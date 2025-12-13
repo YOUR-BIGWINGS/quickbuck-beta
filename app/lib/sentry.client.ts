@@ -1,11 +1,14 @@
 import * as Sentry from "@sentry/react";
-import { BrowserTracing } from "@sentry/tracing";
 
 /**
  * Initialize Sentry for client-side error tracking and performance monitoring
  * This should be called as early as possible in your application
  */
 export function initializeSentryClient() {
+  // Only run on client side
+  if (typeof window === "undefined") {
+    return;
+  }
   const dsn = import.meta.env.VITE_SENTRY_DSN;
   const environment = import.meta.env.MODE;
   const isDevelopment = environment === "development";
