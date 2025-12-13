@@ -46,19 +46,14 @@ export const getTopPlayersByNetWorth = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
     const { limit = 5 } = args;
+    
+    // Use cached netWorth field instead of recalculating for every player
+    // The netWorth is updated periodically by the tick system
     const players = await ctx.db.query("players").collect();
 
-    // Calculate net worth for all players (including company equity)
-    const playersWithNetWorth = await Promise.all(
-      players.map(async (player) => {
-        const netWorth = await calculateNetWorth(ctx, player._id);
-        return { ...player, netWorth };
-      })
-    );
-
-    // Sort by net worth descending and take top N
-    const sorted = playersWithNetWorth
-      .sort((a, b) => b.netWorth - a.netWorth)
+    // Sort by cached netWorth (falls back to balance if netWorth not set)
+    const sorted = players
+      .sort((a, b) => (b.netWorth ?? b.balance) - (a.netWorth ?? a.balance))
       .slice(0, limit);
 
     // Enrich with user info
@@ -67,6 +62,7 @@ export const getTopPlayersByNetWorth = query({
         const user = await ctx.db.get(player.userId);
         return {
           ...player,
+          netWorth: player.netWorth ?? player.balance,
           userName: user?.name || "Anonymous",
           userEmail: user?.email,
           userImage: user?.image,

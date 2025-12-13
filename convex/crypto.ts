@@ -482,15 +482,15 @@ export const buyCrypto = mutation({
       throw new Error("Cannot buy more than circulating supply");
     }
 
-    // Check 1M coin limit
-    const existingWalletCheck = await ctx.db
+    // Check 1M coin limit (also reused for wallet update later)
+    const existingWallet = await ctx.db
       .query("playerCryptoWallets")
       .withIndex("by_player_crypto", (q) =>
         q.eq("playerId", player._id).eq("cryptoId", args.cryptoId)
       )
       .unique();
 
-    const currentCoins = existingWalletCheck?.balance ?? 0;
+    const currentCoins = existingWallet?.balance ?? 0;
     const newTotalCoins = currentCoins + args.amount;
 
     if (newTotalCoins > 1000000) {
@@ -556,14 +556,7 @@ export const buyCrypto = mutation({
       updatedAt: Date.now(),
     });
 
-    // Update or create wallet
-    const existingWallet = await ctx.db
-      .query("playerCryptoWallets")
-      .withIndex("by_player_crypto", (q) =>
-        q.eq("playerId", player._id).eq("cryptoId", args.cryptoId)
-      )
-      .unique();
-
+    // Update or create wallet (reuse existingWallet from earlier check)
     if (existingWallet) {
       const newBalance = existingWallet.balance + args.amount;
       const newTotalInvested = existingWallet.totalInvested + totalCost;

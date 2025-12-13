@@ -35,7 +35,7 @@ import { UserButton } from "@clerk/react-router";
 import { ThemeSettings } from "~/components/ui/theme-settings";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "~/components/ui/button";
 import { BadgeManager } from "../admin/badge-manager";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "~/components/ui/tooltip";
@@ -178,46 +178,36 @@ export function AppSidebar({
   const isModOrHigher = ["mod", "high_mod", "admin"].includes(role);
   const isVIP = currentPlayer?.isVIP === true;
 
-  // Build admin/moderation section
-  let adminItems = [];
-
-  // Moderators can access panel
-  if (isModerator) {
-    adminItems.push({
-      title: "Mod Panel",
-      url: "/panel",
-      icon: Shield,
-    });
-  }
-
-  // Build VIP section
-  let vipItems = [];
-  if (isVIP) {
-    vipItems.push({
-      title: "VIP Lounge",
-      url: "/vip",
-      icon: Crown,
-    });
-  }
-
-  // Add sections dynamically
-  let groups = [...sidebarGroups];
-
-  // Add VIP section if user is VIP
-  if (vipItems.length > 0) {
-    groups.push({
-      title: "QuickBuck+",
-      items: vipItems,
-    });
-  }
-
-  // Add admin section if there are items to show
-  if (adminItems.length > 0) {
-    groups.push({
-      title: "Admin",
-      items: adminItems,
-    });
-  }
+  // Memoize dynamic sidebar groups to prevent recreation on every render
+  const groups = useMemo(() => {
+    const result = [...sidebarGroups];
+    
+    // Add VIP section if user is VIP
+    if (isVIP) {
+      result.push({
+        title: "QuickBuck+",
+        items: [{
+          title: "VIP Lounge",
+          url: "/vip",
+          icon: Crown,
+        }],
+      });
+    }
+    
+    // Add admin section if moderator
+    if (isModerator) {
+      result.push({
+        title: "Admin",
+        items: [{
+          title: "Mod Panel",
+          url: "/panel",
+          icon: Shield,
+        }],
+      });
+    }
+    
+    return result;
+  }, [isVIP, isModerator]);
 
   return (
     <Sidebar collapsible="offcanvas" variant={variant}>

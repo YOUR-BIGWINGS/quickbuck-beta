@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo, useCallback } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "convex/_generated/api";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -38,7 +38,7 @@ export async function loader(args: Route.LoaderArgs) {
 }
 
 // Slots Game Component
-function SlotsGame({ balance }: { balance: number }) {
+const SlotsGame = memo(function SlotsGame({ balance }: { balance: number }) {
   const [betAmount, setBetAmount] = useState("10");
   const [reels, setReels] = useState<string[]>(["🍒", "🍋", "🍊"]);
   const [isSpinning, setIsSpinning] = useState(false);
@@ -197,10 +197,10 @@ function SlotsGame({ balance }: { balance: number }) {
       </CardContent>
     </Card>
   );
-}
+});
 
 // Blackjack Game Component
-function BlackjackGame({ balance }: { balance: number }) {
+const BlackjackGame = memo(function BlackjackGame({ balance }: { balance: number }) {
   const [betAmount, setBetAmount] = useState("10");
   const [gameState, setGameState] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -536,10 +536,10 @@ function BlackjackGame({ balance }: { balance: number }) {
       </CardContent>
     </Card>
   );
-}
+});
 
 // Dice Game Component
-function DiceGame({ balance }: { balance: number }) {
+const DiceGame = memo(function DiceGame({ balance }: { balance: number }) {
   const [betAmount, setBetAmount] = useState("10");
   const [prediction, setPrediction] = useState<"under" | "over" | "seven">(
     "over"
@@ -728,10 +728,10 @@ function DiceGame({ balance }: { balance: number }) {
       </CardContent>
     </Card>
   );
-}
+});
 
 // Roulette Game Component
-function RouletteGame({ balance }: { balance: number }) {
+const RouletteGame = memo(function RouletteGame({ balance }: { balance: number }) {
   const [betAmount, setBetAmount] = useState("10");
   const [betType, setBetType] = useState<
     "red" | "black" | "green" | "even" | "odd" | "low" | "high"
@@ -984,7 +984,7 @@ function RouletteGame({ balance }: { balance: number }) {
       </CardContent>
     </Card>
   );
-}
+});
 
 export default function GamblePage() {
   const { userId: clerkUserId } = useAuth();
@@ -1012,7 +1012,8 @@ export default function GamblePage() {
         // Silently fail - user is leaving anyway
       });
     };
-  }, [abandonBlackjack]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - abandonBlackjack mutation is stable
 
   return (
     <div className="flex flex-1 flex-col">

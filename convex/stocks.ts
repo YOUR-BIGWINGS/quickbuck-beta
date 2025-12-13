@@ -635,14 +635,14 @@ export const buyStock = mutation({
     }
 
     // Check existing holdings + new purchase doesn't exceed 1M shares
-    const portfolioCheck = await ctx.db
+    const existingPortfolio = await ctx.db
       .query("playerStockPortfolios")
       .withIndex("by_player_stock", (q) =>
         q.eq("playerId", player._id).eq("stockId", args.stockId)
       )
       .first();
     
-    const currentShares = portfolioCheck?.shares ?? 0;
+    const currentShares = existingPortfolio?.shares ?? 0;
     const newTotalShares = currentShares + args.shares;
     
     if (newTotalShares > 1000000) {
@@ -690,22 +690,15 @@ export const buyStock = mutation({
       updatedAt: now,
     });
     
-    // Update or create portfolio entry
-    const existingPortfolio = await ctx.db
-      .query("playerStockPortfolios")
-      .withIndex("by_player_stock", (q) =>
-        q.eq("playerId", player._id).eq("stockId", args.stockId)
-      )
-      .first();
-    
+    // Update or create portfolio entry (reuse existingPortfolio from earlier check)
     if (existingPortfolio) {
       // Update existing position
-      const newTotalShares = existingPortfolio.shares + args.shares;
+      const newShares = existingPortfolio.shares + args.shares;
       const newTotalInvested = existingPortfolio.totalInvested + totalCost;
-      const newAverageCost = Math.round(newTotalInvested / newTotalShares);
+      const newAverageCost = Math.round(newTotalInvested / newShares);
       
       await ctx.db.patch(existingPortfolio._id, {
-        shares: newTotalShares,
+        shares: newShares,
         averageCost: newAverageCost,
         totalInvested: newTotalInvested,
         updatedAt: now,

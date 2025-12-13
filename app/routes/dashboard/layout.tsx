@@ -14,7 +14,7 @@ import {
   WarningModal,
   ModeratorMessageModal,
 } from "~/components/account-status";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useMutation } from "convex/react";
 import type { Id } from "convex/_generated/dataModel";
 
@@ -74,7 +74,7 @@ export default function DashboardLayout() {
   const hasUnreadMessages =
     unreadMessages && unreadMessages.length > 0 && !dismissedMessages;
 
-  const handleMarkMessageAsRead = async (messageId: Id<"moderatorMessages">) => {
+  const handleMarkMessageAsRead = useCallback(async (messageId: Id<"moderatorMessages">) => {
     try {
       if (markMessageAsRead) {
         await markMessageAsRead({ messageId });
@@ -82,7 +82,7 @@ export default function DashboardLayout() {
     } catch (error) {
       console.error("Error marking message as read:", error);
     }
-  };
+  }, [markMessageAsRead]);
 
   return (
     <SidebarProvider

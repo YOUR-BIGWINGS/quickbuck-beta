@@ -344,55 +344,80 @@ export const searchPlayers = query({
 
     const query = args.searchQuery.toLowerCase().trim();
 
-    // Get all users
+    // Get all users and filter by name
     const users = await ctx.db.query("users").collect();
-
-    // Filter users by name
     const matchingUsers = users.filter((u) =>
       u.name?.toLowerCase().includes(query)
     );
 
-    // Get player data for matching users
-    const results = await Promise.all(
-      matchingUsers.slice(0, 10).map(async (user) => {
-        try {
-          const player = await ctx.db
-            .query("players")
-            .withIndex("by_userId", (q) => q.eq("userId", user._id))
-            .unique();
+    // Early return if no matches
+    if (matchingUsers.length === 0) return [];
 
-          if (!player) return null;
+    // Limit to first 10 matches for efficiency
+    const limitedUsers = matchingUsers.slice(0, 10);
+    
+    // Batch fetch all players for matching users in parallel
+    const playerPromises = limitedUsers.map((user) =>
+      ctx.db
+        .query("players")
+        .withIndex("by_userId", (q) => q.eq("userId", user._id))
+        .unique()
+    );
+    const players = await Promise.all(playerPromises);
 
-          // Don't show banned players
-          if (player.role === "banned") return null;
+    // Filter out null players and banned players, create user-player pairs
+    const validPairs: { user: typeof limitedUsers[0]; player: NonNullable<typeof players[0]> }[] = [];
+    for (let i = 0; i < limitedUsers.length; i++) {
+      const player = players[i];
+      if (player && player.role !== "banned") {
+        validPairs.push({ user: limitedUsers[i], player });
+      }
+    }
 
-          // Get player badges
-          const playerBadgeRecords = await ctx.db
-            .query("playerBadges")
-            .withIndex("by_playerId", (q) => q.eq("playerId", player._id))
-            .collect();
+    if (validPairs.length === 0) return [];
 
-          const playerBadges = await Promise.all(
-            playerBadgeRecords.map(async (pb) => await ctx.db.get(pb.badgeId))
-          );
+    // Batch fetch all badges for valid players
+    const badgeRecordsPromises = validPairs.map(({ player }) =>
+      ctx.db
+        .query("playerBadges")
+        .withIndex("by_playerId", (q) => q.eq("playerId", player._id))
+        .collect()
+    );
+    const allBadgeRecords = await Promise.all(badgeRecordsPromises);
 
-          return {
-            playerId: player._id,
-            playerName: user.name ?? "Anonymous",
-            role: player.role ?? "normal",
-            balance: player.balance ?? 0,
-            isVIP: player.isVIP ?? false,
-            vipExpiresAt: player.vipExpiresAt,
-            playerBadges: playerBadges.filter((b): b is NonNullable<typeof b> => b !== null && b !== undefined),
-          };
-        } catch (error) {
-          console.error("Error enriching player in search:", error);
-          return null;
-        }
-      })
+    // Collect all unique badge IDs
+    const badgeIds = new Set<Id<"badges">>();
+    for (const records of allBadgeRecords) {
+      for (const record of records) {
+        badgeIds.add(record.badgeId);
+      }
+    }
+
+    // Batch fetch all badges at once
+    const badgePromises = Array.from(badgeIds).map((id) => ctx.db.get(id));
+    const badges = await Promise.all(badgePromises);
+    const badgeMap = new Map(
+      badges
+        .filter((b): b is NonNullable<typeof b> => b !== null)
+        .map((b) => [b._id, b])
     );
 
-    return results.filter((r): r is NonNullable<typeof r> => r !== null && r !== undefined);
+    // Build results
+    return validPairs.map(({ user, player }, index) => {
+      const playerBadges = allBadgeRecords[index]
+        .map((pb) => badgeMap.get(pb.badgeId))
+        .filter((b): b is NonNullable<typeof b> => b !== undefined);
+
+      return {
+        playerId: player._id,
+        playerName: user.name ?? "Anonymous",
+        role: player.role ?? "normal",
+        balance: player.balance ?? 0,
+        isVIP: player.isVIP ?? false,
+        vipExpiresAt: player.vipExpiresAt,
+        playerBadges,
+      };
+    });
   },
 });
 

@@ -10,50 +10,67 @@ export async function calculateNetWorth(ctx: any, playerId: Id<"players">) {
 
   let netWorth = player.balance;
 
-  // Add stock holdings value
-  const stockHoldings = await ctx.db
-    .query("playerStockPortfolios")
-    .withIndex("by_playerId", (q: any) => q.eq("playerId", playerId))
-    .collect();
+  // Fetch all holdings in parallel for better performance
+  const [stockHoldings, cryptoHoldings, companies, activeLoans] = await Promise.all([
+    ctx.db
+      .query("playerStockPortfolios")
+      .withIndex("by_playerId", (q: any) => q.eq("playerId", playerId))
+      .collect(),
+    ctx.db
+      .query("playerCryptoWallets")
+      .withIndex("by_playerId", (q: any) => q.eq("playerId", playerId))
+      .collect(),
+    ctx.db
+      .query("companies")
+      .withIndex("by_ownerId", (q: any) => q.eq("ownerId", playerId))
+      .collect(),
+    ctx.db
+      .query("loans")
+      .withIndex("by_playerId", (q: any) => q.eq("playerId", playerId))
+      .filter((q: any) => q.eq(q.field("status"), "active"))
+      .collect(),
+  ]);
 
+  // Batch fetch all stocks and cryptos needed
+  const stockIds = stockHoldings.map((h: any) => h.stockId);
+  const cryptoIds = cryptoHoldings.map((h: any) => h.cryptoId);
+  
+  const [stocks, cryptos, allStocksForCompanies] = await Promise.all([
+    Promise.all(stockIds.map((id: any) => ctx.db.get(id))),
+    Promise.all(cryptoIds.map((id: any) => ctx.db.get(id))),
+    ctx.db.query("stocks").collect(),
+  ]);
+
+  // Create lookup maps for O(1) access
+  const stockMap = new Map(stocks.filter(Boolean).map((s: any) => [s._id, s]));
+  const cryptoMap = new Map(cryptos.filter(Boolean).map((c: any) => [c._id, c]));
+  const stocksByCompanyId = new Map(
+    allStocksForCompanies
+      .filter((s: any) => s.companyId !== undefined)
+      .map((s: any) => [s.companyId!, s])
+  );
+
+  // Add stock holdings value
   for (const holding of stockHoldings) {
-    const stock = await ctx.db.get(holding.stockId);
+    const stock = stockMap.get(holding.stockId);
     if (stock && stock.currentPrice !== undefined && stock.currentPrice !== null) {
       netWorth += (holding.shares ?? 0) * stock.currentPrice;
     }
   }
 
   // Add cryptocurrency holdings value
-  const cryptoHoldings = await ctx.db
-    .query("playerCryptoWallets")
-    .withIndex("by_playerId", (q: any) => q.eq("playerId", playerId))
-    .collect();
-
   for (const holding of cryptoHoldings) {
-    const crypto = await ctx.db.get(holding.cryptoId);
+    const crypto = cryptoMap.get(holding.cryptoId);
     if (crypto && crypto.currentPrice !== undefined && crypto.currentPrice !== null) {
       netWorth += (holding.balance ?? 0) * crypto.currentPrice;
     }
   }
 
   // Add company equity (owned companies)
-  const companies = await ctx.db
-    .query("companies")
-    .withIndex("by_ownerId", (q: any) => q.eq("ownerId", playerId))
-    .collect();
-
-  // Fetch all stocks once to avoid multiple queries
-  const allStocks = await ctx.db.query("stocks").collect();
-  const stocksByCompanyId = new Map<Id<"companies">, Doc<"stocks">>(
-    allStocks
-      .filter((s: Doc<"stocks">) => s.companyId !== undefined)
-      .map((s: Doc<"stocks">) => [s.companyId!, s])
-  );
-
   for (const company of companies) {
     if (company.isPublic) {
       // For public companies, use market cap from stock's current price
-      const stock = stocksByCompanyId.get(company._id);
+      const stock = stocksByCompanyId.get(company._id) as any;
       
       if (stock && stock.currentPrice !== undefined && stock.currentPrice !== null) {
         // Market cap = current price * outstanding shares
@@ -70,13 +87,6 @@ export async function calculateNetWorth(ctx: any, playerId: Id<"players">) {
   }
 
   // LOAN IMPACT: Subtract unpaid loans from net worth
-  // This reflects the player's true financial position including debt obligations
-  const activeLoans = await ctx.db
-    .query("loans")
-    .withIndex("by_playerId", (q: any) => q.eq("playerId", playerId))
-    .filter((q: any) => q.eq(q.field("status"), "active"))
-    .collect();
-
   for (const loan of activeLoans) {
     netWorth -= (loan.remainingBalance ?? 0);
   }
