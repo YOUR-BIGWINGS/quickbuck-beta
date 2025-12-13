@@ -625,13 +625,6 @@
       opacity: 0;
     }
   }
-    77% {
-      background: radial-gradient(ellipse at 75% 45%, rgba(255, 255, 255, 0.5) 0%, transparent 30%);
-    }
-    78% {
-      background: transparent;
-    }
-  }
   
   /* Additional lightning bolts with different timing */
   .theme-storm body::after,

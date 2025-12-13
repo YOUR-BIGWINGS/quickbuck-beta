@@ -16,13 +16,16 @@
       "routes/sign-up": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/success": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/maintenance": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
-      "routes/panel": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/pricing": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/rules": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/subscription": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/admin/maintenance": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/admin/diagnostics": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/admin/tick": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/admin/stocks": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/admin/wipe": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/dashboard/index": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/panel": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/leaderboard": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/messages": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/marketplace": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
@@ -35,6 +38,8 @@
       "routes/dashboard/company-marketplace": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/gamble": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/upgrades": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/taxes": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/vip": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/dashboard/accounts": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/dashboard/transfers": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/dashboard/transactions": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
@@ -103,11 +108,11 @@
           "runtime": "nodejs"
         }
       },
-      "routes/panel": {
-        "id": "routes/panel",
+      "routes/pricing": {
+        "id": "routes/pricing",
         "parentId": "root",
-        "file": "app/routes/panel.tsx",
-        "path": "panel",
+        "file": "app/routes/pricing.tsx",
+        "path": "pricing",
         "config": {
           "runtime": "nodejs"
         }
@@ -117,6 +122,15 @@
         "parentId": "root",
         "file": "app/routes/rules.tsx",
         "path": "rules",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/subscription": {
+        "id": "routes/subscription",
+        "parentId": "root",
+        "file": "app/routes/subscription.tsx",
+        "path": "subscription",
         "config": {
           "runtime": "nodejs"
         }
@@ -157,6 +171,15 @@
           "runtime": "nodejs"
         }
       },
+      "routes/admin/wipe": {
+        "id": "routes/admin/wipe",
+        "parentId": "root",
+        "file": "app/routes/admin/wipe.tsx",
+        "path": "admin/wipe",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
       "routes/dashboard/layout": {
         "id": "routes/dashboard/layout",
         "parentId": "root",
@@ -168,6 +191,15 @@
         "parentId": "routes/dashboard/layout",
         "file": "app/routes/dashboard/index.tsx",
         "path": "dashboard",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/panel": {
+        "id": "routes/panel",
+        "parentId": "routes/dashboard/layout",
+        "file": "app/routes/panel.tsx",
+        "path": "panel",
         "config": {
           "runtime": "nodejs"
         }
@@ -280,6 +312,24 @@
           "runtime": "nodejs"
         }
       },
+      "routes/taxes": {
+        "id": "routes/taxes",
+        "parentId": "routes/dashboard/layout",
+        "file": "app/routes/taxes.tsx",
+        "path": "taxes",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/vip": {
+        "id": "routes/vip",
+        "parentId": "routes/dashboard/layout",
+        "file": "app/routes/vip.tsx",
+        "path": "vip",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
       "routes/dashboard/accounts": {
         "id": "routes/dashboard/accounts",
         "parentId": "routes/dashboard/layout",
@@ -337,9 +387,9 @@
     }
   },
   "reactRouterConfig": {
-    "appDirectory": "/Users/abdul/Documents/quickbuck-V1-beta/app",
+    "appDirectory": "C:/Users/bugbr/Downloads/quickbuck-v1b-main/quickbuck-v1b-main/app",
     "basename": "/",
-    "buildDirectory": "/Users/abdul/Documents/quickbuck-V1-beta/build",
+    "buildDirectory": "C:/Users/bugbr/Downloads/quickbuck-v1b-main/quickbuck-v1b-main/build",
     "future": {
       "v8_middleware": false,
       "unstable_optimizeDeps": false,
@@ -389,17 +439,23 @@
         "file": "routes/maintenance.tsx",
         "path": "maintenance"
       },
-      "routes/panel": {
-        "id": "routes/panel",
+      "routes/pricing": {
+        "id": "routes/pricing",
         "parentId": "root",
-        "file": "routes/panel.tsx",
-        "path": "panel"
+        "file": "routes/pricing.tsx",
+        "path": "pricing"
       },
       "routes/rules": {
         "id": "routes/rules",
         "parentId": "root",
         "file": "routes/rules.tsx",
         "path": "rules"
+      },
+      "routes/subscription": {
+        "id": "routes/subscription",
+        "parentId": "root",
+        "file": "routes/subscription.tsx",
+        "path": "subscription"
       },
       "routes/admin/maintenance": {
         "id": "routes/admin/maintenance",
@@ -425,6 +481,12 @@
         "file": "routes/admin/stocks.tsx",
         "path": "admin/stocks"
       },
+      "routes/admin/wipe": {
+        "id": "routes/admin/wipe",
+        "parentId": "root",
+        "file": "routes/admin/wipe.tsx",
+        "path": "admin/wipe"
+      },
       "routes/dashboard/layout": {
         "id": "routes/dashboard/layout",
         "parentId": "root",
@@ -435,6 +497,12 @@
         "parentId": "routes/dashboard/layout",
         "file": "routes/dashboard/index.tsx",
         "path": "dashboard"
+      },
+      "routes/panel": {
+        "id": "routes/panel",
+        "parentId": "routes/dashboard/layout",
+        "file": "routes/panel.tsx",
+        "path": "panel"
       },
       "routes/leaderboard": {
         "id": "routes/leaderboard",
@@ -507,6 +575,18 @@
         "parentId": "routes/dashboard/layout",
         "file": "routes/upgrades.tsx",
         "path": "upgrades"
+      },
+      "routes/taxes": {
+        "id": "routes/taxes",
+        "parentId": "routes/dashboard/layout",
+        "file": "routes/taxes.tsx",
+        "path": "taxes"
+      },
+      "routes/vip": {
+        "id": "routes/vip",
+        "parentId": "routes/dashboard/layout",
+        "file": "routes/vip.tsx",
+        "path": "vip"
       },
       "routes/dashboard/accounts": {
         "id": "routes/dashboard/accounts",
@@ -583,12 +663,16 @@
             "path": "maintenance"
           },
           {
-            "file": "routes/panel.tsx",
-            "path": "panel"
+            "file": "routes/pricing.tsx",
+            "path": "pricing"
           },
           {
             "file": "routes/rules.tsx",
             "path": "rules"
+          },
+          {
+            "file": "routes/subscription.tsx",
+            "path": "subscription"
           },
           {
             "file": "routes/admin/maintenance.tsx",
@@ -607,11 +691,19 @@
             "path": "admin/stocks"
           },
           {
+            "file": "routes/admin/wipe.tsx",
+            "path": "admin/wipe"
+          },
+          {
             "file": "routes/dashboard/layout.tsx",
             "children": [
               {
                 "file": "routes/dashboard/index.tsx",
                 "path": "dashboard"
+              },
+              {
+                "file": "routes/panel.tsx",
+                "path": "panel"
               },
               {
                 "file": "routes/leaderboard.tsx",
@@ -660,6 +752,14 @@
               {
                 "file": "routes/upgrades.tsx",
                 "path": "upgrades"
+              },
+              {
+                "file": "routes/taxes.tsx",
+                "path": "taxes"
+              },
+              {
+                "file": "routes/vip.tsx",
+                "path": "vip"
               },
               {
                 "file": "routes/dashboard/accounts.tsx",
